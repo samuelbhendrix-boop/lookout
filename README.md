@@ -4,6 +4,12 @@ Competitive-intelligence signal tracker. Feeds in → attributed, classified, de
 
 Next.js 15 (App Router) · TypeScript · PostgreSQL · Prisma · Tailwind. Architecture, schema and API: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
+## Deploy (one click)
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/samuelbhendrix-boop/lookout)
+
+Creates one always-on service (web + worker, $7/mo) and a Postgres database ($6/mo) from `render.yaml`. Migrations run on boot. The **first account you create becomes the owner**; after that, sign-up is invite-only (Settings → Invite links). Set `OPEN_SIGNUP=true` to let anyone create a workspace.
+
 ## Run with Docker
 
 ```bash

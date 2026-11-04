@@ -8,7 +8,7 @@ const MAX_ROWS = 5000;
 /** CSV of the current feed view (same filters as GET /signals) — for decks and spreadsheets. */
 export const GET = route("VIEWER", async ({ session, req }) => {
   const filters = parseQuery(req, signalQuery.omit({ cursor: true, limit: true }));
-  const base = process.env.APP_URL ?? new URL(req.url).origin;
+  const base = process.env.APP_URL || process.env.RENDER_EXTERNAL_URL || new URL(req.url).origin;
   const rows: unknown[][] = [];
   let cursor: string | undefined;
   do {

@@ -1,0 +1,40 @@
+# One-click deploy: https://render.com/deploy?repo=<this repo's URL>
+# Default: one always-on instance running web + worker ($7/mo) and a small Postgres ($6/mo).
+# Why not free: free web services sleep after 15 min idle (feed polling stops) and free
+# Postgres is deleted after 30 days. To scale out, set RUN_WORKER=false on the web service and
+# uncomment the worker below.
+
+services:
+  - type: web
+    name: lookout
+    runtime: docker
+    plan: 0.5c-512mb
+    region: virginia
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: lookout-db
+          property: connectionString
+      - key: RUN_WORKER
+        value: "true"
+      # Optional: add ANTHROPIC_API_KEY in the Render dashboard to enable LLM classification.
+
+  # - type: worker
+  #   name: lookout-worker
+  #   runtime: docker
+  #   plan: 0.5c-512mb
+  #   region: virginia
+  #   dockerfilePath: ./Dockerfile
+  #   dockerCommand: npx tsx worker/index.ts
+  #   envVars:
+  #     - key: DATABASE_URL
+  #       fromDatabase: { name: lookout-db, property: connectionString }
+
+databases:
+  - name: lookout-db
+    plan: 0.1c-256mb
+    region: virginia
+    databaseName: lookout
+    user: lookout

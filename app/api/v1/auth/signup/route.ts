@@ -12,7 +12,9 @@ const slugify = (s: string) =>
 /**
  * Two paths:
  *  - inviteToken → user joins that workspace with the invite's role
- *  - otherwise   → user creates their own workspace as OWNER
+ *  - otherwise   → user creates their own workspace as OWNER — allowed only for the very first
+ *                  account on this instance, or when OPEN_SIGNUP=true (multi-team SaaS mode).
+ * A deployed instance is therefore invite-only by default: nobody who finds the URL can sign up.
  */
 export async function POST(req: Request) {
   try {
@@ -20,6 +22,9 @@ export async function POST(req: Request) {
     const body = await parseBody(req, signupSchema);
     if (await db.user.findUnique({ where: { email: body.email } }))
       throw new HttpError(409, "An account with that email already exists — sign in instead");
+
+    if (!body.inviteToken && process.env.OPEN_SIGNUP !== "true" && (await db.user.count()) > 0)
+      throw new HttpError(403, "Sign-ups are invite-only. Ask a workspace admin for an invite link.");
 
     const passwordHash = await hashPassword(body.password);
     const { user, workspaceId } = await db.$transaction(async (tx) => {

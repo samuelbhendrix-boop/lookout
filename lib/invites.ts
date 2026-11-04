@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import type { Prisma, Role } from "@prisma/client";
 import { db } from "./db";
+import { appUrl } from "./config";
 
 const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
 
@@ -10,7 +11,7 @@ export async function createInvite(workspaceId: string, createdById: string, rol
   const invite = await db.invite.create({
     data: { workspaceId, createdById, role, maxUses, tokenHash: sha256(token), expiresAt: new Date(Date.now() + days * 864e5) },
   });
-  return { invite, token, url: `${process.env.APP_URL ?? "http://localhost:3000"}/join/${token}` };
+  return { invite, token, url: `${appUrl()}/join/${token}` };
 }
 
 /** Looks up a usable invite by raw token (not revoked, not expired, uses left). */

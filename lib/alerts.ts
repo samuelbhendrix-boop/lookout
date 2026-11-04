@@ -2,6 +2,7 @@ import type { AlertRule, Signal } from "@prisma/client";
 import { db } from "./db";
 import { enqueue } from "./jobs";
 import { safeFetch } from "./net";
+import { appUrl } from "./config";
 
 /** Pure predicate — unit tested. All configured conditions must match (AND); empty lists = any. */
 export function ruleMatches(rule: Pick<AlertRule, "competitorIds" | "types" | "keywords" | "minImportance">, s: Pick<Signal, "competitorId" | "type" | "importance" | "title" | "summary">) {
@@ -16,7 +17,6 @@ export function ruleMatches(rule: Pick<AlertRule, "competitorIds" | "types" | "k
 }
 
 const typeLabel = (t: Signal["type"]) => (t === "M_AND_A" ? "M&A" : t.toLowerCase());
-const appUrl = () => process.env.APP_URL ?? "http://localhost:3000";
 
 /** Slack-compatible incoming-webhook POST; also works for Teams workflows and generic receivers. */
 async function postWebhook(url: string, body: unknown) {

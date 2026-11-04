@@ -19,6 +19,7 @@ jobs:
       # CI only: the smoke test runs its own feed + webhook receiver on localhost.
       ALLOW_PRIVATE_URLS: "true"
       ALLOW_HTTP_WEBHOOKS: "true"
+      OPEN_SIGNUP: "true"
       WORKER_TICK_MS: "2000"
       NEXT_TELEMETRY_DISABLED: "1"
     steps:
