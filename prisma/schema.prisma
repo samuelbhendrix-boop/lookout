@@ -1,0 +1,280 @@
+// Lookout — competitive intelligence signal tracker
+// Multi-tenant: every business row carries workspaceId. All queries are scoped through it.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Identity & tenancy ──────────────────────────────────────────────
+
+model User {
+  id           String       @id @default(cuid())
+  email        String       @unique
+  name         String?
+  passwordHash String
+  createdAt    DateTime     @default(now())
+  memberships  Membership[]
+  sessions     Session[]
+  comments     Comment[]
+  invites      Invite[]
+}
+
+model Workspace {
+  id          String       @id @default(cuid())
+  name        String
+  slug        String       @unique
+  createdAt   DateTime     @default(now())
+  memberships Membership[]
+  competitors Competitor[]
+  sources     Source[]
+  signals     Signal[]
+  tags        Tag[]
+  alertRules  AlertRule[]
+  jobs        Job[]
+  invites     Invite[]
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  ANALYST
+  VIEWER
+}
+
+model Membership {
+  id          String    @id @default(cuid())
+  userId      String
+  workspaceId String
+  role        Role      @default(ANALYST)
+  createdAt   DateTime  @default(now())
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, workspaceId])
+  @@index([workspaceId])
+}
+
+model Session {
+  id          String   @id @default(cuid())
+  tokenHash   String   @unique // sha256 of the cookie token; raw token never stored
+  userId      String
+  workspaceId String // active workspace for this session
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ─── Domain ──────────────────────────────────────────────────────────
+
+model Competitor {
+  id          String    @id @default(cuid())
+  workspaceId String
+  name        String
+  website     String?
+  // Lowercase aliases used by the matcher to attribute untagged signals ("uhc", "unitedhealthcare")
+  aliases     String[]
+  tier        Int       @default(2) // 1 = primary threat, 3 = watch list
+  notes       String?
+  createdAt   DateTime  @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  sources     Source[]
+  signals     Signal[]
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId])
+}
+
+enum SourceKind {
+  RSS
+  MANUAL
+}
+
+model Source {
+  id           String      @id @default(cuid())
+  workspaceId  String
+  competitorId String? // null = general market source; matcher attributes per item
+  name         String
+  kind         SourceKind  @default(RSS)
+  url          String?
+  enabled      Boolean     @default(true)
+  pollMinutes  Int         @default(60)
+  lastPolledAt DateTime?
+  lastError    String?
+  createdAt    DateTime    @default(now())
+  workspace    Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  competitor   Competitor? @relation(fields: [competitorId], references: [id], onDelete: SetNull)
+  signals      Signal[]
+
+  @@index([workspaceId])
+  @@index([enabled, lastPolledAt])
+}
+
+enum SignalType {
+  PRICING
+  PRODUCT
+  NETWORK
+  REGULATORY
+  LEADERSHIP
+  M_AND_A
+  PARTNERSHIP
+  FINANCIAL
+  OTHER
+}
+
+enum SignalStatus {
+  NEW
+  REVIEWED
+  ESCALATED
+  ARCHIVED
+}
+
+model Signal {
+  id            String       @id @default(cuid())
+  workspaceId   String
+  sourceId      String?
+  competitorId  String?
+  title         String
+  url           String?
+  summary       String?
+  // sha256(workspaceId + normalized url|title) — dedupes across sources and re-polls
+  dedupeKey     String
+  type          SignalType   @default(OTHER)
+  importance    Int          @default(2) // 1–5
+  status        SignalStatus @default(NEW)
+  publishedAt   DateTime?
+  // Story clustering: other outlets' coverage of the same event points at the lead signal.
+  // The feed shows leads only; alerts fire on leads only.
+  duplicateOfId String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  duplicateOf   Signal?      @relation("Coverage", fields: [duplicateOfId], references: [id], onDelete: SetNull)
+  coverage      Signal[]     @relation("Coverage")
+  workspace     Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  source        Source?      @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+  competitor    Competitor?  @relation(fields: [competitorId], references: [id], onDelete: SetNull)
+  tags          SignalTag[]
+  comments      Comment[]
+
+  @@unique([workspaceId, dedupeKey])
+  // Feed query: workspace + filters, newest first
+  @@index([workspaceId, createdAt(sort: Desc)])
+  @@index([workspaceId, status, createdAt(sort: Desc)])
+  @@index([workspaceId, competitorId, createdAt(sort: Desc)])
+  @@index([workspaceId, type, createdAt(sort: Desc)])
+  @@index([duplicateOfId])
+}
+
+model Tag {
+  id          String      @id @default(cuid())
+  workspaceId String
+  name        String
+  workspace   Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  signals     SignalTag[]
+
+  @@unique([workspaceId, name])
+}
+
+model SignalTag {
+  signalId String
+  tagId    String
+  signal   Signal @relation(fields: [signalId], references: [id], onDelete: Cascade)
+  tag      Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([signalId, tagId])
+  @@index([tagId])
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  signalId  String
+  authorId  String
+  body      String
+  createdAt DateTime @default(now())
+  signal    Signal   @relation(fields: [signalId], references: [id], onDelete: Cascade)
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([signalId, createdAt])
+}
+
+// ─── Alerting ────────────────────────────────────────────────────────
+
+enum AlertMode {
+  INSTANT // one message per matching signal
+  DIGEST_WEEKLY // one roll-up message per 7 days
+}
+
+model AlertRule {
+  id            String       @id @default(cuid())
+  workspaceId   String
+  name          String
+  enabled       Boolean      @default(true)
+  mode          AlertMode    @default(INSTANT)
+  // Match conditions — all set conditions must hold (AND). Empty = any.
+  competitorIds String[]
+  types         SignalType[]
+  keywords      String[] // case-insensitive substring on title+summary, any-of
+  minImportance Int          @default(1)
+  // Delivery: Slack-compatible incoming webhook ({ text })
+  webhookUrl    String
+  lastFiredAt   DateTime?
+  createdAt     DateTime     @default(now())
+  workspace     Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, enabled])
+  @@index([mode, enabled, lastFiredAt])
+}
+
+// ─── Background jobs (Postgres queue, FOR UPDATE SKIP LOCKED) ────────
+// Swap for BullMQ/SQS when throughput demands it; the job contract stays the same.
+
+enum JobStatus {
+  QUEUED
+  RUNNING
+  DONE
+  FAILED
+}
+
+model Job {
+  id          String    @id @default(cuid())
+  workspaceId String
+  kind        String // "poll_source" | "deliver_alert" | "send_digest"
+  payload     Json
+  status      JobStatus @default(QUEUED)
+  attempts    Int       @default(0)
+  maxAttempts Int       @default(5)
+  runAt       DateTime  @default(now())
+  lastError   String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([status, runAt])
+}
+
+// ─── Invites ─────────────────────────────────────────────────────────
+// Shareable join link; token is hashed like sessions. Multi-use until expiry/revoke so one
+// link can go in a team channel; maxUses caps it.
+
+model Invite {
+  id          String    @id @default(cuid())
+  workspaceId String
+  tokenHash   String    @unique
+  role        Role      @default(ANALYST)
+  createdById String
+  maxUses     Int       @default(25)
+  uses        Int       @default(0)
+  expiresAt   DateTime
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdBy   User      @relation(fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+}

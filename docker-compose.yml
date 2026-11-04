@@ -1,0 +1,32 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment: { POSTGRES_USER: lookout, POSTGRES_PASSWORD: lookout, POSTGRES_DB: lookout }
+    ports: ["5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U lookout"], interval: 3s, retries: 20 }
+
+  migrate:
+    build: .
+    command: npx prisma migrate deploy
+    environment: &env
+      DATABASE_URL: postgresql://lookout:lookout@db:5432/lookout?schema=public
+      APP_URL: http://localhost:3000
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    depends_on: { db: { condition: service_healthy } }
+
+  web:
+    build: .
+    environment: *env
+    ports: ["3000:3000"]
+    depends_on: { migrate: { condition: service_completed_successfully } }
+
+  worker:
+    build: .
+    command: npx tsx worker/index.ts
+    environment: *env
+    depends_on: { migrate: { condition: service_completed_successfully } }
+    deploy: { replicas: 1 } # safe to scale — jobs are claimed with SKIP LOCKED
+
+volumes:
+  pgdata:

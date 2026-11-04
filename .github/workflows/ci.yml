@@ -1,0 +1,42 @@
+name: CI
+on:
+  push: { branches: [main] }
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env: { POSTGRES_USER: lookout, POSTGRES_PASSWORD: lookout, POSTGRES_DB: lookout }
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U lookout" --health-interval 3s --health-retries 20
+    env:
+      DATABASE_URL: postgresql://lookout:lookout@localhost:5432/lookout?schema=public
+      APP_URL: http://localhost:3000
+      # CI only: the smoke test runs its own feed + webhook receiver on localhost.
+      ALLOW_PRIVATE_URLS: "true"
+      ALLOW_HTTP_WEBHOOKS: "true"
+      WORKER_TICK_MS: "2000"
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npx prisma migrate deploy
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - name: Start web + worker
+        run: |
+          npm start > web.log 2>&1 &
+          npm run worker > worker.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf localhost:3000/api/v1/health && break; sleep 1; done
+      - name: End-to-end smoke test
+        run: SMOKE_HTTP_WEBHOOKS=true npm run smoke
+      - name: Logs on failure
+        if: failure()
+        run: tail -n 100 web.log worker.log
