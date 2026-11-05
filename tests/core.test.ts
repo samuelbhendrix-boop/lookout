@@ -130,3 +130,28 @@ describe("csv", () => {
     expect(toCsv(["a", "b"], [[1, null]])).toBe("a,b\r\n1,\r\n");
   });
 });
+
+import { STARTER_PACKS } from "@/lib/starter-packs";
+import { competitorCreate } from "@/lib/validators";
+
+describe("starter packs", () => {
+  it("every competitor passes validation and has a unique name", () => {
+    for (const p of STARTER_PACKS) {
+      const names = new Set<string>();
+      for (const c of p.competitors) {
+        expect(() => competitorCreate.parse({ name: c.name, aliases: c.aliases, tier: c.tier, website: c.website })).not.toThrow();
+        expect(names.has(c.name)).toBe(false);
+        names.add(c.name);
+        expect(c.aliases.every((a) => a === a.toLowerCase())).toBe(true);
+      }
+      for (const s of p.marketSources) expect(() => new URL(s.url)).not.toThrow();
+    }
+  });
+  it("attributes common headlines to the right MA plan", () => {
+    const comps = STARTER_PACKS[0].competitors.map((c, i) => ({ id: String(i), name: c.name, aliases: c.aliases }));
+    const who = (t: string) => STARTER_PACKS[0].competitors[Number(matchCompetitor(t, comps))]?.name;
+    expect(who("Harvard Pilgrim to cut 200 jobs")).toBe("Point32Health");
+    expect(who("BCBSMA posts operating loss")).toBe("Blue Cross Blue Shield of Massachusetts");
+    expect(who("Optum buys physician group")).toBe("UnitedHealthcare");
+  });
+});

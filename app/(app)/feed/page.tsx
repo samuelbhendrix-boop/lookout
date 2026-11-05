@@ -6,6 +6,7 @@ import { signalQuery, SIGNAL_STATUSES, SIGNAL_TYPES } from "@/lib/validators";
 import { Empty, Importance, StatusDot, TypeBadge, timeAgo } from "@/components/ui";
 import { QuickTriage } from "@/components/QuickTriage";
 import { NewSignalForm } from "@/components/NewSignalForm";
+import { StarterPackButton } from "@/components/StarterPackButton";
 
 type SP = Promise<Record<string, string | undefined>>;
 
@@ -86,8 +87,14 @@ export default async function FeedPage({ searchParams }: { searchParams: SP }) {
       {items.length === 0 ? (
         <Empty title="No signals match">
           {competitors.length === 0 ? (
-            <>Start by <Link className="underline" href="/competitors">adding competitors</Link>, then <Link className="underline" href="/sources">connect sources</Link>.</>
-          ) : "Loosen the filters, or add a source."}
+            <div className="mt-3 flex flex-col items-center gap-3">
+              <p>One click sets up Massachusetts commercial health plans, the nationals, and state market news.</p>
+              {canEdit && <StarterPackButton />}
+              <p className="text-xs">
+                Or add your own <Link className="underline" href="/competitors">competitors</Link> and <Link className="underline" href="/sources">sources</Link>.
+              </p>
+            </div>
+          ) : "Loosen the filters, or wait a few minutes for new sources to be polled."}
         </Empty>
       ) : (
         <ul className="card divide-y divide-stone-100">

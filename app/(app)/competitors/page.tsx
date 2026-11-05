@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { CompetitorForm } from "@/components/forms";
 import { ActionButton } from "@/components/ActionButton";
 import { Empty } from "@/components/ui";
+import { StarterPackButton } from "@/components/StarterPackButton";
 
 export default async function CompetitorsPage() {
   const session = (await getSession())!;
@@ -30,7 +31,12 @@ export default async function CompetitorsPage() {
       </div>
       {hasRole(session.role, "ANALYST") && <CompetitorForm />}
       {competitors.length === 0 ? (
-        <Empty title="No competitors yet">Add the companies you track — then connect sources.</Empty>
+        <Empty title="No competitors yet">
+          <div className="mt-3 flex flex-col items-center gap-3">
+            <span>Add your own above, or load the Massachusetts payer set with news sources included.</span>
+            {hasRole(session.role, "ANALYST") && <StarterPackButton />}
+          </div>
+        </Empty>
       ) : (
         <div className="card overflow-x-auto">
           <table className="w-full text-sm">
