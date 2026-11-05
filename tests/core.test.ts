@@ -478,3 +478,38 @@ describe("rate snapshots", () => {
     }
   });
 });
+
+import { medicareFor, hospitalFor } from "@/lib/marketdata/mrf/medicare";
+import medicareRef from "../data/medicare/reference.json";
+import tinMap from "../data/medicare/hospital-tins.json";
+import { BENCH_CODES as BASKET } from "@/lib/marketdata/mrf/codes";
+
+describe("medicare reference", () => {
+  it("prices services by the right fee schedule", () => {
+    const visit = medicareFor("CPT", "99213", "professional");
+    expect(visit.amount).toBeGreaterThan(80);
+    expect(visit.amount).toBeLessThan(130);
+    expect(medicareFor("CPT", "80053", "professional")).toMatchObject({ amount: 10.56 });
+    expect((medicareFor("CPT", "99213", "institutional") as { method: string }).method).toMatch(/G0463/);
+    expect(medicareFor("CPT", "99385", "professional").amount).toBeNull();
+  });
+  it("uses hospital-specific inpatient factors", () => {
+    const mgh = medicareFor("APR-DRG", "302", "institutional", "042697983");
+    const state = medicareFor("APR-DRG", "302", "institutional");
+    expect(mgh.amount!).toBeGreaterThan(state.amount!); // teaching add-on
+    expect(medicareFor("APR-DRG", "560", "institutional", "042774441").amount).toBeNull(); // children's hospital, IPPS-exempt
+  });
+  it("has a Medicare weight for every inpatient basket code", () => {
+    for (const c of BASKET.filter((b) => b.type !== "CPT")) expect(medicareFor(c.type, c.code, "institutional").amount).toBeGreaterThan(1000);
+  });
+  it("hospital TIN map points at real New England hospitals in the right state", () => {
+    const prefixState: Record<string, string> = { "01": "ME", "02": "NH", "03": "VT", "04": "MA", "05": "RI", "06": "CT" };
+    const hospitals = medicareRef.hospitals as Record<string, { state: string }>;
+    for (const [tin, ccn] of Object.entries(tinMap.map)) {
+      expect(hospitals[ccn], `${tin} → ${ccn}`).toBeTruthy();
+      const st = prefixState[tin.slice(0, 2)];
+      if (st) expect(hospitals[ccn].state, `${tin} → ${ccn}`).toBe(st);
+      expect(hospitalFor(tin)).toBeTruthy();
+    }
+  });
+});

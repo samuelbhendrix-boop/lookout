@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { NotIncluded } from "@/components/NotIncluded";
+import { AUTO_FILTER_TAG, MAX_ARTICLE_AGE_DAYS } from "@/lib/relevance";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { listSignals, workspaceStats } from "@/lib/queries";
@@ -18,10 +20,11 @@ export default async function FeedPage({ searchParams }: { searchParams: SP }) {
   const parsed = signalQuery.safeParse(Object.fromEntries(Object.entries(raw).filter(([, v]) => v)));
   const filters = parsed.success ? parsed.data : signalQuery.parse({});
 
-  const [{ items, nextCursor }, stats, competitors] = await Promise.all([
+  const [{ items, nextCursor }, stats, competitors, autoFiltered] = await Promise.all([
     listSignals(session.workspaceId, filters),
     workspaceStats(session.workspaceId),
     db.competitor.findMany({ where: { workspaceId: session.workspaceId }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
+    db.signal.count({ where: { workspaceId: session.workspaceId, tags: { some: { tag: { name: AUTO_FILTER_TAG } } } } }),
   ]);
   const canEdit = session.role !== "VIEWER";
   const qs = (extra: Record<string, string>) =>
@@ -142,6 +145,11 @@ export default async function FeedPage({ searchParams }: { searchParams: SP }) {
           <Link className="btn-ghost" href={qs({ cursor: nextCursor })}>Older →</Link>
         </div>
       )}
+      <NotIncluded items={[
+        `Articles older than ${MAX_ARTICLE_AGE_DAYS} days are never ingested.`,
+        <><Link className="underline" href={`/feed?status=ARCHIVED&tag=${AUTO_FILTER_TAG}`}>{autoFiltered.toLocaleString()} feed items</Link> were auto-archived because they didn&apos;t mention a tracked competitor (market feeds) — they&apos;re kept, just out of the default view.</>,
+        "Coverage is limited to the RSS/news sources on the Sources page; paywalled trade press and social media aren't monitored.",
+      ]} />
     </div>
   );
 }

@@ -17,7 +17,13 @@ export async function GET(req: NextRequest) {
   const rows = b.providers.flatMap((p) =>
     Object.values(p.rates).map((r) => {
       const f = b.files.find((x) => x.id === r.fileId)!;
-      return { codeType, code, billingClass, carrier: f.carrierName, network: f.network, tin: p.tin, provider: p.name, npiCount: p.npiCount, negotiatedType: r.negotiatedType, median: r.median, min: r.min, max: r.max, fileDate: f.lastUpdated };
+      const mc = p.medicare;
+      return {
+        codeType, code, billingClass, carrier: f.carrierName, network: f.network, tin: p.tin, provider: p.name, npiCount: p.npiCount, negotiatedType: r.negotiatedType,
+        median: r.median, min: r.min, max: r.max, fileDate: f.lastUpdated,
+        medicare: mc.amount, pctOfMedicare: mc.amount ? Math.round((r.median / mc.amount) * 1000) / 10 : null,
+        medicareMethod: mc.amount ? mc.method : (mc as { reason: string }).reason,
+      };
     }),
   );
   if (sp.get("format") === "csv") {

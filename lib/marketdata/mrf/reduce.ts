@@ -57,13 +57,14 @@ export async function reduceRateFile(input: Readable, opts: ReduceOpts): Promise
   const tins: string[] = [];
   const names: Array<string | null> = [];
   const groups = new Map<number, number[]>();
+  const nameOf = (g: Group) => { const n = g.tin?.business_name?.trim(); return n && !/^(unknown|n\/?a|none)$/i.test(n) ? n : null; };
   const tinIdx = (g: Group) => {
     const v = (g.tin?.value ?? "").replace(/\D/g, "");
     if (!v) return -1;
     const key = g.tin?.type === "npi" ? `npi:${v}` : v.padStart(9, "0");
     let id = tinIds.get(key);
-    if (id === undefined) { id = tins.length; tinIds.set(key, id); tins.push(key); names.push(g.tin?.business_name?.trim() || null); }
-    else if (!names[id] && g.tin?.business_name) names[id] = g.tin.business_name.trim();
+    if (id === undefined) { id = tins.length; tinIds.set(key, id); tins.push(key); names.push(nameOf(g)); }
+    else if (!names[id]) names[id] = nameOf(g);
     return id;
   };
   const packGroups = (gs: Group[] = []) => {

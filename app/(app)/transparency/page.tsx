@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { NotIncluded } from "@/components/NotIncluded";
 import { db } from "@/lib/db";
 import { MRF_REGISTRY } from "@/lib/marketdata/tic";
 import { fmtInt } from "@/components/charts";
@@ -68,6 +69,12 @@ export default async function TransparencyPage() {
         Manual carriers publish through JavaScript portals or sites that can&apos;t be enumerated automatically; their links open the official file locations.
         Refreshed monthly with the rest of the market data.
       </p>
+      <NotIncluded items={[
+        "Carriers marked manual publish through JavaScript portals or unreachable sites; their employer lists aren't read.",
+        "Employer matches are by EIN against New England Form 5500 filers only; employers that don't file a 5500 (government, church, small plans) can't be matched.",
+        "UnitedHealthcare's ~69,000 employer indexes are pre-filtered by employer name, and at most 3,000 candidate indexes are opened per month.",
+        <>Negotiated-rate and allowed-amount files aren&apos;t loaded here. Regional carriers&apos; rate files are reduced to a benchmark on the <Link className="underline" href="/rates">Rates</Link> page, which lists its own exclusions.</>,
+      ]} />
     </div>
   );
 }

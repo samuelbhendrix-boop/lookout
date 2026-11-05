@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { NotIncluded } from "@/components/NotIncluded";
 import type { Segment } from "@prisma/client";
 import { getSession } from "@/lib/auth";
 import { availableYears, marketShare, rateActions } from "@/lib/marketdata/queries";
@@ -128,6 +129,13 @@ export default async function MarketPage({ searchParams }: { searchParams: Promi
           </div>
         </section>
       )}
+      <NotIncluded items={[
+        "Self-funded (ASO) employers: CMS medical loss ratio data covers fully insured business only. Massachusetts self-insured enrollment is shown from CHIA in the large-group panel; other states' self-funded markets aren't published.",
+        "Carriers with under 100 covered lives in a state/segment are left out of share; legal entities with under $250K premium show no loss ratio (run-off books produce meaningless ratios).",
+        "Loss ratios lag: the latest MLR year CMS has published, typically two years behind.",
+        "Rate filings cover ACA individual and small group only. Large-group products and rates aren't publicly filed (except Rhode Island's large-group rate actions, shown above where available).",
+        "Large-group state sources exist for MA, ME, RI and NH only; Connecticut and Vermont publish no comparable large-group carrier data.",
+      ]} />
     </div>
   );
 }

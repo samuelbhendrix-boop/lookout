@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.0 — 2026-11-04
+- **% of Medicare** on every negotiated rate, network distribution and carrier card, from CMS's 2026 physician, outpatient-hospital and lab fee schedules and the FY2027 inpatient rule. Inpatient comparisons use each hospital's own Medicare rate (wage index, teaching and safety-net add-ons) through a reviewed list of 64 New England hospital TINs.
+- **What's not included:** the Rates page lists every carrier without data, every file found but not reduced (68 this month, with reasons), prices dropped inside reduced files, comparisons excluded from the index, and services/hospitals with no Medicare comparison. Feed, Market, Employers, Transparency and competitor profiles gained "Not included" panels.
+- CSV export adds Medicare amount, % of Medicare and method. Basket: MS-DRG 247 (retired) → 322.
+
 ## 0.7.0 — 2026-11-04
 - **Negotiated rates:** new Rates page with what Mass General Brigham, Harvard Pilgrim and UnitedHealthcare pay each New England hospital and large group for ~50 benchmark services (office/ED visits, imaging, labs, procedures, surgery, maternity, inpatient APR-/MS-DRGs). Provider × carrier comparison, network-wide distributions, CSV export, monthly refresh.
 - **Carrier price index:** each carrier's rate vs peers for the same service at the same provider, overall and by category — on the Rates page and competitor profiles.

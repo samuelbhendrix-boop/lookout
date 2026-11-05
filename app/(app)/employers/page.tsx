@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { NotIncluded } from "@/components/NotIncluded";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { listEmployers } from "@/lib/marketdata/employers";
@@ -111,6 +112,14 @@ export default async function EmployersPage({ searchParams }: { searchParams: Pr
           </p>
         </div>
       )}
+      <NotIncluded items={[
+        "Government and church plans (cities, towns, states, school districts, public universities, dioceses) don't file Form 5500, so they never appear here — a large share of New England's biggest employers.",
+        "Insured plans with under 100 participants are exempt from Form 5500; this list starts at 100.",
+        "Self-funded plans name no carrier on Schedule A. The administrator is filled in only where Cigna, UnitedHealthcare or Harvard Pilgrim list the employer's EIN in their transparency files; BCBSMA, Aetna, Anthem, Tufts and others can't be checked yet.",
+        "Only each plan's most recent filing is shown; filings arrive 7–10 months after the plan year ends, so the newest data is roughly a year old.",
+        "Location is the sponsor's mailing address; national employers headquartered elsewhere are missing even if they have large New England workforces.",
+        "The page shows the 300 largest matches; CSV export returns up to 2,000.",
+      ]} />
     </div>
   );
 }

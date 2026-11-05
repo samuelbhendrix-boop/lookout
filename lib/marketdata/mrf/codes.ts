@@ -52,7 +52,7 @@ export const BENCH_CODES: BenchCode[] = [
   { code: "291", type: "MS-DRG", label: "Heart failure w/ MCC (DRG 291)", category: "Inpatient" },
   { code: "392", type: "MS-DRG", label: "GI disorders (DRG 392)", category: "Inpatient" },
   { code: "194", type: "MS-DRG", label: "Pneumonia w/ CC (DRG 194)", category: "Inpatient" },
-  { code: "247", type: "MS-DRG", label: "Coronary stent (DRG 247)", category: "Inpatient" },
+  { code: "322", type: "MS-DRG", label: "Coronary stent w/o MCC (DRG 322)", category: "Inpatient" },
   // APR-DRG (Massachusetts carriers pay inpatient on APR-DRG; rates come per severity level 1–4)
   { code: "302", type: "APR-DRG", label: "Knee joint replacement (APR 302)", category: "Inpatient" },
   { code: "301", type: "APR-DRG", label: "Hip joint replacement (APR 301)", category: "Inpatient" },

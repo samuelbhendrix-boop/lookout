@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { NotIncluded } from "@/components/NotIncluded";
 import { notFound } from "next/navigation";
 import type { Segment } from "@prisma/client";
 import { getSession, hasRole } from "@/lib/auth";
@@ -145,18 +146,19 @@ export default async function CompetitorProfilePage({
                 {pricing.index >= 1 ? "+" : "−"}{Math.abs((pricing.index - 1) * 100).toFixed(0)}%
               </p>
               <p className="text-xs text-stone-500">vs peers, same service at the same provider</p>
+              {pricing.pctMedicare != null && <p className="mt-1 text-sm"><span className="font-medium">{Math.round(pricing.pctMedicare * 100)}%</span> <span className="text-xs text-stone-500">of Medicare (median)</span></p>}
             </div>
             <div className="grid flex-1 grid-cols-2 gap-x-6 gap-y-0.5 text-xs sm:grid-cols-3">
               {pricing.byCategory.map((b) => (
                 <div key={b.category} className="flex justify-between">
                   <span className="text-stone-600">{b.category}</span>
-                  <span className="tabular-nums">{b.index >= 1 ? "+" : "−"}{Math.abs((b.index - 1) * 100).toFixed(0)}%</span>
+                  <span className="tabular-nums">{b.index >= 1 ? "+" : "−"}{Math.abs((b.index - 1) * 100).toFixed(0)}%{b.pctMedicare != null ? <span className="text-stone-400"> · {Math.round(b.pctMedicare * 100)}% M</span> : null}</span>
                 </div>
               ))}
             </div>
             <Link href="/rates" className="text-xs underline">Provider-level rates →</Link>
           </div>
-          <p className="text-xs text-stone-500">From {pricing.carrierName}&apos;s federally required rate files: {pricing.comparisons.toLocaleString()} service × provider comparisons at {pricing.providers} providers also priced by another carrier.</p>
+          <p className="text-xs text-stone-500">From {pricing.carrierName}&apos;s federally required rate files: {pricing.comparisons.toLocaleString()} service × provider comparisons at {pricing.providers} providers also priced by another carrier. &quot;M&quot; = median % of Medicare. <Link className="underline" href="/rates#not-included">What&apos;s not included</Link></p>
         </section>
       )}
 
@@ -311,6 +313,12 @@ export default async function CompetitorProfilePage({
           )}
         </div>
       </section>
+      <NotIncluded items={[
+        "Products and rate filings cover ACA individual and small group only; large-group products aren't publicly filed (the plan catalog above, where shown, comes from the carrier's own transparency index).",
+        "Employer book: Form 5500 filers with 100+ participants only — government, church and small employers are missing, and self-funded clients appear only where the carrier is named on Schedule A or lists the EIN in its transparency index.",
+        <>Price position: only services at providers also priced by another carrier; see <Link className="underline" href="/rates#not-included">Rates → What&apos;s not included</Link>.</>,
+        "Financials: fully insured business only (CMS MLR); self-funded revenue (ASO fees) isn't reported publicly.",
+      ]} />
     </div>
   );
 }
