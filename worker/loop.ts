@@ -4,8 +4,8 @@
  *  - Scheduler tick: claims due sources and digest rules, enqueues their jobs.
  *  - Job loop: claims queued jobs (SKIP LOCKED) and runs them with retry/backoff.
  */
-import { claimJobs, completeJob, enqueue, failJob, reapStaleJobs } from "../lib/jobs";
-import { claimDueSources, pollSource } from "../lib/ingest";
+import { claimJobs, completeJob, deferJob, enqueue, failJob, reapStaleJobs } from "../lib/jobs";
+import { claimDueSources, DeferJob, pollSource } from "../lib/ingest";
 import { claimDueDigests, deliverAlert, sendDigest } from "../lib/alerts";
 
 const TICK_MS = Number(process.env.WORKER_TICK_MS ?? 15_000);
@@ -45,15 +45,27 @@ async function runJob(job: Awaited<ReturnType<typeof claimJobs>>[number]) {
     }
     await completeJob(job.id);
   } catch (err) {
+    if (err instanceof DeferJob) return deferJob(job, err.delayMs);
     log(`job ${job.id} (${job.kind}) failed attempt ${job.attempts}: ${(err as Error).message}`);
     await failJob(job, err);
   }
 }
 
+/**
+ * Two independent loops so slow work never blocks fast work:
+ *  - scheduler: every TICK_MS, enqueue due polls/digests and reap stuck jobs
+ *  - dispatcher: keeps up to CONCURRENCY jobs in flight, refilling each slot the moment it frees,
+ *    so an alert never waits behind a whole batch of rate-limited feed polls.
+ */
 export async function startWorker() {
   if (running) return;
   running = true;
   log(`worker started (tick ${TICK_MS}ms, concurrency ${CONCURRENCY})`);
+  void schedulerLoop();
+  void dispatcherLoop();
+}
+
+async function schedulerLoop() {
   let lastReap = 0;
   while (running) {
     try {
@@ -62,18 +74,33 @@ export async function startWorker() {
         await reapStaleJobs();
         lastReap = Date.now();
       }
-      // Drain the queue in batches before sleeping.
-      for (;;) {
-        const jobs = await claimJobs(CONCURRENCY);
-        if (!jobs.length) break;
-        await Promise.all(jobs.map(runJob));
-      }
     } catch (err) {
-      log(`tick error: ${(err as Error).message}`);
+      log(`scheduler error: ${(err as Error).message}`);
     }
-    await new Promise((r) => setTimeout(r, TICK_MS));
+    await sleep(TICK_MS);
   }
 }
+
+let inFlight = 0;
+async function dispatcherLoop() {
+  while (running) {
+    try {
+      const free = CONCURRENCY - inFlight;
+      const jobs = free > 0 ? await claimJobs(free) : [];
+      for (const job of jobs) {
+        inFlight++;
+        void runJob(job).finally(() => inFlight--);
+      }
+      // Busy → check again soon for freed slots; idle → back off.
+      await sleep(jobs.length || inFlight >= CONCURRENCY ? 250 : 1000);
+    } catch (err) {
+      log(`dispatcher error: ${(err as Error).message}`);
+      await sleep(5000);
+    }
+  }
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export function stopWorker() {
   running = false;

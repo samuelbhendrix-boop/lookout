@@ -25,6 +25,17 @@ export default async function SourcesPage() {
         </p>
       </div>
       {canEdit && <SourceForm competitors={competitors} />}
+      {canEdit && sources.some((s) => s.enabled && s.lastError) && (
+        <div className="card flex flex-wrap items-center justify-between gap-3 border-red-200 bg-red-50 px-4 py-3 text-sm">
+          <span>
+            {sources.filter((s) => s.enabled && s.lastError).length} sources failed their last poll. Busy news providers
+            (HTTP 503/429) usually clear on retry.
+          </span>
+          <ActionButton method="POST" path="/sources/retry-failed" doneText="Queued — refresh in a few minutes" className="btn-ghost">
+            Retry failed sources
+          </ActionButton>
+        </div>
+      )}
       {sources.length === 0 ? (
         <Empty title="No sources yet">
           Tip: a Google News RSS query like <code className="font-mono text-xs">news.google.com/rss/search?q=&quot;Acme Health&quot;</code> is a fast first source.

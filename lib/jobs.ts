@@ -13,7 +13,7 @@ export async function enqueue(
 }
 
 /**
- * Atomically claims up to `limit` due jobs. FOR UPDATE SKIP LOCKED lets any number of
+ * Atomically claims up to `limit` due jobs, alerts/digests first. FOR UPDATE SKIP LOCKED lets any number of
  * worker replicas pull from the same table without double-processing.
  */
 export async function claimJobs(limit = 10): Promise<Job[]> {
@@ -22,7 +22,7 @@ export async function claimJobs(limit = 10): Promise<Job[]> {
     WHERE id IN (
       SELECT id FROM "Job"
       WHERE status = 'QUEUED' AND "runAt" <= (now() AT TIME ZONE 'UTC')
-      ORDER BY "runAt"
+      ORDER BY (kind = 'poll_source'), "runAt" -- alerts and digests jump ahead of feed polls
       FOR UPDATE SKIP LOCKED
       LIMIT ${limit}
     )
@@ -52,5 +52,13 @@ export async function reapStaleJobs(olderThanMinutes = 10) {
   return db.job.updateMany({
     where: { status: "RUNNING", updatedAt: { lt: new Date(Date.now() - olderThanMinutes * 60_000) } },
     data: { status: "QUEUED" },
+  });
+}
+
+/** Puts a job back without counting the attempt (used when a poll steps aside for rate limiting). */
+export async function deferJob(job: Job, delayMs: number) {
+  await db.job.update({
+    where: { id: job.id },
+    data: { status: "QUEUED", attempts: { decrement: 1 }, runAt: new Date(Date.now() + delayMs) },
   });
 }

@@ -168,3 +168,57 @@ describe("starter packs", () => {
     expect(who("Optum buys physician group")).toBe("UnitedHealthcare");
   });
 });
+
+import { bingFallback, politely } from "@/lib/ingest";
+
+describe("feed politeness", () => {
+  it("maps Google News searches to Bing News with the same query", () => {
+    const g = "https://news.google.com/rss/search?q=%22Harvard%20Pilgrim%22%20OR%20%22Tufts%22&hl=en-US&gl=US&ceid=US:en";
+    expect(bingFallback(g)).toBe("https://www.bing.com/news/search?format=rss&q=%22Harvard%20Pilgrim%22%20OR%20%22Tufts%22");
+    expect(bingFallback("https://kffhealthnews.org/feed/")).toBeNull();
+  });
+  it("spaces requests to the same host and runs them in order", async () => {
+    const t: number[] = [];
+    const t0 = Date.now();
+    await Promise.all([1, 2, 3].map(() => politely("https://www.bing.com/x", async () => { t.push(Date.now() - t0); })));
+    expect(t[1] - t[0]).toBeGreaterThanOrEqual(1900);
+    expect(t[2] - t[1]).toBeGreaterThanOrEqual(1900);
+  }, 10_000);
+  it("does not block different hosts on each other", async () => {
+    const t0 = Date.now();
+    await politely("https://a.example/x", async () => {});
+    await politely("https://b.example/x", async () => {});
+    expect(Date.now() - t0).toBeLessThan(400);
+  });
+});
+
+import { textOf } from "@/lib/ingest";
+
+describe("feed field coercion", () => {
+  it("handles strings, attribute objects, arrays and nulls", () => {
+    expect(textOf("Plain")).toBe("Plain");
+    expect(textOf({ _: "CMS finalizes rule", $: { type: "html" } })).toBe("CMS finalizes rule");
+    expect(textOf(["first", "second"])).toBe("first");
+    expect(textOf(undefined)).toBe("");
+    expect(textOf(2027)).toBe("2027");
+  });
+});
+
+import { linkOf } from "@/lib/ingest";
+
+describe("malformed feeds (CMS)", () => {
+  const cmsItem = {
+    title: { a: [{ _: "CMS Finalizes Home Health Rule", $: { href: "/newsroom/press-releases/hh-rule", hreflang: "en" } }] },
+    link: "https://www.cms.gov/%3Ca%20href%3D%22/newsroom/press-releases/hh-rule%22%20hreflang%3D%22en%22%3ECMS%20Finalizes%3C/a%3E",
+  };
+  it("reads the headline out of an embedded anchor", () => {
+    expect(textOf(cmsItem.title)).toBe("CMS Finalizes Home Health Rule");
+  });
+  it("repairs the link to the real article URL", () => {
+    expect(linkOf(cmsItem, "https://www.cms.gov/newsroom/rss-feeds")).toBe("https://www.cms.gov/newsroom/press-releases/hh-rule");
+  });
+  it("leaves normal links alone and resolves relative ones", () => {
+    expect(linkOf({ link: "https://x.com/a?b=1" }, "https://feed.example/rss")).toBe("https://x.com/a?b=1");
+    expect(linkOf({ link: "/news/1" }, "https://feed.example/rss")).toBe("https://feed.example/news/1");
+  });
+});

@@ -54,7 +54,9 @@ export const POST = route("ANALYST", async ({ session, req }) => {
   }
   // Stamp so the scheduler doesn't double-enqueue, then poll everything now.
   await db.source.updateMany({ where: { id: { in: newSources.map((s) => s.id) } }, data: { lastPolledAt: new Date() } });
-  for (const s of newSources) await enqueue(workspaceId, "poll_source", { sourceId: s.id });
+  // Spread first polls over a few minutes rather than one burst (aggregators throttle bursts).
+  for (const [i, s] of newSources.entries())
+    await enqueue(workspaceId, "poll_source", { sourceId: s.id }, new Date(Date.now() + i * 5000));
 
   return { competitors, sources: newSources.length };
 });
