@@ -1,10 +1,10 @@
 import type { Job, Prisma } from "@prisma/client";
 import { db } from "./db";
 
-export type JobKind = "poll_source" | "deliver_alert" | "send_digest";
+export type JobKind = "poll_source" | "deliver_alert" | "send_digest" | "import_market_data";
 
 export async function enqueue(
-  workspaceId: string,
+  workspaceId: string | null,
   kind: JobKind,
   payload: Prisma.InputJsonValue,
   runAt = new Date(),
@@ -50,7 +50,8 @@ export async function failJob(job: Job, err: unknown) {
 /** Re-queues jobs stuck in RUNNING (worker crashed mid-job). */
 export async function reapStaleJobs(olderThanMinutes = 10) {
   return db.job.updateMany({
-    where: { status: "RUNNING", updatedAt: { lt: new Date(Date.now() - olderThanMinutes * 60_000) } },
+    // Imports legitimately run long; their staleness is handled by dueImports().
+    where: { status: "RUNNING", kind: { not: "import_market_data" }, updatedAt: { lt: new Date(Date.now() - olderThanMinutes * 60_000) } },
     data: { status: "QUEUED" },
   });
 }

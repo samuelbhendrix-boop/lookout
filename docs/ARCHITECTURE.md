@@ -59,6 +59,23 @@ The deliberate bet: **the triage loop is the product**, not the scraping. Ingest
 9. **Outbound URLs are untrusted.** Feed and webhook URLs are user-supplied and fetched from inside your network. Every hop (redirects included) is DNS-resolved and rejected if it lands on private, loopback, link-local or metadata ranges; bodies are capped at 5 MB; webhooks never follow redirects. URLs are checked at creation (422) and again at fetch time.
 10. **UTC everywhere.** Raw SQL uses `now() AT TIME ZONE 'UTC'` because Prisma stores naive UTC timestamps; plain `now()` on a non-UTC Postgres would schedule jobs hours late. (Found and fixed during build.)
 
+## 2b. Public market data
+
+Competitor profiles and the Market page are built from two free CMS public use files, imported automatically by the worker and refreshed monthly:
+
+| Dataset | What it gives | Granularity |
+|---|---|---|
+| **Unified Rate Review (URRT) PUF** | Every ACA individual & small-group rate filing: products, plans, metal, network type, on/off exchange, new/renewing/terminated, rate change, enrollment, PMPM, experience loss ratio, **SERFF tracking number** | Plan × filing, all 50 states + DC |
+| **Medical Loss Ratio (MLR) PUF** | Premium, claims, covered lives, member months, broker commissions — fully insured comprehensive medical | Legal entity × state × segment (individual / small / large group) × year |
+
+Design choices:
+- **Not scraping SERFF Filing Access.** It's a session-based UI with terms we can't verify for automated use; the URRT PUF carries the same filings in structured form, with SERFF numbers linking back to the source.
+- **Shared, not per-workspace.** Public data is stored once (`RateFiling`, `RatePlan`, `MarketFinancial`) and mapped to each workspace's competitors at query time via `Competitor.issuerPattern` — a regex over legal entity names (e.g. Point32Health = `harvard pilgrim|hphc|tufts (associated|insurance|health)`). Starter packs ship curated patterns; users can edit them on the profile page.
+- **Imports run in a child process**, one dataset at a time, streaming the zip/CSV. Peak ~285 MB, isolated from the web server so a spike can't take the site down. A 0-row result is treated as a failure (CMS layout change) rather than silently empty data. Header case is normalized (CMS switched casing between years).
+- **Known limits:** large-group products are not publicly filed (large group gets financials only); MLR covers fully insured business only — self-funded/ASO is invisible; data is as fresh as CMS publications (rate filings annually + quarterly small group; MLR annually, ~10 months after year end).
+
+To add a new year: one line in `lib/marketdata/datasets.ts`.
+
 ## 3. File structure
 
 ```
@@ -85,6 +102,7 @@ lookout/
 │   ├── alerts.ts      (rule matching, instant delivery, weekly digest)
 │   ├── jobs.ts        (Postgres queue)
 │   ├── queries.ts     (feed + stats; shared by API and pages)
+│   ├── marketdata/    (datasets.ts, import.ts streaming CMS importer, run.ts child-process runner, queries.ts profiles + market share)
 │   ├── rate-limit.ts  client.ts
 ├── worker/index.ts                  # scheduler + job runner
 ├── prisma/schema.prisma  migrations/  seed.ts
@@ -135,6 +153,9 @@ Envelope: success `{ data }`, failure `{ error: { message, details? } }`. Codes:
 | POST | `/sources/:id/poll` | analyst | queues immediate poll |
 | GET/POST | `/alerts` | viewer / admin | `mode`: INSTANT \| DIGEST_WEEKLY; webhook must be HTTPS and public |
 | PATCH/DELETE | `/alerts/:id` | admin | |
+| GET | `/competitors/:id/profile?state=` | viewer | performance by segment/year, products & plans, rate filings (SERFF #), matched legal entities |
+| GET | `/market?state&segment&year` | viewer | fully insured market share by competitor + ACA rate actions |
+| GET/POST | `/market-data` | viewer / admin | import status; POST re-imports everything |
 | GET | `/stats` | viewer | untriaged, escalated, 7-day volume, by type, top competitors, failing sources |
 | GET/POST | `/members` | viewer / admin | add existing user by email |
 | GET/POST | `/invites` | admin | POST returns the join URL once |

@@ -74,18 +74,21 @@ model Session {
 // ─── Domain ──────────────────────────────────────────────────────────
 
 model Competitor {
-  id          String    @id @default(cuid())
-  workspaceId String
-  name        String
-  website     String?
+  id            String    @id @default(cuid())
+  workspaceId   String
+  name          String
+  website       String?
   // Lowercase aliases used by the matcher to attribute untagged signals ("uhc", "unitedhealthcare")
-  aliases     String[]
-  tier        Int       @default(2) // 1 = primary threat, 3 = watch list
-  notes       String?
-  createdAt   DateTime  @default(now())
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  sources     Source[]
-  signals     Signal[]
+  aliases       String[]
+  tier          Int       @default(2) // 1 = primary threat, 3 = watch list
+  notes         String?
+  // Regex (case-insensitive) matched against legal company names in public filings, e.g.
+  // "harvard pilgrim|hphc|tufts (associated|insurance)". Null → curated default or aliases.
+  issuerPattern String?
+  createdAt     DateTime  @default(now())
+  workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  sources       Source[]
+  signals       Signal[]
 
   @@unique([workspaceId, name])
   @@index([workspaceId])
@@ -242,18 +245,18 @@ enum JobStatus {
 }
 
 model Job {
-  id          String    @id @default(cuid())
-  workspaceId String
-  kind        String // "poll_source" | "deliver_alert" | "send_digest"
+  id          String     @id @default(cuid())
+  workspaceId String? // null for global jobs (public market data imports)
+  kind        String // "poll_source" | "deliver_alert" | "send_digest" | "import_market_data"
   payload     Json
-  status      JobStatus @default(QUEUED)
-  attempts    Int       @default(0)
-  maxAttempts Int       @default(5)
-  runAt       DateTime  @default(now())
+  status      JobStatus  @default(QUEUED)
+  attempts    Int        @default(0)
+  maxAttempts Int        @default(5)
+  runAt       DateTime   @default(now())
   lastError   String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  workspace   Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@index([status, runAt])
 }
@@ -277,4 +280,111 @@ model Invite {
   createdBy   User      @relation(fields: [createdById], references: [id], onDelete: Cascade)
 
   @@index([workspaceId])
+}
+
+// ─── Public market data (shared across workspaces; sourced from CMS public use files) ───
+// Mapped to a workspace's competitors at query time via Competitor.issuerPattern.
+
+/**
+ * One ACA single-risk-pool rate filing (URRT Worksheet 1): individual or small group.
+ */
+model RateFiling {
+  id               String     @id // URRT submission tracking number, e.g. URR-42690MA-2026-50
+  planYear         Int
+  serffNumber      String?
+  primaryReviewer  String? // "State" | "CMS"
+  state            String
+  hiosId           String
+  company          String
+  market           String // "Individual" | "Small Group"
+  effectiveDate    DateTime
+  expPremium       Float?
+  expClaims        Float?
+  expMemberMonths  Float?
+  projMemberMonths Float?
+  projIndexRate    Float?
+  plans            RatePlan[]
+
+  @@index([state, planYear])
+  @@index([company])
+}
+
+/**
+ * One plan within a rate filing (URRT Worksheet 2). Quarterly refilings produce one row per filing.
+ */
+model RatePlan {
+  id              String     @id @default(cuid())
+  filingId        String
+  planYear        Int
+  state           String
+  hiosId          String
+  company         String
+  market          String
+  productId       String
+  productName     String
+  planId          String
+  planName        String
+  metal           String?
+  planType        String?
+  onExchange      Boolean
+  category        String // "New" | "Renewing" | "Terminated"
+  effectiveDate   DateTime
+  rateChange      Float? // cumulative rate change for the plan, e.g. 0.1049
+  enrollment      Int? // current enrollment at filing
+  ratePmpm        Float? // current premium per member per month
+  expLossRatio    Float?
+  projPremiumPmpm Float?
+  determination   String?
+  filing          RateFiling @relation(fields: [filingId], references: [id], onDelete: Cascade)
+
+  @@unique([filingId, planId])
+  @@index([state, planYear, market])
+  @@index([company])
+  @@index([planId])
+}
+
+enum Segment {
+  INDIVIDUAL
+  SMALL_GROUP
+  LARGE_GROUP
+}
+
+/**
+ * Annual comprehensive-major-medical financials by legal entity × state × segment (CMS MLR reports).
+ */
+model MarketFinancial {
+  id           String  @id @default(cuid())
+  year         Int
+  state        String
+  hiosId       String?
+  company      String
+  naicCode     String?
+  groupName    String?
+  segment      Segment
+  premium      Float
+  claims       Float
+  coveredLives Float
+  memberMonths Float
+  brokerFees   Float
+
+  @@unique([year, state, company, segment])
+  @@index([state, year, segment])
+  @@index([company])
+}
+
+/**
+ * Import bookkeeping for each public dataset/year.
+ */
+model DataImport {
+  id         String    @id @default(cuid())
+  dataset    String // "urrt" | "mlr"
+  year       Int
+  url        String
+  status     String // "running" | "done" | "failed"
+  rows       Int       @default(0)
+  error      String?
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+
+  @@unique([dataset, year])
 }

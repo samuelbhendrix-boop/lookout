@@ -7,6 +7,8 @@
 import { claimJobs, completeJob, deferJob, enqueue, failJob, reapStaleJobs } from "../lib/jobs";
 import { claimDueSources, DeferJob, pollSource } from "../lib/ingest";
 import { claimDueDigests, deliverAlert, sendDigest } from "../lib/alerts";
+import { scheduleNextImport } from "../lib/marketdata/import";
+import { runImport } from "../lib/marketdata/run";
 
 const TICK_MS = Number(process.env.WORKER_TICK_MS ?? 15_000);
 const CONCURRENCY = Number(process.env.WORKER_CONCURRENCY ?? 5);
@@ -23,6 +25,8 @@ async function schedule() {
     await enqueue(d.workspaceId, "send_digest", { ruleId: d.id, since: new Date(since).toISOString() });
   }
   if (digests.length) log(`scheduled ${digests.length} digest(s)`);
+  const imp = await scheduleNextImport((p) => enqueue(null, "import_market_data", p));
+  if (imp) log(`scheduled market data import ${imp.dataset} ${imp.year}`);
 }
 
 async function runJob(job: Awaited<ReturnType<typeof claimJobs>>[number]) {
@@ -39,6 +43,9 @@ async function runJob(job: Awaited<ReturnType<typeof claimJobs>>[number]) {
         break;
       case "send_digest":
         await sendDigest(payload.ruleId, payload.since);
+        break;
+      case "import_market_data":
+        log(`import done — ${await runImport(payload.dataset as "urrt" | "mlr", Number(payload.year))}`);
         break;
       default:
         throw new Error(`Unknown job kind: ${job.kind}`);

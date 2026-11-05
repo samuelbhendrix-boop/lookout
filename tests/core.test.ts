@@ -222,3 +222,44 @@ describe("malformed feeds (CMS)", () => {
     expect(linkOf({ link: "/news/1" }, "https://feed.example/rss")).toBe("https://feed.example/news/1");
   });
 });
+
+import { issuerPatternFor, validatePattern, weighted, lossRatio } from "@/lib/marketdata/queries";
+import { cleanName, num, usDate } from "@/lib/marketdata/import";
+
+describe("market data helpers", () => {
+  it("uses curated patterns for known carriers and safe fallbacks otherwise", () => {
+    expect(issuerPatternFor({ name: "Point32Health", aliases: [], issuerPattern: null })).toContain("harvard pilgrim");
+    expect(issuerPatternFor({ name: "Point32Health", aliases: [], issuerPattern: "custom" })).toBe("custom");
+    const fb = issuerPatternFor({ name: "Acme Health Plan", aliases: ["acme", "acme health"], issuerPattern: null });
+    expect(new RegExp(fb, "i").test("Acme Health Plan of Vermont, Inc.")).toBe(true);
+    expect(fb.split("|")).not.toContain("acme"); // short aliases skipped
+  });
+  it("matches the real legal names of New England carriers", () => {
+    const re = (n: string) => new RegExp(issuerPatternFor({ name: n, aliases: [], issuerPattern: null }), "i");
+    expect(re("Point32Health").test("HPHC Insurance Company, Inc.")).toBe(true);
+    expect(re("Point32Health").test("Tufts Associated Health Maintenance Organization, Inc.")).toBe(true);
+    expect(re("Elevance Health (Anthem)").test("Matthew Thornton Health Plan, Inc.")).toBe(true);
+    expect(re("Cigna").test("Connecticut General Life Insurance Company")).toBe(true);
+    expect(re("Blue Cross & Blue Shield of Rhode Island").test("Blue Cross Blue Shield of Massachusetts, Inc.")).toBe(false);
+  });
+  it("rejects invalid or match-everything patterns", () => {
+    expect(validatePattern("(")).toMatch(/Invalid/);
+    expect(validatePattern(".*")).toMatch(/everything/);
+    expect(validatePattern("harvard pilgrim|hphc")).toBeNull();
+  });
+  it("weights by enrollment, falls back to simple mean, ignores nulls", () => {
+    expect(weighted([{ v: 0.1, w: 900 }, { v: 0.5, w: 100 }])).toBeCloseTo(0.14);
+    expect(weighted([{ v: 0.1, w: 0 }, { v: 0.3, w: 0 }])).toBeCloseTo(0.2);
+    expect(weighted([{ v: null, w: 5 }])).toBeNull();
+  });
+  it("suppresses loss ratios on trivial premium", () => {
+    expect(lossRatio(5000, 2000)).toBeNull();
+    expect(lossRatio(925, 1000 * 1000)).toBeCloseTo(0.000925);
+  });
+  it("parses CMS CSV quirks", () => {
+    expect(cleanName('"HMO Blue NE \\"Premier Value\\" Plan"')).toBe('HMO Blue NE "Premier Value" Plan');
+    expect(usDate("01/01/2026").toISOString()).toBe("2026-01-01T00:00:00.000Z");
+    expect(num("1,234.5")).toBe(1234.5);
+    expect(num("")).toBeNull();
+  });
+});

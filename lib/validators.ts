@@ -49,7 +49,9 @@ export const competitorCreate = z.object({
   tier: z.coerce.number().int().min(1).max(3).default(2),
   notes: z.string().max(5000).optional(),
 });
-export const competitorUpdate = competitorCreate.partial();
+export const competitorUpdate = competitorCreate.partial().extend({
+  issuerPattern: z.string().trim().max(300).nullable().optional(), // null resets to the default match
+});
 
 export const sourceCreate = z.object({
   name: z.string().trim().min(1).max(120),

@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { HttpError, parseBody, route } from "@/lib/api";
 import { competitorUpdate } from "@/lib/validators";
+import { validatePattern } from "@/lib/marketdata/queries";
 
 type P = { id: string };
 
@@ -22,6 +23,11 @@ export const GET = route<P>("VIEWER", async ({ session, params }) => {
 export const PATCH = route<P>("ANALYST", async ({ session, params, req }) => {
   await find(session.workspaceId, params.id);
   const body = await parseBody(req, competitorUpdate);
+  if (body.issuerPattern) {
+    const err = validatePattern(body.issuerPattern);
+    if (err) throw new HttpError(422, err);
+  }
+  if (body.issuerPattern === "") body.issuerPattern = null;
   return db.competitor.update({ where: { id: params.id }, data: body });
 });
 

@@ -58,7 +58,7 @@ export default async function CompetitorsPage() {
               {competitors.map((c) => (
                 <tr key={c.id}>
                   <td className="px-4 py-2.5">
-                    <Link href={`/feed?competitorId=${c.id}`} className="font-medium hover:underline">{c.name}</Link>
+                    <Link href={`/competitors/${c.id}`} className="font-medium hover:underline">{c.name}</Link>
                     {c.website && <a href={c.website} target="_blank" rel="noopener noreferrer" className="ml-2 text-xs text-stone-400 hover:text-stone-700">↗</a>}
                   </td>
                   <td className="px-4 py-2.5 font-mono">T{c.tier}</td>

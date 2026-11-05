@@ -1,6 +1,6 @@
 {
   "name": "lookout",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "Competitive intelligence signal tracker: ingest competitor sources, classify signals, triage, alert.",
   "scripts": {
@@ -15,23 +15,27 @@
     "db:deploy": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
-    "smoke": "tsx scripts/smoke.ts"
+    "smoke": "tsx scripts/smoke.ts",
+    "market:import": "tsx scripts/import-market-data.ts"
   },
   "dependencies": {
     "@prisma/client": "6.16.2",
     "bcryptjs": "2.4.3",
+    "csv-parse": "5.6.0",
     "next": "15.5.4",
     "react": "19.1.1",
     "react-dom": "19.1.1",
     "rss-parser": "3.13.0",
-    "zod": "3.25.76",
-    "tsx": "4.20.5"
+    "tsx": "4.20.5",
+    "yauzl": "3.2.0",
+    "zod": "3.25.76"
   },
   "devDependencies": {
     "@types/bcryptjs": "2.4.6",
     "@types/node": "22.18.6",
     "@types/react": "19.1.13",
     "@types/react-dom": "19.1.9",
+    "@types/yauzl": "2.10.3",
     "autoprefixer": "10.4.21",
     "postcss": "8.5.6",
     "prisma": "6.16.2",

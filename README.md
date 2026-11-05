@@ -36,13 +36,17 @@ npm run worker                  # in a second terminal — polls feeds, sends al
 4. **Settings → Invite links** — mint a link per role and drop it in your team channel.
 5. Set `ANTHROPIC_API_KEY` for LLM classification; without it, keyword rules run.
 
+## Competitor profiles & market data
+
+Click any competitor to see its performance by segment, every individual and small-group product it sells, its rate filings (with SERFF numbers), and recent news. The **Market** page shows fully insured market share by state. Both come from public CMS files that import automatically a few minutes after deploy (status: Settings → Market data). See [ARCHITECTURE.md §2b](docs/ARCHITECTURE.md) for sources and limits.
+
 ## Scripts
 
-`dev` · `build` · `start` · `worker` · `typecheck` · `test` · `smoke` · `db:migrate` · `db:deploy` · `db:seed` · `db:studio`
+`dev` · `build` · `start` · `worker` · `typecheck` · `test` · `smoke` · `market:import` · `db:migrate` · `db:deploy` · `db:seed` · `db:studio`
 
 ## Testing
 
-- `npm test` — 24 unit tests: classifier, attribution, dedupe, story clustering, alert rules, digest formatting, SSRF ranges, CSV escaping.
+- `npm test` — 41 unit tests, including market-data parsing and matching: classifier, attribution, dedupe, story clustering, alert rules, digest formatting, SSRF ranges, CSV escaping.
 - `npm run smoke` — 35 end-to-end checks against a running web + worker + Postgres. It covers auth, validation, ingestion, clustering, alerts firing once per story, digests, tenant isolation, invites and CSV. Run the app and worker with `ALLOW_PRIVATE_URLS=true ALLOW_HTTP_WEBHOOKS=true`, then `SMOKE_HTTP_WEBHOOKS=true npm run smoke`.
 - CI (`.github/workflows/ci.yml`) runs all of it on every push and PR against Postgres 16.
 

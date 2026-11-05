@@ -7,6 +7,7 @@ import { api } from "@/lib/client";
 const LINKS = [
   { href: "/feed", label: "Feed" },
   { href: "/competitors", label: "Competitors" },
+  { href: "/market", label: "Market" },
   { href: "/sources", label: "Sources" },
   { href: "/alerts", label: "Alerts" },
   { href: "/settings", label: "Settings" },

@@ -3,10 +3,12 @@ import { db } from "@/lib/db";
 import { MemberForm } from "@/components/forms";
 import { ActionButton } from "@/components/ActionButton";
 import { InviteManager } from "@/components/InviteManager";
+import { DATASETS } from "@/lib/marketdata/datasets";
 
 export default async function SettingsPage() {
   const session = (await getSession())!;
   const isAdmin = hasRole(session.role, "ADMIN");
+  const imports = await db.dataImport.findMany();
   const [members, invites] = await Promise.all([
     db.membership.findMany({
       where: { workspaceId: session.workspaceId },
@@ -47,6 +49,31 @@ export default async function SettingsPage() {
           </li>
         ))}
       </ul>
+      <h2 className="font-mono text-xs uppercase tracking-wide text-stone-500">Market data</h2>
+      <div className="card p-4 text-sm">
+        <p className="mb-3 text-stone-600">
+          Public CMS files, imported automatically and refreshed monthly: rate review filings (products, plans, SERFF numbers)
+          and medical loss ratio reports (premium, claims, covered lives by segment).
+        </p>
+        <ul className="divide-y divide-stone-100">
+          {DATASETS.map((d) => {
+            const i = imports.find((x) => x.dataset === d.dataset && x.year === d.year);
+            return (
+              <li key={`${d.dataset}${d.year}`} className="flex items-center justify-between py-1.5">
+                <span>{d.dataset === "urrt" ? "Rate filings" : "Loss ratio reports"} · {d.year}</span>
+                <span className={`font-mono text-xs ${i?.status === "failed" ? "text-red-600" : "text-stone-500"}`}>
+                  {!i ? "waiting" : i.status === "done" && i.finishedAt && i.finishedAt.getTime() > 0 ? `${i.rows.toLocaleString()} rows · ${i.finishedAt.toISOString().slice(0, 10)}` : i.status === "failed" ? `failed: ${i.error?.slice(0, 60)}` : i.status}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+        {isAdmin && (
+          <div className="mt-3">
+            <ActionButton method="POST" path="/market-data" doneText="Re-import queued" className="btn-ghost">Re-import all</ActionButton>
+          </div>
+        )}
+      </div>
       <div className="card p-4 text-sm text-stone-600">
         <p className="font-medium text-stone-900">Roles</p>
         <p className="mt-1">Viewer reads · Analyst triages, logs signals, manages competitors & sources · Admin manages alerts, members, deletes · Owner is the creator.</p>

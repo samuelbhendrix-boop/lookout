@@ -30,12 +30,15 @@ export const POST = route("ANALYST", async ({ session, req }) => {
     if (existing) {
       // Same company from another pack: keep the user's tier/notes, union the aliases.
       const merged = [...new Set([...existing.aliases, ...c.aliases])];
-      comp = merged.length === existing.aliases.length
+      comp = merged.length === existing.aliases.length && (existing.issuerPattern || !c.issuerPattern)
         ? existing
-        : await db.competitor.update({ where: { id: existing.id }, data: { aliases: merged } });
+        : await db.competitor.update({
+            where: { id: existing.id },
+            data: { aliases: merged, issuerPattern: existing.issuerPattern ?? c.issuerPattern ?? null },
+          });
     } else {
       comp = await db.competitor.create({
-        data: { workspaceId, name: c.name, aliases: c.aliases, tier: c.tier, website: c.website },
+        data: { workspaceId, name: c.name, aliases: c.aliases, tier: c.tier, website: c.website, issuerPattern: c.issuerPattern ?? null },
       });
     }
     if (!existing) competitors++;

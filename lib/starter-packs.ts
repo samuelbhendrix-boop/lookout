@@ -15,6 +15,7 @@ export type StarterCompetitor = {
   tier: 1 | 2 | 3;
   website?: string;
   query: string; // Google News query for this competitor's own source
+  issuerPattern?: string; // regex over legal company names in CMS filings
 };
 
 /**
@@ -22,21 +23,21 @@ export type StarterCompetitor = {
  * into one competitor (aliases unioned) with one state-scoped news source per pack.
  */
 const C = {
-  point32: { name: "Point32Health", aliases: ["point32health", "harvard pilgrim", "harvard pilgrim health care", "tufts health plan"], website: "https://www.point32health.org", terms: '"Point32Health" OR "Harvard Pilgrim" OR "Tufts Health Plan"' },
-  uhc: { name: "UnitedHealthcare", aliases: ["unitedhealthcare", "united healthcare", "unitedhealth", "unitedhealth group", "uhc", "optum"], website: "https://www.uhc.com", terms: '"UnitedHealthcare" OR "UnitedHealth"' },
-  aetna: { name: "Aetna", aliases: ["aetna", "cvs health"], website: "https://www.aetna.com", terms: '"Aetna"' },
-  cigna: { name: "Cigna", aliases: ["cigna", "the cigna group", "evernorth"], website: "https://www.cigna.com", terms: '"Cigna"' },
-  elevance: { name: "Elevance Health (Anthem)", aliases: ["elevance", "elevance health", "anthem", "anthem blue cross", "carelon", "wellpoint"], website: "https://www.elevancehealth.com", terms: '"Anthem" OR "Elevance Health"' },
-  centene: { name: "Centene (Ambetter)", aliases: ["centene", "ambetter", "wellcare", "health net", "nh healthy families", "celtic insurance"], website: "https://www.centene.com", terms: '"Centene" OR "Ambetter"' },
-  wellsense: { name: "WellSense Health Plan", aliases: ["wellsense", "bmc healthnet"], website: "https://www.wellsense.org", terms: '"WellSense" OR "BMC HealthNet"' },
+  point32: { name: "Point32Health", issuerPattern: "harvard pilgrim|hphc|tufts (associated|insurance|health)", aliases: ["point32health", "harvard pilgrim", "harvard pilgrim health care", "tufts health plan"], website: "https://www.point32health.org", terms: '"Point32Health" OR "Harvard Pilgrim" OR "Tufts Health Plan"' },
+  uhc: { name: "UnitedHealthcare", issuerPattern: "unitedhealthcare|united healthcare", aliases: ["unitedhealthcare", "united healthcare", "unitedhealth", "unitedhealth group", "uhc", "optum"], website: "https://www.uhc.com", terms: '"UnitedHealthcare" OR "UnitedHealth"' },
+  aetna: { name: "Aetna", issuerPattern: "aetna", aliases: ["aetna", "cvs health"], website: "https://www.aetna.com", terms: '"Aetna"' },
+  cigna: { name: "Cigna", issuerPattern: "cigna|connecticut general life", aliases: ["cigna", "the cigna group", "evernorth"], website: "https://www.cigna.com", terms: '"Cigna"' },
+  elevance: { name: "Elevance Health (Anthem)", issuerPattern: "anthem|matthew thornton|elevance|empire healthchoice|healthkeepers|wellpoint", aliases: ["elevance", "elevance health", "anthem", "anthem blue cross", "carelon", "wellpoint"], website: "https://www.elevancehealth.com", terms: '"Anthem" OR "Elevance Health"' },
+  centene: { name: "Centene (Ambetter)", issuerPattern: "celtic insurance|ambetter|centene|granite state health|health net|wellcare", aliases: ["centene", "ambetter", "wellcare", "health net", "nh healthy families", "celtic insurance"], website: "https://www.centene.com", terms: '"Centene" OR "Ambetter"' },
+  wellsense: { name: "WellSense Health Plan", issuerPattern: "boston medical center health plan|wellsense", aliases: ["wellsense", "bmc healthnet"], website: "https://www.wellsense.org", terms: '"WellSense" OR "BMC HealthNet"' },
 } as const;
 
 type Shared = (typeof C)[keyof typeof C];
 const inState = (c: Shared, tier: 1 | 2 | 3, state: string): StarterCompetitor => ({
-  name: c.name, aliases: [...c.aliases], tier, website: c.website, query: `(${c.terms}) "${state}"`,
+  name: c.name, aliases: [...c.aliases], tier, website: c.website, issuerPattern: c.issuerPattern, query: `(${c.terms}) "${state}"`,
 });
 const national = (c: Shared, tier: 1 | 2 | 3): StarterCompetitor => ({
-  name: c.name, aliases: [...c.aliases], tier, website: c.website, query: `(${c.terms}) (insurer OR "health plan" OR earnings OR "Medicare Advantage")`,
+  name: c.name, aliases: [...c.aliases], tier, website: c.website, issuerPattern: c.issuerPattern, query: `(${c.terms}) (insurer OR "health plan" OR earnings OR "Medicare Advantage")`,
 });
 
 export type StarterPack = {
@@ -53,11 +54,11 @@ export const STARTER_PACKS: StarterPack[] = [
     name: "Massachusetts",
     description: "Local plans, nationals operating in MA, and state market/regulatory news.",
     competitors: [
-      { name: "Blue Cross Blue Shield of Massachusetts", aliases: ["bcbsma", "blue cross blue shield of massachusetts", "blue cross massachusetts"], tier: 1, website: "https://www.bluecrossma.org", query: '"Blue Cross Blue Shield of Massachusetts" OR "BCBSMA"' },
+      { name: "Blue Cross Blue Shield of Massachusetts", issuerPattern: "blue cross and blue shield of massachusetts", aliases: ["bcbsma", "blue cross blue shield of massachusetts", "blue cross massachusetts"], tier: 1, website: "https://www.bluecrossma.org", query: '"Blue Cross Blue Shield of Massachusetts" OR "BCBSMA"' },
       { ...inState(C.point32, 1, "Massachusetts"), query: C.point32.terms }, // v0.2 query kept so reloading MA adds no duplicates
-      { name: "Mass General Brigham Health Plan", aliases: ["mass general brigham health plan", "allways health partners", "mgb health plan"], tier: 1, website: "https://www.massgeneralbrighamhealthplan.org", query: '"Mass General Brigham Health Plan" OR "AllWays Health Partners"' },
-      { name: "Fallon Health", aliases: ["fallon health", "fallon community health plan"], tier: 2, website: "https://www.fallonhealth.org", query: '"Fallon Health"' },
-      { name: "Health New England", aliases: ["health new england"], tier: 2, website: "https://healthnewengland.org", query: '"Health New England" insurer OR plan' },
+      { name: "Mass General Brigham Health Plan", issuerPattern: "mass general brigham|allways", aliases: ["mass general brigham health plan", "allways health partners", "mgb health plan"], tier: 1, website: "https://www.massgeneralbrighamhealthplan.org", query: '"Mass General Brigham Health Plan" OR "AllWays Health Partners"' },
+      { name: "Fallon Health", issuerPattern: "fallon", aliases: ["fallon health", "fallon community health plan"], tier: 2, website: "https://www.fallonhealth.org", query: '"Fallon Health"' },
+      { name: "Health New England", issuerPattern: "health new england", aliases: ["health new england"], tier: 2, website: "https://healthnewengland.org", query: '"Health New England" insurer OR plan' },
       { ...inState(C.wellsense, 2, "Massachusetts"), query: C.wellsense.terms },
       { ...inState(C.uhc, 1, "Massachusetts"), query: '"UnitedHealthcare" (Massachusetts OR "New England" OR employer OR commercial)' },
       { ...inState(C.aetna, 2, "Massachusetts"), query: '"Aetna" (Massachusetts OR "New England" OR employer OR commercial)' },
@@ -96,8 +97,8 @@ export const STARTER_PACKS: StarterPack[] = [
     competitors: [
       inState(C.elevance, 1, "Maine"),
       inState(C.point32, 1, "Maine"),
-      { name: "Community Health Options", aliases: ["community health options", "maine community health options"], tier: 1, website: "https://www.healthoptions.org", query: '"Community Health Options" Maine' },
-      { name: "Taro Health", aliases: ["taro health", "mending health"], tier: 2, website: "https://www.tarohealth.com", query: '"Taro Health"' },
+      { name: "Community Health Options", issuerPattern: "community health options", aliases: ["community health options", "maine community health options"], tier: 1, website: "https://www.healthoptions.org", query: '"Community Health Options" Maine' },
+      { name: "Taro Health", issuerPattern: "taro health|mending health", aliases: ["taro health", "mending health"], tier: 2, website: "https://www.tarohealth.com", query: '"Taro Health"' },
       inState(C.uhc, 2, "Maine"),
       inState(C.aetna, 3, "Maine"),
       inState(C.cigna, 3, "Maine"),
@@ -113,8 +114,8 @@ export const STARTER_PACKS: StarterPack[] = [
     name: "Rhode Island",
     description: "Carriers in OHIC's 2026 rate review (individual, small and large group), plus OHIC and HealthSource RI news.",
     competitors: [
-      { name: "Blue Cross & Blue Shield of Rhode Island", aliases: ["bcbsri", "blue cross & blue shield of rhode island", "blue cross blue shield of rhode island", "blue cross rhode island"], tier: 1, website: "https://www.bcbsri.com", query: '"Blue Cross & Blue Shield of Rhode Island" OR "BCBSRI" OR "Blue Cross Blue Shield of Rhode Island"' },
-      { name: "Neighborhood Health Plan of Rhode Island", aliases: ["neighborhood health plan", "neighborhood health plan of rhode island", "nhpri"], tier: 1, website: "https://www.nhpri.org", query: '"Neighborhood Health Plan of Rhode Island"' },
+      { name: "Blue Cross & Blue Shield of Rhode Island", issuerPattern: "blue cross.*rhode island", aliases: ["bcbsri", "blue cross & blue shield of rhode island", "blue cross blue shield of rhode island", "blue cross rhode island"], tier: 1, website: "https://www.bcbsri.com", query: '"Blue Cross & Blue Shield of Rhode Island" OR "BCBSRI" OR "Blue Cross Blue Shield of Rhode Island"' },
+      { name: "Neighborhood Health Plan of Rhode Island", issuerPattern: "neighborhood health plan of rhode island", aliases: ["neighborhood health plan", "neighborhood health plan of rhode island", "nhpri"], tier: 1, website: "https://www.nhpri.org", query: '"Neighborhood Health Plan of Rhode Island"' },
       inState(C.uhc, 1, "Rhode Island"),
       inState(C.point32, 2, "Rhode Island"),
       inState(C.aetna, 3, "Rhode Island"),
@@ -135,12 +136,12 @@ export const STARTER_PACKS: StarterPack[] = [
       national(C.elevance, 1),
       national(C.aetna, 1),
       national(C.cigna, 1),
-      { name: "Humana", aliases: ["humana", "centerwell"], tier: 2, website: "https://www.humana.com", query: '"Humana" (insurer OR earnings OR "Medicare Advantage")' },
+      { name: "Humana", issuerPattern: "humana", aliases: ["humana", "centerwell"], tier: 2, website: "https://www.humana.com", query: '"Humana" (insurer OR earnings OR "Medicare Advantage")' },
       national(C.centene, 2),
-      { name: "Molina Healthcare", aliases: ["molina", "molina healthcare"], tier: 3, website: "https://www.molinahealthcare.com", query: '"Molina Healthcare"' },
-      { name: "Oscar Health", aliases: ["oscar health"], tier: 3, website: "https://www.hioscar.com", query: '"Oscar Health"' },
-      { name: "Kaiser Permanente", aliases: ["kaiser permanente", "kaiser foundation health plan", "risant health"], tier: 3, website: "https://healthy.kaiserpermanente.org", query: '"Kaiser Permanente" OR "Risant Health"' },
-      { name: "HCSC", aliases: ["hcsc", "health care service corporation"], tier: 3, website: "https://www.hcsc.com", query: '"Health Care Service Corporation" OR "HCSC" insurer' },
+      { name: "Molina Healthcare", issuerPattern: "molina", aliases: ["molina", "molina healthcare"], tier: 3, website: "https://www.molinahealthcare.com", query: '"Molina Healthcare"' },
+      { name: "Oscar Health", issuerPattern: "oscar", aliases: ["oscar health"], tier: 3, website: "https://www.hioscar.com", query: '"Oscar Health"' },
+      { name: "Kaiser Permanente", issuerPattern: "kaiser", aliases: ["kaiser permanente", "kaiser foundation health plan", "risant health"], tier: 3, website: "https://healthy.kaiserpermanente.org", query: '"Kaiser Permanente" OR "Risant Health"' },
+      { name: "HCSC", issuerPattern: "health care service corp", aliases: ["hcsc", "health care service corporation"], tier: 3, website: "https://www.hcsc.com", query: '"Health Care Service Corporation" OR "HCSC" insurer' },
     ],
     marketSources: [
       { name: "Healthcare Dive", url: "https://www.healthcaredive.com/feeds/news/" },
@@ -164,3 +165,8 @@ export function packsWithStatus(existingSourceUrls: Set<string>) {
     loaded: p.competitors.every((c) => existingSourceUrls.has(gnews(c.query))),
   }));
 }
+
+/** Curated issuer patterns by competitor name, so competitors loaded before this field existed still match. */
+export const CURATED_ISSUER_PATTERNS: Record<string, string> = Object.fromEntries(
+  STARTER_PACKS.flatMap((p) => p.competitors).filter((c) => c.issuerPattern).map((c) => [c.name, c.issuerPattern!]),
+);
