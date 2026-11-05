@@ -60,7 +60,7 @@ export default async function SettingsPage() {
             const i = imports.find((x) => x.dataset === d.dataset && x.year === d.year);
             return (
               <li key={`${d.dataset}${d.year}`} className="flex items-center justify-between py-1.5">
-                <span>{({ urrt: "CMS rate filings", mlr: "CMS loss ratio reports", ma_chia: "MA CHIA enrollment (incl. self-insured)", state_snapshots: "ME / RI / NH large group" } as Record<string, string>)[d.dataset] ?? d.dataset} · {d.dataset === "state_snapshots" ? "v" : ""}{d.year}</span>
+                <span>{({ urrt: "CMS rate filings", mlr: "CMS loss ratio reports", ma_chia: "MA CHIA enrollment (incl. self-insured)", state_snapshots: "ME / RI / NH large group", dol_5500: "DOL Form 5500 employer plans" } as Record<string, string>)[d.dataset] ?? d.dataset} · {d.dataset === "state_snapshots" ? "v" : ""}{d.year}</span>
                 <span className={`font-mono text-xs ${i?.status === "failed" ? "text-red-600" : "text-stone-500"}`}>
                   {!i ? "waiting" : i.status === "done" && i.finishedAt && i.finishedAt.getTime() > 0 ? `${i.rows.toLocaleString()} rows · ${i.finishedAt.toISOString().slice(0, 10)}` : i.status === "failed" ? `failed: ${i.error?.slice(0, 60)}` : i.status}
                 </span>

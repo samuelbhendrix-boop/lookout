@@ -10,6 +10,7 @@ import type { Prisma, Segment } from "@prisma/client";
 import { db } from "../db";
 import { ALLOWED_DATA_HOSTS, DATASETS, REFRESH_DAYS, type Dataset } from "./datasets";
 import { importChia, importStateSnapshots } from "./state";
+import { importDol } from "./dol";
 
 // ─── helpers (exported for tests) ────────────────────────────────────
 
@@ -30,7 +31,7 @@ export const cleanName = (s: string) => s.replace(/\\"/g, '"').replace(/^"+|"+$/
 
 // ─── download + unzip (streaming) ────────────────────────────────────
 
-async function download(url: string, dir: string, name = "data.zip"): Promise<string> {
+export async function download(url: string, dir: string, name = "data.zip"): Promise<string> {
   const u = new URL(url);
   if (!ALLOWED_DATA_HOSTS.has(u.hostname)) throw new Error(`Refusing to download from ${u.hostname}`);
   const res = await fetch(url, { signal: AbortSignal.timeout(10 * 60_000), headers: { "User-Agent": "LookoutBot/0.4" } });
@@ -41,7 +42,7 @@ async function download(url: string, dir: string, name = "data.zip"): Promise<st
 }
 
 /** Streams each CSV entry whose name matches `pick` through `onRow`, one entry at a time. */
-async function eachCsv(
+export async function eachCsv(
   zipPath: string,
   pick: (name: string) => boolean,
   onRow: (entry: string, row: Record<string, string>) => Promise<void> | void,
@@ -227,6 +228,7 @@ export async function importDataset(dataset: Dataset, year: number) {
     let rows: number;
     if (dataset === "state_snapshots") rows = await importStateSnapshots();
     else if (dataset === "ma_chia") rows = await importChia(await download(def.url, dir, "chia.xlsx"));
+    else if (dataset === "dol_5500") rows = await importDol(year, def.url, dir);
     else {
       const zip = await download(def.url, dir);
       rows = dataset === "urrt" ? await importUrrt(year, zip) : await importMlr(year, zip);

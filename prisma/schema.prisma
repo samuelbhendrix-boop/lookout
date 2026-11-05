@@ -462,3 +462,55 @@ model GroupRateAction {
   @@unique([source, state, segment, planYear, carrier])
   @@index([state, segment, planYear])
 }
+
+// ─── Employer plans (DOL Form 5500 + Schedule A) ─────────────────────
+// Public filings by employer health plans (100+ participants file the full Form 5500). Gives the
+// employer → carrier → broker map, with persons covered, premium, claims, commissions, renewal month.
+
+model EmployerPlan {
+  id            String             @id @default(cuid())
+  ackId         String             @unique // DOL filing id
+  formYear      Int
+  ein           String
+  planNum       String
+  sponsor       String
+  dba           String?
+  city          String?
+  state         String
+  zip           String?
+  naics         String?
+  planName      String
+  planYearBegin DateTime
+  participants  Int?
+  /// "insured" (health insurance contract filed) | "self-funded" (benefits paid from employer assets/trust, no health contract) | "mixed"
+  funding       String
+  receivedAt    DateTime?
+  contracts     EmployerContract[]
+
+  @@index([state, planYearBegin])
+  @@index([ein, planNum])
+  @@index([sponsor])
+}
+
+model EmployerContract {
+  id             String       @id @default(cuid())
+  planId         String
+  kind           String // "health" | "stop_loss"
+  carrier        String
+  carrierNaic    String?
+  contractNum    String?
+  personsCovered Int?
+  premium        Float?
+  claims         Float?
+  brokerComm     Float?
+  brokerFees     Float?
+  policyFrom     DateTime?
+  policyTo       DateTime?
+  hmo            Boolean      @default(false)
+  ppo            Boolean      @default(false)
+  brokers        Json? // [{ name, city, state, commission, fees }]
+  plan           EmployerPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@index([carrier])
+  @@index([planId])
+}

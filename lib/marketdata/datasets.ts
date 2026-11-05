@@ -9,7 +9,7 @@
  * When CMS posts a new year, add its URL here (one line) and push; the worker imports it.
  */
 
-export type Dataset = "urrt" | "mlr" | "ma_chia" | "state_snapshots";
+export type Dataset = "urrt" | "mlr" | "ma_chia" | "state_snapshots" | "dol_5500";
 
 export const DATASETS: Array<{ dataset: Dataset; year: number; url: string }> = [
   { dataset: "urrt", year: 2025, url: "https://www.cms.gov/files/zip/py2025puf20241024.zip" },
@@ -23,12 +23,18 @@ export const DATASETS: Array<{ dataset: Dataset; year: number; url: string }> = 
   // https://www.chiamass.gov/insights-analysis/access/enrollment-in-health-insurance/
   { dataset: "ma_chia", year: 2023, url: "https://www.chiamass.gov/wp-content/uploads/2026/06/Enrollment-Trends-thru-September-2023-Databook.xlsx" },
   { dataset: "ma_chia", year: 2025, url: "https://www.chiamass.gov/wp-content/uploads/Uploads/enrollment/2025-September/Enrollment-Trends-Data-thru-September-2025-Databook.xlsx" },
+  // DOL Form 5500 + Schedule A (employer plans → carrier, broker). "Latest" files are refreshed monthly by DOL;
+  // url points at the main form file, schedules are derived from it. Filtered to DOL_STATES on import.
+  // https://www.dol.gov/agencies/ebsa/about-ebsa/our-activities/public-disclosure/foia/form-5500-datasets
+  { dataset: "dol_5500", year: 2023, url: "https://askebsa.dol.gov/FOIA%20Files/2023/Latest/F_5500_2023_Latest.zip" },
+  { dataset: "dol_5500", year: 2024, url: "https://askebsa.dol.gov/FOIA%20Files/2024/Latest/F_5500_2024_Latest.zip" },
+  { dataset: "dol_5500", year: 2025, url: "https://askebsa.dol.gov/FOIA%20Files/2025/Latest/F_5500_2025_Latest.zip" },
   // Curated ME/RI/NH large-group snapshots shipped in the repo; bump "year" (a version stamp) after editing them.
   { dataset: "state_snapshots", year: 20261104, url: "repo:data/state-large-group" },
 ];
 
 /** Downloads come only from CMS — hardcoded, never user-supplied. */
-export const ALLOWED_DATA_HOSTS = new Set(["www.cms.gov", "cms.gov", "www.chiamass.gov", "chiamass.gov"]);
+export const ALLOWED_DATA_HOSTS = new Set(["www.cms.gov", "cms.gov", "www.chiamass.gov", "chiamass.gov", "askebsa.dol.gov"]);
 
 /** Re-import a dataset after this long (CMS occasionally republishes corrected files). */
 export const REFRESH_DAYS = 30;

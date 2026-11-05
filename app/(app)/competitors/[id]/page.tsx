@@ -9,6 +9,8 @@ import { Empty, Importance, TypeBadge, timeAgo } from "@/components/ui";
 import { IssuerPatternEditor } from "@/components/IssuerPatternEditor";
 import { competitorLargeGroup } from "@/lib/marketdata/largegroup";
 import { CompetitorLargeGroup } from "@/components/LargeGroup";
+import { competitorEmployers } from "@/lib/marketdata/employers";
+import { EmployerBook } from "@/components/EmployerBook";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +30,7 @@ export default async function CompetitorProfilePage({
   const comp = await db.competitor.findFirst({ where: { id, workspaceId: session.workspaceId } });
   if (!comp) notFound();
 
-  const [profile, allStates, signals, importsDone, largeGroup] = await Promise.all([
+  const [profile, allStates, signals, importsDone, largeGroup, employers] = await Promise.all([
     competitorProfile(comp, state),
     state ? competitorProfile(comp).then((p) => p.states) : null,
     db.signal.findMany({
@@ -38,6 +40,7 @@ export default async function CompetitorProfilePage({
     }),
     db.dataImport.count({ where: { status: "done" } }),
     competitorLargeGroup(comp, state),
+    competitorEmployers(session.workspaceId, comp.id, state),
   ]);
   const lgStates = [...largeGroup.enrollment.map((e) => e.state), ...largeGroup.financials.map((f) => f.state), ...largeGroup.rateActions.map((a) => a.state)];
   const states = [...new Set([...(allStates ?? profile.states), ...(state ? [] : lgStates)])].sort();
@@ -120,6 +123,8 @@ export default async function CompetitorProfilePage({
 
       {/* ── Large group (state sources, incl. self-insured) ── */}
       <CompetitorLargeGroup data={largeGroup} serffStates={(state ? [state] : states).filter((s) => ["MA", "NH", "ME", "RI", "CT", "VT"].includes(s))} />
+
+      <EmployerBook data={employers} competitorId={comp.id} state={state} />
 
       {/* ── Products ── */}
       {profile.products.length > 0 && (

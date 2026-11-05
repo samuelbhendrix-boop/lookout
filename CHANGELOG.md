@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.0 — 2026-11-04
+- **Employers (DOL Form 5500 + Schedule A):** every New England employer health plan with 100+ participants — carrier, persons covered, premium, claims, broker and commissions, renewal month, insured vs self-funded vs mixed. Plan years 2023–2025, refreshed monthly from DOL. New Employers page with filters and CSV export; "Employer book" on competitor profiles (largest employers, top brokers, renewal calendar).
+- Curated carrier-name patterns now live in code and improve each release (saved copies cleared); broader BCBSMA and UnitedHealthcare/Optum matching.
+
 ## 0.4.0 — 2026-11-04
 - **Large group, including self-insured:** MA CHIA enrollment by carrier × fully/self-insured × group size (quarterly 2021–2025, auto-imported); Maine carrier financials with admin and underwriting gain (2023–2025); Rhode Island large-group requested vs approved rates with trend/retention assumptions (2026–2027); NH large-group shares incl. self-insured (2020–2022).
 - New "Large group" section on competitor profiles and large-group panels on the Market page; SERFF search links per state.

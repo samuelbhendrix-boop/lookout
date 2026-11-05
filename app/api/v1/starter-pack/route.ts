@@ -30,15 +30,13 @@ export const POST = route("ANALYST", async ({ session, req }) => {
     if (existing) {
       // Same company from another pack: keep the user's tier/notes, union the aliases.
       const merged = [...new Set([...existing.aliases, ...c.aliases])];
-      comp = merged.length === existing.aliases.length && (existing.issuerPattern || !c.issuerPattern)
+      comp = merged.length === existing.aliases.length
         ? existing
-        : await db.competitor.update({
-            where: { id: existing.id },
-            data: { aliases: merged, issuerPattern: existing.issuerPattern ?? c.issuerPattern ?? null },
-          });
+        : await db.competitor.update({ where: { id: existing.id }, data: { aliases: merged } });
     } else {
       comp = await db.competitor.create({
-        data: { workspaceId, name: c.name, aliases: c.aliases, tier: c.tier, website: c.website, issuerPattern: c.issuerPattern ?? null },
+        // issuerPattern stays null → the curated pattern (lib/starter-packs) applies and improves with each release.
+        data: { workspaceId, name: c.name, aliases: c.aliases, tier: c.tier, website: c.website },
       });
     }
     if (!existing) competitors++;

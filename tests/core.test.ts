@@ -350,3 +350,30 @@ describe("state large-group snapshots (guards against transcription errors)", ()
     expect(chiaFunding("Self-Insured")).toBe("SELF_INSURED");
   });
 });
+
+import { fundingFor, NON_MAJOR_MEDICAL } from "@/lib/marketdata/dol";
+import { sectorOf } from "@/lib/marketdata/employers";
+
+describe("Form 5500 employer plans", () => {
+  it("classifies funding from contracts and plan arrangement", () => {
+    expect(fundingFor({ benefitAssets: false }, [{ premium: 1_000_000 }], false)).toBe("insured");
+    expect(fundingFor({ benefitAssets: true }, [], false)).toBe("self-funded");
+    expect(fundingFor({ benefitAssets: false }, [{ premium: 0 }], false)).toBe("self-funded"); // ASO-style schedule, no premium
+    expect(fundingFor({ benefitAssets: true }, [{ premium: 5e5 }], true)).toBe("mixed");
+    // CVS-style: one small insured HMO contract, 300K participants, benefits from general assets
+    expect(fundingFor({ benefitAssets: true, participants: 300_000 }, [{ premium: 2e5, personsCovered: 900 }], false)).toBe("mixed");
+    expect(fundingFor({ benefitAssets: true, participants: 1000 }, [{ premium: 9e6, personsCovered: 950 }], false)).toBe("insured");
+    expect(fundingFor({ benefitAssets: false }, [], false)).toBe("unknown");
+  });
+  it("drops non-major-medical carriers that tick the health box", () => {
+    expect(NON_MAJOR_MEDICAL.test("METROPOLITAN LIFE INSURANCE COMPANY")).toBe(true);
+    expect(NON_MAJOR_MEDICAL.test("DELTA DENTAL OF MASSACHUSETTS")).toBe(true);
+    expect(NON_MAJOR_MEDICAL.test("BLUE CROSS BLUE SHIELD OF MASSACHUSETTS, INC.")).toBe(false);
+    expect(NON_MAJOR_MEDICAL.test("HARVARD PILGRIM HEALTH CARE")).toBe(false);
+  });
+  it("maps NAICS codes to sectors", () => {
+    expect(sectorOf("622000")).toBe("Health care");
+    expect(sectorOf("524210")).toBe("Finance & insurance");
+    expect(sectorOf(null)).toBe("Unknown");
+  });
+});
