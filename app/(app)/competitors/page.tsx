@@ -4,7 +4,8 @@ import { db } from "@/lib/db";
 import { CompetitorForm } from "@/components/forms";
 import { ActionButton } from "@/components/ActionButton";
 import { Empty } from "@/components/ui";
-import { StarterPackButton } from "@/components/StarterPackButton";
+import { StarterPacks } from "@/components/StarterPacks";
+import { packsWithStatus } from "@/lib/starter-packs";
 
 export default async function CompetitorsPage() {
   const session = (await getSession())!;
@@ -21,6 +22,9 @@ export default async function CompetitorsPage() {
       _count: { _all: true },
     }),
   ]);
+  const sourceUrls = new Set(
+    (await db.source.findMany({ where: { workspaceId: session.workspaceId }, select: { url: true } })).map((s) => s.url ?? ""),
+  );
   const last30 = Object.fromEntries(recent.map((r) => [r.competitorId, r._count._all]));
 
   return (
@@ -29,13 +33,20 @@ export default async function CompetitorsPage() {
         <h1 className="h1">Competitors</h1>
         <p className="text-sm text-stone-500">Aliases drive auto-attribution for general market sources. Be generous with them.</p>
       </div>
-      {hasRole(session.role, "ANALYST") && <CompetitorForm />}
+      {hasRole(session.role, "ANALYST") && (
+        <>
+          <CompetitorForm />
+          <details className="group" open={competitors.length === 0}>
+            <summary className="cursor-pointer list-none font-mono text-xs uppercase tracking-wide text-stone-500 hover:text-stone-900">
+              <span className="group-open:hidden">▸</span><span className="hidden group-open:inline">▾</span> Starter packs — load a whole market in one click
+            </summary>
+            <div className="mt-3"><StarterPacks packs={packsWithStatus(sourceUrls)} /></div>
+          </details>
+        </>
+      )}
       {competitors.length === 0 ? (
         <Empty title="No competitors yet">
-          <div className="mt-3 flex flex-col items-center gap-3">
-            <span>Add your own above, or load the Massachusetts payer set with news sources included.</span>
-            {hasRole(session.role, "ANALYST") && <StarterPackButton />}
-          </div>
+          Add your own above, or load a starter pack below.
         </Empty>
       ) : (
         <div className="card overflow-x-auto">

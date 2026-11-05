@@ -26,17 +26,24 @@ export const POST = route("ANALYST", async ({ session, req }) => {
 
   for (const c of pack.competitors) {
     const existing = await db.competitor.findUnique({ where: { workspaceId_name: { workspaceId, name: c.name } } });
-    const comp =
-      existing ??
-      (await db.competitor.create({
+    let comp;
+    if (existing) {
+      // Same company from another pack: keep the user's tier/notes, union the aliases.
+      const merged = [...new Set([...existing.aliases, ...c.aliases])];
+      comp = merged.length === existing.aliases.length
+        ? existing
+        : await db.competitor.update({ where: { id: existing.id }, data: { aliases: merged } });
+    } else {
+      comp = await db.competitor.create({
         data: { workspaceId, name: c.name, aliases: c.aliases, tier: c.tier, website: c.website },
-      }));
+      });
+    }
     if (!existing) competitors++;
     const url = googleNewsUrl(c.query);
     if (!existingSources.has(url)) {
       newSources.push(
         await db.source.create({
-          data: { workspaceId, competitorId: comp.id, name: `${c.name} — Google News`, url, pollMinutes: 60 },
+          data: { workspaceId, competitorId: comp.id, name: `${c.name} — ${pack.name} news`, url, pollMinutes: 60 },
         }),
       );
     }

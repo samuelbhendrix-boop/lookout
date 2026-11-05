@@ -147,6 +147,19 @@ describe("starter packs", () => {
       for (const s of p.marketSources) expect(() => new URL(s.url)).not.toThrow();
     }
   });
+  it("shared carriers keep one identity across packs", () => {
+    const byName = new Map<string, string[]>();
+    for (const p of STARTER_PACKS) for (const c of p.competitors) byName.set(c.name, [...(byName.get(c.name) ?? []), p.id]);
+    expect(byName.get("Point32Health")?.length).toBe(4); // MA, NH, ME, RI
+    expect(byName.get("UnitedHealthcare")?.length).toBe(5);
+    expect(STARTER_PACKS.map((p) => p.id)).toEqual(["ma-commercial-payers", "nh-commercial-payers", "me-commercial-payers", "ri-commercial-payers", "national-payers"]);
+  });
+  it("source URLs are unique within each pack", () => {
+    for (const p of STARTER_PACKS) {
+      const urls = [...p.competitors.map((c) => c.query), ...p.marketSources.map((s) => s.url)];
+      expect(new Set(urls).size).toBe(urls.length);
+    }
+  });
   it("attributes common headlines to the right MA plan", () => {
     const comps = STARTER_PACKS[0].competitors.map((c, i) => ({ id: String(i), name: c.name, aliases: c.aliases }));
     const who = (t: string) => STARTER_PACKS[0].competitors[Number(matchCompetitor(t, comps))]?.name;

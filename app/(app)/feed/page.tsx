@@ -6,7 +6,8 @@ import { signalQuery, SIGNAL_STATUSES, SIGNAL_TYPES } from "@/lib/validators";
 import { Empty, Importance, StatusDot, TypeBadge, timeAgo } from "@/components/ui";
 import { QuickTriage } from "@/components/QuickTriage";
 import { NewSignalForm } from "@/components/NewSignalForm";
-import { StarterPackButton } from "@/components/StarterPackButton";
+import { StarterPacks } from "@/components/StarterPacks";
+import { packsWithStatus } from "@/lib/starter-packs";
 
 type SP = Promise<Record<string, string | undefined>>;
 
@@ -88,8 +89,8 @@ export default async function FeedPage({ searchParams }: { searchParams: SP }) {
         <Empty title="No signals match">
           {competitors.length === 0 ? (
             <div className="mt-3 flex flex-col items-center gap-3">
-              <p>One click sets up Massachusetts commercial health plans, the nationals, and state market news.</p>
-              {canEdit && <StarterPackButton />}
+              <p>Pick a starter pack — each adds the carriers in that market, their news feeds, and regulator news. Load as many as you like.</p>
+              {canEdit && <div className="w-full max-w-2xl"><StarterPacks packs={packsWithStatus(new Set())} /></div>}
               <p className="text-xs">
                 Or add your own <Link className="underline" href="/competitors">competitors</Link> and <Link className="underline" href="/sources">sources</Link>.
               </p>
