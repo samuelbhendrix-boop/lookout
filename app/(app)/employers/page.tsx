@@ -28,7 +28,10 @@ export default async function EmployersPage({ searchParams }: { searchParams: Pr
           <h1 className="h1">Employers</h1>
           <p className="text-sm text-stone-500">Employer health plans from DOL Form 5500 filings — who insures them, through which broker, and when they renew.</p>
         </div>
-        <a className="btn-ghost" href={`/api/v1/employers?format=csv&${qs}`}>Export CSV</a>
+        <div className="flex gap-2">
+          <Link className="btn-ghost" href="/transparency">Transparency files</Link>
+          <a className="btn-ghost" href={`/api/v1/employers?format=csv&${qs}`}>Export CSV</a>
+        </div>
       </div>
 
       <form method="GET" className="card grid grid-cols-2 gap-2 p-3 sm:grid-cols-6">
@@ -79,11 +82,18 @@ export default async function EmployersPage({ searchParams }: { searchParams: Pr
                   <td className="px-3 py-2 text-right tabular-nums">{fmtInt(r.participants)}</td>
                   <td className="px-3 py-2 text-xs">
                     {r.funding}
-                    {r.tiCarrier && <span className="block text-stone-500">TPA: {r.tiCarrier}</span>}
+
                     {r.stopLoss.length > 0 && <span className="block text-stone-500">stop-loss: {r.stopLoss.join(", ")}</span>}
                   </td>
                   <td className="px-3 py-2 text-xs">
-                    {r.carriers.length === 0 ? <span className="text-stone-400">not disclosed</span> : r.carriers.map((c, i) => (
+                    {r.carriers.length === 0 && r.administrators.length === 0 && <span className="text-stone-400">not disclosed</span>}
+                    {r.carriers.length === 0 && r.administrators.map((a, i) => (
+                      <span key={`a${i}`} className="block" title="Found in the carrier's Transparency in Coverage index">
+                        {a.competitorId ? <Link className="font-medium hover:underline" href={`/competitors/${a.competitorId}`}>{a.competitorName}</Link> : a.carrier}
+                        <span className="ml-1 rounded bg-stone-100 px-1 text-[10px] text-stone-500">{/third/i.test(a.entityType ?? "") ? "TPA" : "TiC"}</span>
+                      </span>
+                    ))}
+                    {r.carriers.map((c, i) => (
                       <span key={i} className="block">{c.competitorId ? <Link className="font-medium hover:underline" href={`/competitors/${c.competitorId}`}>{c.competitorName}</Link> : c.carrier}{c.persons ? <span className="text-stone-400"> · {fmtInt(c.persons)}</span> : null}</span>
                     ))}
                   </td>
@@ -96,7 +106,8 @@ export default async function EmployersPage({ searchParams }: { searchParams: Pr
           </table>
           <p className="px-4 py-3 text-[11px] text-stone-400">
             Source: <a className="underline" href="https://www.dol.gov/agencies/ebsa/about-ebsa/our-activities/public-disclosure/foia/form-5500-datasets" target="_blank" rel="noopener noreferrer">DOL Form 5500 + Schedule A</a>.
-            Plans with 100+ participants; latest filing per plan. Self-funded plans often don&apos;t name their administrator. Employer location is the plan sponsor&apos;s mailing address, so national employers appear with all their participants.
+            Plans with 100+ participants; latest filing per plan. Where the 5500 doesn&apos;t name a carrier, the administrator comes from carriers&apos;
+            <Link className="underline" href="/transparency"> Transparency in Coverage files</Link> (tagged TPA/TiC), matched by employer EIN. Employer location is the plan sponsor&apos;s mailing address, so national employers appear with all their participants.
           </p>
         </div>
       )}

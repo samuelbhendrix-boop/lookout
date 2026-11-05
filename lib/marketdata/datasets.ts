@@ -9,7 +9,7 @@
  * When CMS posts a new year, add its URL here (one line) and push; the worker imports it.
  */
 
-export type Dataset = "urrt" | "mlr" | "ma_chia" | "state_snapshots" | "dol_5500";
+export type Dataset = "urrt" | "mlr" | "ma_chia" | "state_snapshots" | "dol_5500" | "tic";
 
 export const DATASETS: Array<{ dataset: Dataset; year: number; url: string }> = [
   { dataset: "urrt", year: 2025, url: "https://www.cms.gov/files/zip/py2025puf20241024.zip" },
@@ -29,6 +29,8 @@ export const DATASETS: Array<{ dataset: Dataset; year: number; url: string }> = 
   { dataset: "dol_5500", year: 2023, url: "https://askebsa.dol.gov/FOIA%20Files/2023/Latest/F_5500_2023_Latest.zip" },
   { dataset: "dol_5500", year: 2024, url: "https://askebsa.dol.gov/FOIA%20Files/2024/Latest/F_5500_2024_Latest.zip" },
   { dataset: "dol_5500", year: 2025, url: "https://askebsa.dol.gov/FOIA%20Files/2025/Latest/F_5500_2025_Latest.zip" },
+  // Transparency in Coverage indexes for every carrier in lib/marketdata/tic.ts (runs after Form 5500, monthly).
+  { dataset: "tic", year: 1, url: "registry:lib/marketdata/tic.ts" },
   // Curated ME/RI/NH large-group snapshots shipped in the repo; bump "year" (a version stamp) after editing them.
   { dataset: "state_snapshots", year: 20261104, url: "repo:data/state-large-group" },
 ];

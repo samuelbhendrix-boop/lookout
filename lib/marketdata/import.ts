@@ -11,6 +11,7 @@ import { db } from "../db";
 import { ALLOWED_DATA_HOSTS, DATASETS, REFRESH_DAYS, type Dataset } from "./datasets";
 import { importChia, importStateSnapshots } from "./state";
 import { importDol } from "./dol";
+import { importTransparency } from "./tic";
 
 // ─── helpers (exported for tests) ────────────────────────────────────
 
@@ -229,6 +230,7 @@ export async function importDataset(dataset: Dataset, year: number) {
     if (dataset === "state_snapshots") rows = await importStateSnapshots();
     else if (dataset === "ma_chia") rows = await importChia(await download(def.url, dir, "chia.xlsx"));
     else if (dataset === "dol_5500") rows = await importDol(year, def.url, dir);
+    else if (dataset === "tic") rows = await importTransparency();
     else {
       const zip = await download(def.url, dir);
       rows = dataset === "urrt" ? await importUrrt(year, zip) : await importMlr(year, zip);

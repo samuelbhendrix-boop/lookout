@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.0 — 2026-11-04
+- **Transparency in Coverage files:** reads payer machine-readable tables of contents monthly (Cigna, UnitedHealthcare, Harvard Pilgrim, Mass General Brigham automated; 8 regional/national carriers linked). Matches EINs to New England employers to name the administrator of self-funded plans (Cigna 320, UHC 87, Harvard Pilgrim 28 employers).
+- New Transparency page with per-carrier file inventory (plans, index files, rate-file volume); Employers page shows TiC administrators (TPA badge) and filters by them; competitor profiles get a plan catalog from the carrier's own index, including large-group products.
+- MA products labeled "Merged" market (MA files individual + small group together).
+
 ## 0.5.0 — 2026-11-04
 - **Employers (DOL Form 5500 + Schedule A):** every New England employer health plan with 100+ participants — carrier, persons covered, premium, claims, broker and commissions, renewal month, insured vs self-funded vs mixed. Plan years 2023–2025, refreshed monthly from DOL. New Employers page with filters and CSV export; "Employer book" on competitor profiles (largest employers, top brokers, renewal calendar).
 - Curated carrier-name patterns now live in code and improve each release (saved copies cleared); broader BCBSMA and UnitedHealthcare/Optum matching.

@@ -514,3 +514,37 @@ model EmployerContract {
   @@index([carrier])
   @@index([planId])
 }
+
+// ─── Transparency in Coverage machine-readable files ─────────────────
+// Every insurer/TPA must publish monthly table-of-contents files listing each plan it covers or
+// administers — including self-funded employer plans, by employer EIN. Matched to Form 5500 EINs,
+// this names the administrator of self-funded plans that their 5500 doesn't disclose.
+
+model PlanAdministration {
+  id              String    @id @default(cuid())
+  carrier         String // canonical carrier name (matched by issuer patterns)
+  reportingEntity String
+  entityType      String? // "Health Insurance Issuer" | "Third-Party Administrator" …
+  ein             String
+  sponsorName     String?
+  planName        String
+  marketType      String?
+  tocUrl          String?
+  asOf            DateTime?
+  fetchedAt       DateTime  @default(now())
+
+  @@unique([carrier, ein, planName])
+  @@index([ein])
+}
+
+/**
+ * Registry + latest examination results for each carrier's machine-readable files.
+ */
+model MrfSource {
+  id        String    @id // registry key, e.g. "cigna"
+  carrier   String
+  status    String // "ok" | "failed" | "manual"
+  lastRunAt DateTime?
+  error     String?
+  stats     Json?
+}

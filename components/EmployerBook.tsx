@@ -12,7 +12,7 @@ export function EmployerBook({ data, competitorId, state }: { data: Awaited<Retu
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
           <h2 className="text-lg font-semibold tracking-tight">Employer book</h2>
-          <p className="text-xs text-stone-500">Employers naming this carrier on their Form 5500 health insurance schedule (New England sponsors, 100+ participants).</p>
+          <p className="text-xs text-stone-500">New England employers (100+ participants) naming this carrier on their Form 5500, or listed in its Transparency in Coverage files as an insured or administered (ASO) plan.</p>
         </div>
         <Link className="btn-ghost" href={`/employers?competitorId=${competitorId}${state ? `&state=${state}` : ""}`}>All employers →</Link>
       </div>
@@ -20,7 +20,7 @@ export function EmployerBook({ data, competitorId, state }: { data: Awaited<Retu
         <div className="card p-4">
           <p className="font-mono text-[11px] uppercase tracking-wide text-stone-500">Employers</p>
           <p className="text-2xl font-semibold tabular-nums">{fmtInt(data.employers)}</p>
-          <p className="text-xs text-stone-500">{fmtInt(data.persons)} persons covered · {data.insured} with premium reported</p>
+          <p className="text-xs text-stone-500">{fmtInt(data.persons)} persons covered · {data.insured} with premium reported{data.viaTransparency ? ` · ${data.viaTransparency} self-funded clients found via transparency files` : ""}</p>
         </div>
         <div className="card p-4">
           <p className="font-mono text-[11px] uppercase tracking-wide text-stone-500">Renewal months</p>
@@ -52,7 +52,9 @@ export function EmployerBook({ data, competitorId, state }: { data: Awaited<Retu
               <tr key={r.id}>
                 <td className="px-3 py-1.5"><span className="font-medium">{r.sponsor}</span> <span className="text-xs text-stone-500">{r.city}, {r.state}</span></td>
                 <td className="px-3 py-1.5 text-xs text-stone-600">{r.sector}</td>
-                <td className="px-3 py-1.5 text-right tabular-nums">{fmtInt(r.c.reduce((s, c) => s + (c.persons ?? 0), 0))}</td>
+                <td className="px-3 py-1.5 text-right tabular-nums">
+                  {r.c.length ? fmtInt(r.c.reduce((s, c) => s + (c.persons ?? 0), 0)) : <span title="Self-funded; participants from Form 5500">{fmtInt(r.participants)} <span className="text-[10px] text-stone-400">ASO</span></span>}
+                </td>
                 <td className="px-3 py-1.5 text-xs text-stone-600">{[...new Set(r.c.flatMap((c) => c.brokers))].slice(0, 2).join("; ") || "—"}</td>
               </tr>
             ))}

@@ -12,7 +12,9 @@ export const sectorOf = (naics: string | null) => (naics ? NAICS[naics.slice(0, 
 
 export type EmployerRow = {
   id: string; ein: string; sponsor: string; city: string | null; state: string; naics: string | null; sector: string;
-  participants: number | null; planYearBegin: Date; funding: string; tiCarrier?: string | null;
+  participants: number | null; planYearBegin: Date; funding: string;
+  /** Carriers that list this employer's EIN in their Transparency in Coverage index (insured or as TPA). */
+  administrators: Array<{ carrier: string; competitorId: string | null; competitorName: string | null; entityType: string | null }>;
   carriers: Array<{ carrier: string; competitorId: string | null; competitorName: string | null; persons: number | null; premium: number | null; renewalMonth: number | null; brokers: string[] }>;
   stopLoss: string[];
 };
@@ -40,12 +42,18 @@ export async function listEmployers(workspaceId: string, f: Filters) {
       AND (${funding}::text IS NULL OR l.funding = ${funding})
       AND (${q}::text IS NULL OR l.sponsor ILIKE ${q} OR l."planName" ILIKE ${q})
       AND COALESCE(l.participants, 0) >= ${f.minParticipants ?? 0}
-      AND (${pattern}::text IS NULL OR EXISTS (
-        SELECT 1 FROM "EmployerContract" c WHERE c."planId" = l.id AND c.kind = 'health' AND c.carrier ~* ${pattern}))
+      AND (${pattern}::text IS NULL
+        OR EXISTS (SELECT 1 FROM "EmployerContract" c WHERE c."planId" = l.id AND c.kind = 'health' AND c.carrier ~* ${pattern})
+        OR EXISTS (SELECT 1 FROM "PlanAdministration" a WHERE a.ein = l.ein AND (a.carrier ~* ${pattern} OR a."reportingEntity" ~* ${pattern})))
     ORDER BY l.participants DESC NULLS LAST
     LIMIT ${limit}`;
 
   const contracts = await db.employerContract.findMany({ where: { planId: { in: base.map((b) => b.id) } } });
+  const admins = await db.planAdministration.findMany({
+    where: { ein: { in: [...new Set(base.map((b) => b.ein))] } },
+    select: { ein: true, carrier: true, reportingEntity: true, entityType: true },
+    distinct: ["ein", "carrier"],
+  });
   const rows: EmployerRow[] = base.map((b) => {
     const mine = contracts.filter((c) => c.planId === b.id);
     return {
@@ -60,6 +68,10 @@ export async function listEmployers(workspaceId: string, f: Filters) {
         };
       }),
       stopLoss: mine.filter((c) => c.kind === "stop_loss").map((c) => c.carrier),
+      administrators: admins.filter((a) => a.ein === b.ein).map((a) => {
+        const m = matchers.find((x) => x.re?.test(a.carrier) || x.re?.test(a.reportingEntity));
+        return { carrier: a.carrier, competitorId: m?.c.id ?? null, competitorName: m?.c.name ?? null, entityType: a.entityType };
+      }),
     };
   });
   return rows;
@@ -69,6 +81,7 @@ export async function listEmployers(workspaceId: string, f: Filters) {
 export async function competitorEmployers(workspaceId: string, competitorId: string, state?: string) {
   const rows = await listEmployers(workspaceId, { competitorId, state, limit: 2000 });
   const mine = rows.map((r) => ({ ...r, c: r.carriers.filter((c) => c.competitorId === competitorId) }));
+  const viaTransparency = mine.filter((r) => r.c.length === 0 && r.administrators.some((a) => a.competitorId === competitorId)).length;
   const persons = mine.reduce((s, r) => s + r.c.reduce((t, c) => t + (c.persons ?? 0), 0), 0);
   const insured = mine.filter((r) => r.c.some((c) => (c.premium ?? 0) > 0)).length;
   const brokerMap = new Map<string, { name: string; employers: number; persons: number }>();
@@ -88,6 +101,7 @@ export async function competitorEmployers(workspaceId: string, competitorId: str
   }
   return {
     employers: mine.length,
+    viaTransparency,
     persons,
     insured,
     asoOrUnpriced: mine.length - insured,
@@ -96,6 +110,17 @@ export async function competitorEmployers(workspaceId: string, competitorId: str
     renewalMonths: months,
     sectors: [...sectors.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6),
   };
+}
+
+/** Group plan names a carrier lists in its own transparency index (regional carriers' product catalog). */
+export async function transparencyPlanCatalog(c: { name: string; aliases: string[]; issuerPattern: string | null }) {
+  const pattern = issuerPatternFor(c);
+  const employerEins = (await db.employerPlan.findMany({ select: { ein: true }, distinct: ["ein"] })).map((e) => e.ein);
+  const rows = await db.$queryRaw<Array<{ planName: string; marketType: string | null; sponsorName: string | null }>>`
+    SELECT DISTINCT "planName", "marketType", "sponsorName" FROM "PlanAdministration"
+    WHERE (carrier ~* ${pattern} OR "reportingEntity" ~* ${pattern}) AND (ein IS NULL OR NOT (ein = ANY(${employerEins})))
+    ORDER BY "marketType", "planName" LIMIT 1000`;
+  return rows;
 }
 
 function safe(p: string) {

@@ -9,7 +9,7 @@ import { Empty, Importance, TypeBadge, timeAgo } from "@/components/ui";
 import { IssuerPatternEditor } from "@/components/IssuerPatternEditor";
 import { competitorLargeGroup } from "@/lib/marketdata/largegroup";
 import { CompetitorLargeGroup } from "@/components/LargeGroup";
-import { competitorEmployers } from "@/lib/marketdata/employers";
+import { competitorEmployers, transparencyPlanCatalog } from "@/lib/marketdata/employers";
 import { EmployerBook } from "@/components/EmployerBook";
 
 export const dynamic = "force-dynamic";
@@ -30,7 +30,7 @@ export default async function CompetitorProfilePage({
   const comp = await db.competitor.findFirst({ where: { id, workspaceId: session.workspaceId } });
   if (!comp) notFound();
 
-  const [profile, allStates, signals, importsDone, largeGroup, employers] = await Promise.all([
+  const [profile, allStates, signals, importsDone, largeGroup, employers, catalog] = await Promise.all([
     competitorProfile(comp, state),
     state ? competitorProfile(comp).then((p) => p.states) : null,
     db.signal.findMany({
@@ -41,6 +41,7 @@ export default async function CompetitorProfilePage({
     db.dataImport.count({ where: { status: "done" } }),
     competitorLargeGroup(comp, state),
     competitorEmployers(session.workspaceId, comp.id, state),
+    transparencyPlanCatalog(comp),
   ]);
   const lgStates = [...largeGroup.enrollment.map((e) => e.state), ...largeGroup.financials.map((f) => f.state), ...largeGroup.rateActions.map((a) => a.state)];
   const states = [...new Set([...(allStates ?? profile.states), ...(state ? [] : lgStates)])].sort();
@@ -126,6 +127,25 @@ export default async function CompetitorProfilePage({
 
       <EmployerBook data={employers} competitorId={comp.id} state={state} />
 
+      {catalog.length > 0 && (
+        <section className="space-y-2">
+          <h2 className="text-lg font-semibold tracking-tight">Plan catalog · transparency index</h2>
+          <p className="text-xs text-stone-500">Every plan this carrier lists in its Transparency in Coverage table of contents — the only public list that includes large-group products. <Link className="underline" href="/transparency">About these files</Link></p>
+          <details className="card">
+            <summary className="cursor-pointer px-4 py-2 text-sm">
+              {catalog.filter((p) => p.marketType === "group").length} group plans · {catalog.filter((p) => p.marketType === "individual").length} individual plans
+            </summary>
+            <ul className="grid gap-x-6 gap-y-0.5 border-t border-stone-100 px-4 py-3 text-xs text-stone-700 sm:grid-cols-2">
+              {catalog.map((p) => (
+                <li key={`${p.marketType}${p.planName}${p.sponsorName}`} className="truncate" title={p.planName}>
+                  <span className="mr-1 font-mono text-[10px] text-stone-400">{p.marketType === "group" ? "GRP" : "IND"}</span>{p.planName}
+                </li>
+              ))}
+            </ul>
+          </details>
+        </section>
+      )}
+
       {/* ── Products ── */}
       {profile.products.length > 0 && (
         <section className="space-y-3">
@@ -162,7 +182,7 @@ export default async function CompetitorProfilePage({
                         </ul>
                       </details>
                     </td>
-                    <td className="whitespace-nowrap px-3 py-2">{p.state} {p.market}</td>
+                    <td className="whitespace-nowrap px-3 py-2">{p.state} {p.state === "MA" ? "Merged" : p.market}</td>
                     <td className="px-3 py-2">{p.planType ?? "—"}</td>
                     <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">
                       {p.activePlans}
@@ -202,7 +222,7 @@ export default async function CompetitorProfilePage({
                   return (
                     <tr key={f.id}>
                       <td className="whitespace-nowrap px-3 py-2 tabular-nums">{f.effectiveDate.toISOString().slice(0, 10)}</td>
-                      <td className="whitespace-nowrap px-3 py-2">{f.state} {f.market}</td>
+                      <td className="whitespace-nowrap px-3 py-2">{f.state} {f.state === "MA" ? "Merged" : f.market}</td>
                       <td className="px-3 py-2 text-xs text-stone-600">{f.company}</td>
                       <td className="whitespace-nowrap px-3 py-2 font-mono text-xs">
                         {f.serffNumber ? (

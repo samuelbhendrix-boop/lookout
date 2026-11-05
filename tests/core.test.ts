@@ -377,3 +377,22 @@ describe("Form 5500 employer plans", () => {
     expect(sectorOf(null)).toBe("Unknown");
   });
 });
+
+import { normEin, nameKey, MRF_REGISTRY } from "@/lib/marketdata/tic";
+
+describe("transparency in coverage", () => {
+  it("normalizes EINs", () => {
+    expect(normEin("04-2103580")).toBe("042103580");
+    expect(normEin("42103580")).toBe("042103580");
+    expect(normEin("123")).toBeNull();
+    expect(normEin(undefined)).toBeNull();
+  });
+  it("keys employer names", () => {
+    expect(nameKey("The Acme Co., Inc.")).toBe("ACME");
+    expect(nameKey("Smith & Wesson Corp")).toBe(nameKey("SMITH AND WESSON CORPORATION"));
+  });
+  it("registry entries are unique with https urls", () => {
+    expect(new Set(MRF_REGISTRY.map((r) => r.id)).size).toBe(MRF_REGISTRY.length);
+    for (const r of MRF_REGISTRY) expect(r.url.startsWith("https://")).toBe(true);
+  });
+});

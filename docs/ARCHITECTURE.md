@@ -87,6 +87,13 @@ To add a new year: one line in `lib/marketdata/datasets.ts`.
 
 PDF sources are snapshots, not scrapers: a regulator PDF layout changes every edition and a silent mis-parse is worse than a stale number. Every snapshot is guarded by tests (Maine rows must balance to the dollar and sum to published totals; RI weighted averages must reproduce the printed totals; NH shares must sum to 100%; every carrier must map to exactly one competitor). SERFF Filing Access isn't scraped (its network blocks automated clients and its terms aren't verifiable); profiles link to each state's SERFF search instead.
 
+### Transparency in Coverage (machine-readable files)
+`lib/marketdata/tic.ts`, dataset `tic`, monthly. Every insurer and TPA must publish a table of contents (TOC) listing each plan it insures or administers by EIN, plus in-network rate and allowed-amount files.
+- **Automated:** Cigna (latest.json → zip of TOC JSONs, stream-parsed), UnitedHealthcare (blob listing; employer indexes name-matched to NE Form 5500 sponsors, then EIN-confirmed), Harvard Pilgrim (per-employer index links scraped from the plan list page), Mass General Brigham (single TOC; rate file sizes via HEAD).
+- **Manual links:** BCBSMA, Aetna, Anthem, Tufts, Fallon, MaineCare/CHO, NHPRI, WellSense — JS portals, unreachable hosts, or multi-GB national indexes.
+- Kept rows go to `PlanAdministration` (carrier × EIN × plan). Self-funded employers whose 5500 names no carrier get their administrator from here; regional carriers' plan lists become the large-group plan catalog on competitor profiles. Per-carrier run stats live in `MrfSource` and render at `/transparency`.
+- Negotiated rates are measured, not ingested: national carriers publish ~100 TB/month. Regional rate files (MGB 18–78 MB each) are the feasible target for a rate benchmark.
+
 ## 3. File structure
 
 ```
