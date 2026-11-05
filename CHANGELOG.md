@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.0 — 2026-11-04
+- **Negotiated rates:** new Rates page with what Mass General Brigham, Harvard Pilgrim and UnitedHealthcare pay each New England hospital and large group for ~50 benchmark services (office/ED visits, imaging, labs, procedures, surgery, maternity, inpatient APR-/MS-DRGs). Provider × carrier comparison, network-wide distributions, CSV export, monthly refresh.
+- **Carrier price index:** each carrier's rate vs peers for the same service at the same provider, overall and by category — on the Rates page and competitor profiles.
+- **Large-file reducer:** byte-level streaming scanner turns 2–300 GB rate files into a few thousand rows at ~300 MB/s in ~300 MB of memory; `npm run mrf:reduce -- <url|file> out.csv` for any carrier's file. UnitedHealthcare's 303 GB Options PPO file ships as a 418 KB snapshot.
+- Lower native memory use for all imports (`MALLOC_ARENA_MAX`).
+
 ## 0.6.0 — 2026-11-04
 - **Transparency in Coverage files:** reads payer machine-readable tables of contents monthly (Cigna, UnitedHealthcare, Harvard Pilgrim, Mass General Brigham automated; 8 regional/national carriers linked). Matches EINs to New England employers to name the administrator of self-funded plans (Cigna 320, UHC 87, Harvard Pilgrim 28 employers).
 - New Transparency page with per-carrier file inventory (plans, index files, rate-file volume); Employers page shows TiC administrators (TPA badge) and filters by them; competitor profiles get a plan catalog from the carrier's own index, including large-group products.

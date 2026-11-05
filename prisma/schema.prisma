@@ -548,3 +548,60 @@ model MrfSource {
   error     String?
   stats     Json?
 }
+
+/// One payer rate file reduced by lib/marketdata/mrf (the multi-GB original is never stored).
+model RateFile {
+  id              String         @id // "<carrier>:<network>"
+  carrier         String // registry id, e.g. "mgb"
+  carrierName     String
+  network         String
+  url             String
+  status          String // "ok" | "failed"
+  error           String?
+  reportingEntity String?
+  lastUpdated     String?
+  stats           Json?
+  processedAt     DateTime?
+  summaries       RateSummary[]
+  providerRates   ProviderRate[]
+}
+
+/// Network-wide distribution of a code's negotiated rate (each provider TIN counted once).
+model RateSummary {
+  id             String   @id @default(cuid())
+  fileId         String
+  file           RateFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  code           String
+  codeType       String
+  billingClass   String
+  negotiatedType String
+  providers      Int
+  p10            Float
+  p25            Float
+  p50            Float
+  p75            Float
+  p90            Float
+
+  @@index([codeType, code])
+}
+
+/// Negotiated rate at a key provider (hospital, large group): the cross-carrier comparison grain.
+model ProviderRate {
+  id             String   @id @default(cuid())
+  fileId         String
+  file           RateFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  code           String
+  codeType       String
+  billingClass   String
+  negotiatedType String
+  tin            String
+  providerName   String?
+  npiCount       Int
+  n              Int
+  min            Float
+  median         Float
+  max            Float
+
+  @@index([codeType, code, billingClass])
+  @@index([tin])
+}

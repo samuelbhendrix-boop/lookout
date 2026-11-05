@@ -94,6 +94,15 @@ PDF sources are snapshots, not scrapers: a regulator PDF layout changes every ed
 - Kept rows go to `PlanAdministration` (carrier × EIN × plan). Self-funded employers whose 5500 names no carrier get their administrator from here; regional carriers' plan lists become the large-group plan catalog on competitor profiles. Per-carrier run stats live in `MrfSource` and render at `/transparency`.
 - Negotiated rates are measured, not ingested: national carriers publish ~100 TB/month. Regional rate files (MGB 18–78 MB each) are the feasible target for a rate benchmark.
 
+### Negotiated rates (reducing TB-scale files)
+`lib/marketdata/mrf/`, dataset `rates`, monthly. Rate files are a single JSON object of 2 GB–500 GB uncompressed; nothing about them fits in memory or in Postgres. The pipeline turns each file into a few thousand rows:
+1. **Scan, don't parse** (`scan.ts`). A byte-level scanner tracks depth and string state, jumps over strings with `Buffer.indexOf`, and skips the `negotiated_rates` of every code outside the basket by bracket counting alone. Only small pieces are `JSON.parse`d: each `provider_references` element, each item header, and the rate elements of basket codes. ~300 MB/s vs ~35 MB/s for a general tokenizer; correctness is tested at every chunk boundary.
+2. **Basket** (`codes.ts`). ~50 comparable services (CMS shoppable services, E&M, imaging, labs, MS-DRG and APR-DRG). Code types normalized (HCPCS→CPT, zero-padded DRGs, APR-DRG+severity suffix → base DRG).
+3. **Never fan out** (`reduce.ts`). Prices accumulate per provider *group*; groups map to TINs through interned arrays. Output is (a) a network-wide distribution per code with each TIN counted once and (b) provider-level detail only for key providers: hospitals (inpatient DRG billers), the largest groups, and any TIN already tracked from another carrier. Dollar rate types only in comparisons; modifier and expired rates dropped.
+4. **Sources** (`files.ts`). Regional carriers discover their current files from their own indexes (MGB TOC; Harvard Pilgrim's most-referenced networks). Zips are spooled to temp; gzip/JSON stream from the network. Peak ~300 MB with `MALLOC_ARENA_MAX=1` (native allocator fragmentation was the other ~100 MB).
+5. **Comparisons** (`queries.ts`). Carrier price index = geometric mean of (carrier rate ÷ cross-carrier geometric mean) over every service × provider priced by 2+ carriers. Rendered on `/rates` and competitor profiles; CSV at `/api/v1/rates`.
+National files (UHC/UMR, Cigna, Aetna: 10–100+ GB compressed) use the same code via `npm run mrf:reduce -- <url> out.csv` on a bigger machine.
+
 ## 3. File structure
 
 ```

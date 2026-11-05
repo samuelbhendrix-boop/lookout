@@ -42,7 +42,7 @@ Click any competitor to see its performance by segment, every individual and sma
 
 ## Scripts
 
-`dev` · `build` · `start` · `worker` · `typecheck` · `test` · `smoke` · `market:import` · `db:migrate` · `db:deploy` · `db:seed` · `db:studio`
+`dev` · `build` · `start` · `worker` · `typecheck` · `test` · `smoke` · `market:import` · `mrf:reduce` · `db:migrate` · `db:deploy` · `db:seed` · `db:studio`
 
 ## Testing
 

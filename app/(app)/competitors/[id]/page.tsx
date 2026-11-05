@@ -10,6 +10,8 @@ import { IssuerPatternEditor } from "@/components/IssuerPatternEditor";
 import { competitorLargeGroup } from "@/lib/marketdata/largegroup";
 import { CompetitorLargeGroup } from "@/components/LargeGroup";
 import { competitorEmployers, transparencyPlanCatalog } from "@/lib/marketdata/employers";
+import { carrierIndex } from "@/lib/marketdata/mrf/queries";
+import { issuerPatternFor } from "@/lib/marketdata/queries";
 import { EmployerBook } from "@/components/EmployerBook";
 
 export const dynamic = "force-dynamic";
@@ -43,6 +45,13 @@ export default async function CompetitorProfilePage({
     competitorEmployers(session.workspaceId, comp.id, state),
     transparencyPlanCatalog(comp),
   ]);
+  let pricing: Awaited<ReturnType<typeof carrierIndex>>[number] | undefined;
+  try {
+    const re = new RegExp(issuerPatternFor(comp), "i");
+    pricing = (await carrierIndex()).find((x) => re.test(x.carrierName));
+  } catch {
+    pricing = undefined;
+  }
   const lgStates = [...largeGroup.enrollment.map((e) => e.state), ...largeGroup.financials.map((f) => f.state), ...largeGroup.rateActions.map((a) => a.state)];
   const states = [...new Set([...(allStates ?? profile.states), ...(state ? [] : lgStates)])].sort();
   const years = [...new Set(profile.performance.map((p) => p.year))].sort();
@@ -126,6 +135,30 @@ export default async function CompetitorProfilePage({
       <CompetitorLargeGroup data={largeGroup} serffStates={(state ? [state] : states).filter((s) => ["MA", "NH", "ME", "RI", "CT", "VT"].includes(s))} />
 
       <EmployerBook data={employers} competitorId={comp.id} state={state} />
+
+      {pricing && (
+        <section className="space-y-2">
+          <h2 className="text-lg font-semibold tracking-tight">Price position · negotiated rates</h2>
+          <div className="card flex flex-wrap items-center gap-x-8 gap-y-3 p-4">
+            <div>
+              <p className={`text-3xl font-semibold tabular-nums ${pricing.index >= 1.05 ? "text-red-700" : pricing.index <= 0.95 ? "text-emerald-700" : ""}`}>
+                {pricing.index >= 1 ? "+" : "−"}{Math.abs((pricing.index - 1) * 100).toFixed(0)}%
+              </p>
+              <p className="text-xs text-stone-500">vs peers, same service at the same provider</p>
+            </div>
+            <div className="grid flex-1 grid-cols-2 gap-x-6 gap-y-0.5 text-xs sm:grid-cols-3">
+              {pricing.byCategory.map((b) => (
+                <div key={b.category} className="flex justify-between">
+                  <span className="text-stone-600">{b.category}</span>
+                  <span className="tabular-nums">{b.index >= 1 ? "+" : "−"}{Math.abs((b.index - 1) * 100).toFixed(0)}%</span>
+                </div>
+              ))}
+            </div>
+            <Link href="/rates" className="text-xs underline">Provider-level rates →</Link>
+          </div>
+          <p className="text-xs text-stone-500">From {pricing.carrierName}&apos;s federally required rate files: {pricing.comparisons.toLocaleString()} service × provider comparisons at {pricing.providers} providers also priced by another carrier.</p>
+        </section>
+      )}
 
       {catalog.length > 0 && (
         <section className="space-y-2">

@@ -12,6 +12,7 @@ import { ALLOWED_DATA_HOSTS, DATASETS, REFRESH_DAYS, type Dataset } from "./data
 import { importChia, importStateSnapshots } from "./state";
 import { importDol } from "./dol";
 import { importTransparency } from "./tic";
+import { importRates } from "./mrf/files";
 
 // ─── helpers (exported for tests) ────────────────────────────────────
 
@@ -231,6 +232,7 @@ export async function importDataset(dataset: Dataset, year: number) {
     else if (dataset === "ma_chia") rows = await importChia(await download(def.url, dir, "chia.xlsx"));
     else if (dataset === "dol_5500") rows = await importDol(year, def.url, dir);
     else if (dataset === "tic") rows = await importTransparency();
+    else if (dataset === "rates") rows = await importRates();
     else {
       const zip = await download(def.url, dir);
       rows = dataset === "urrt" ? await importUrrt(year, zip) : await importMlr(year, zip);

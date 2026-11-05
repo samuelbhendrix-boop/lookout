@@ -1,6 +1,6 @@
 {
   "name": "lookout",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "private": true,
   "description": "Competitive intelligence signal tracker: ingest competitor sources, classify signals, triage, alert.",
   "scripts": {
@@ -16,7 +16,8 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
     "smoke": "tsx scripts/smoke.ts",
-    "market:import": "tsx scripts/import-market-data.ts"
+    "market:import": "tsx scripts/import-market-data.ts",
+    "mrf:reduce": "tsx scripts/mrf-reduce.ts"
   },
   "dependencies": {
     "@prisma/client": "6.16.2",

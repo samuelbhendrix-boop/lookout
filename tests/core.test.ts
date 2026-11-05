@@ -396,3 +396,85 @@ describe("transparency in coverage", () => {
     for (const r of MRF_REGISTRY) expect(r.url.startsWith("https://")).toBe(true);
   });
 });
+
+import { Readable } from "node:stream";
+import { reduceRateFile, pct } from "@/lib/marketdata/mrf/reduce";
+import { codeKey } from "@/lib/marketdata/mrf/codes";
+
+describe("rate file reducer", () => {
+  const file = JSON.stringify({
+    reporting_entity_name: "Test Plan \"Quoted\" {x}",
+    last_updated_on: "2026-10-01",
+    version: "2.0.0",
+    provider_references: [
+      { provider_group_id: 1, provider_groups: [{ npi: [1, 2, 3], tin: { type: "ein", value: "04-1234567", business_name: "General Hospital ]}" } }] },
+      { provider_group_id: 2, provider_groups: [{ npi: [4], tin: { type: "ein", value: "041111111", business_name: "Small Group" } }, { npi: [5, 6], tin: { type: "ein", value: "042222222", business_name: "Other Group" } }] },
+    ],
+    in_network: [
+      { negotiation_arrangement: "ffs", name: "noise \\\" ]} {[", billing_code_type: "CPT", billing_code: "12345", description: "not in basket",
+        negotiated_rates: [{ provider_references: [1, 2], negotiated_prices: [{ negotiated_type: "negotiated", negotiated_rate: 999999, billing_class: "professional", expiration_date: "9999-12-31" }] }] },
+      { negotiation_arrangement: "ffs", name: "Office visit", billing_code_type: "CPT", billing_code: "99213", description: "Est. patient",
+        negotiated_rates: [
+          { provider_references: [2], negotiated_prices: [
+            { negotiated_type: "fee schedule", negotiated_rate: 100, billing_class: "professional", expiration_date: "9999-12-31" },
+            { negotiated_type: "fee schedule", negotiated_rate: 50, billing_class: "professional", billing_code_modifier: ["25"], expiration_date: "9999-12-31" },
+            { negotiated_type: "fee schedule", negotiated_rate: 70, billing_class: "professional", expiration_date: "2001-01-01" } ] },
+          { provider_groups: [{ npi: [7], tin: { type: "ein", value: "043333333", business_name: "Inline Clinic" } }], negotiated_prices: [{ negotiated_type: "negotiated", negotiated_rate: 140, billing_class: "professional" }] },
+        ] },
+      { negotiated_rates: [{ provider_references: [1], negotiated_prices: [{ negotiated_type: "derived", negotiated_rate: 30000, billing_class: "institutional" }] }],
+        billing_code_type: "APR-DRG", billing_code: "3022", name: "late keys", description: "Knee S2" },
+      { negotiation_arrangement: "ffs", billing_code_type: "APR-DRG", billing_code: "3024", description: "Knee S4",
+        negotiated_rates: [{ provider_references: [1], negotiated_prices: [{ negotiated_type: "derived", negotiated_rate: 50000, billing_class: "institutional" }] }] },
+    ],
+  });
+
+  async function run(size: number) {
+    const buf = Buffer.from(file);
+    const chunks: Buffer[] = [];
+    for (let i = 0; i < buf.length; i += size) chunks.push(buf.subarray(i, i + size));
+    return reduceRateFile(Readable.from(chunks), { gzip: false, today: "2026-11-04", topGroups: 10 });
+  }
+
+  it("reduces correctly at every chunk boundary", async () => {
+    const whole = await run(1 << 20);
+    expect(whole.meta.lastUpdated).toBe("2026-10-01");
+    expect(whole.stats.items).toBe(4);
+    expect(whole.stats.skippedModifier).toBe(1);
+    expect(whole.stats.skippedExpired).toBe(1);
+    const visit = whole.rows.filter((r) => r.code === "99213").sort((a, b) => a.tin.localeCompare(b.tin));
+    expect(visit.map((r) => [r.tin, r.median])).toEqual([["041111111", 100], ["042222222", 100], ["043333333", 140]]);
+    const knee = whole.rows.find((r) => r.codeType === "APR-DRG" && r.code === "302")!;
+    expect(knee).toMatchObject({ tin: "041234567", providerName: "General Hospital ]}", n: 2, min: 30000, max: 50000, median: 40000 });
+    expect(whole.rows.some((r) => r.code === "12345")).toBe(false);
+    const s = whole.summary.find((x) => x.code === "99213" && x.negotiatedType === "fee schedule")!;
+    expect(s).toMatchObject({ providers: 2, p50: 100 });
+    const norm = (r: Awaited<ReturnType<typeof run>>) => JSON.stringify([r.rows.map((x) => `${x.code}${x.tin}${x.median}${x.n}`).sort(), r.summary.map((x) => `${x.code}${x.p50}${x.providers}`).sort()]);
+    for (let size = 1; size < 24; size++) expect(norm(await run(size))).toBe(norm(whole));
+  });
+
+  it("normalizes billing codes", () => {
+    expect(codeKey("HCPCS", "99213")).toBe("CPT|99213");
+    expect(codeKey("MS-DRG", "0470")).toBe("MS-DRG|470");
+    expect(codeKey("APR-DRG", "3024")).toBe("APR-DRG|302");
+    expect(codeKey("APR-DRG", "0011")).toBe("APR-DRG|001");
+    expect(codeKey("APR-DRG", "302")).toBe("APR-DRG|302");
+  });
+
+  it("interpolates percentiles", () => {
+    expect(pct([1, 2, 3, 4], 0.5)).toBe(2.5);
+    expect(pct([10], 0.9)).toBe(10);
+  });
+});
+
+import { readdirSync } from "node:fs";
+
+describe("rate snapshots", () => {
+  it("are well-formed", () => {
+    for (const n of readdirSync("data/rates").filter((x) => x.endsWith(".json"))) {
+      const s = JSON.parse(readFileSync(`data/rates/${n}`, "utf8"));
+      expect(s.carrier && s.carrierName && s.network).toBeTruthy();
+      expect(s.rows.length).toBeGreaterThan(100);
+      for (const r of s.rows) expect(r.median > 0 && /^\d{9}$|^npi:\d+$/.test(r.tin)).toBe(true);
+    }
+  });
+});

@@ -20,7 +20,8 @@ export async function runImport(dataset: Dataset, year: number): Promise<string>
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, ["--max-old-space-size=256", tsx, script, dataset, String(year)], {
       cwd,
-      env: process.env,
+      // One malloc arena + eager trim: zlib/undici fragment native memory across threads (409 → 304 MB peak on rate files).
+      env: { ...process.env, MALLOC_ARENA_MAX: "1", MALLOC_TRIM_THRESHOLD_: "131072" },
       stdio: ["ignore", "pipe", "pipe"],
     });
     let out = "";
