@@ -13,25 +13,26 @@ export async function GET(req: NextRequest) {
   const [codeType, code] = (sp.get("code") ?? "APR-DRG|302").split("|");
   const billingClass = sp.get("class") === "professional" ? "professional" : "institutional";
   if (!codeType || !code || !/^[\w-]{1,10}$/.test(code)) return Response.json({ error: { message: "code must look like CPT|99213" } }, { status: 422 });
-  const b = await codeBenchmark(codeType, code, billingClass);
+  const state = sp.get("state") ?? "all";
+  const b = await codeBenchmark(codeType, code, billingClass, state);
   const rows = b.providers.flatMap((p) =>
-    Object.values(p.rates).map((r) => {
-      const f = b.files.find((x) => x.id === r.fileId)!;
-      const mc = p.medicare;
-      return {
-        codeType, code, billingClass, carrier: f.carrierName, network: f.network, tin: p.tin, provider: p.name, npiCount: p.npiCount, negotiatedType: r.negotiatedType,
-        median: r.median, min: r.min, max: r.max, fileDate: f.lastUpdated,
-        medicare: mc.amount, pctOfMedicare: mc.amount ? Math.round((r.median / mc.amount) * 1000) / 10 : null,
-        medicareMethod: mc.amount ? mc.method : (mc as { reason: string }).reason,
-      };
-    }),
+    Object.entries(p.rates).flatMap(([carrier, r]) =>
+      r.networks.map((n) => {
+        const mc = p.medicare;
+        return {
+          codeType, code, billingClass, carrier: b.carriers.find((c) => c.carrier === carrier)?.carrierName ?? carrier, network: n.network, state: p.state, tin: p.tin, provider: p.name, npiCount: p.npiCount,
+          negotiatedType: n.type, rate: n.median, carrierMedian: r.median,
+          medicare: mc.amount, pctOfMedicare: mc.amount ? Math.round((n.median / mc.amount) * 1000) / 10 : null,
+          medicareMethod: mc.amount ? mc.method : (mc as { reason: string }).reason,
+        };
+      }),
+    ),
   );
   if (sp.get("format") === "csv") {
     const cols = Object.keys(rows[0] ?? { codeType: 1 }) as Array<keyof (typeof rows)[number]>;
     return new Response(toCsv(cols, rows.map((r) => cols.map((c) => r[c]))), {
-      headers: { "content-type": "text/csv; charset=utf-8", "content-disposition": `attachment; filename="rates-${codeType}-${code}-${billingClass}.csv"` },
+      headers: { "content-type": "text/csv; charset=utf-8", "content-disposition": `attachment; filename="rates-${codeType}-${code}-${billingClass}-${state}.csv"` },
     });
   }
-  const summary = [...b.summary.values()].map((s) => ({ ...s, carrier: b.files.find((f) => f.id === s.fileId)?.carrierName }));
-  return Response.json({ data: rows, summary });
+  return Response.json({ data: rows, carriers: b.carriers.map((c) => ({ carrier: c.carrierName, networks: c.networks, summary: c.summary })) });
 }

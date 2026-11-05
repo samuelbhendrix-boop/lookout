@@ -5,44 +5,52 @@ import { join } from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import yauzl from "yauzl";
-import { reduceRateFile, type ReduceOpts, type ReduceResult } from "./reduce";
+import { RateReducer, type ReduceOpts, type ReduceResult } from "./reduce";
 
 const UA = { "User-Agent": "Mozilla/5.0 (compatible; LookoutBot; +https://github.com/samuelbhendrix-boop/lookout)" };
 
 /**
- * Open a rate file — URL or local path; .json, .json.gz or .zip — and reduce it. Gzip and JSON stream straight
- * from the network; zips (which need random access) are spooled to a temp file and deleted afterwards.
+ * Open one or more rate-file parts — URLs or local paths; .json, .json.gz or .zip — and reduce them together.
+ * Gzip and JSON stream straight from the network; zips (which need random access) are spooled to a temp file.
  */
-export async function reduceSource(src: string, opts: Omit<ReduceOpts, "gzip"> = {}): Promise<ReduceResult> {
-  const remote = /^https?:\/\//.test(src);
-  const path = src.split("?")[0].toLowerCase();
-  if (path.endsWith(".zip")) {
-    const dir = await mkdtemp(join(tmpdir(), "mrf-"));
-    try {
-      let file = src;
-      if (remote) {
-        file = join(dir, "rates.zip");
-        const res = await fetch(src, { headers: UA, signal: AbortSignal.timeout(60 * 60_000) });
-        if (!res.ok || !res.body) throw new Error(`HTTP ${res.status} for ${src.slice(0, 120)}`);
-        await pipeline(Readable.fromWeb(res.body as never), createWriteStream(file));
+export async function reduceSources(srcs: string[], opts: Omit<ReduceOpts, "gzip"> = {}): Promise<ReduceResult> {
+  const reducer = new RateReducer(opts);
+  let zipBytes = 0;
+  for (const src of srcs) {
+    const remote = /^https?:\/\//.test(src);
+    const path = src.split("?")[0].toLowerCase();
+    if (path.endsWith(".zip")) {
+      const dir = await mkdtemp(join(tmpdir(), "mrf-"));
+      try {
+        let file = src;
+        if (remote) {
+          file = join(dir, "rates.zip");
+          const res = await fetch(src, { headers: UA, signal: AbortSignal.timeout(60 * 60_000) });
+          if (!res.ok || !res.body) throw new Error(`HTTP ${res.status} for ${src.split("?")[0].slice(0, 160)}`);
+          await pipeline(Readable.fromWeb(res.body as never), createWriteStream(file));
+        }
+        zipBytes += (await stat(file)).size;
+        await reducer.consume(await openZipEntry(file), false);
+      } finally {
+        await rm(dir, { recursive: true, force: true });
       }
-      const entry = await openZipEntry(file);
-      const r = await reduceRateFile(entry, { gzip: false, ...opts });
-      r.stats.compressedBytes = (await stat(file)).size;
-      return r;
-    } finally {
-      await rm(dir, { recursive: true, force: true });
+      continue;
     }
+    let input: Readable;
+    if (remote) {
+      const res = await fetch(src, { headers: UA, signal: AbortSignal.timeout(6 * 60 * 60_000) });
+      if (!res.ok || !res.body) throw new Error(`HTTP ${res.status} for ${src.split("?")[0].slice(0, 160)}`);
+      input = Readable.fromWeb(res.body as never);
+    } else input = createReadStream(src, { highWaterMark: 1 << 20 });
+    await reducer.consume(input, path.endsWith(".gz"));
   }
-  const gzip = path.endsWith(".gz");
-  let input: Readable;
-  if (remote) {
-    const res = await fetch(src, { headers: UA, signal: AbortSignal.timeout(6 * 60 * 60_000) });
-    if (!res.ok || !res.body) throw new Error(`HTTP ${res.status} for ${src.slice(0, 120)}`);
-    input = Readable.fromWeb(res.body as never);
-  } else input = createReadStream(src, { highWaterMark: 1 << 20 });
-  return reduceRateFile(input, { gzip, ...opts });
+  const r = reducer.finish();
+  // Zip entries stream decompressed; report the download size instead.
+  if (zipBytes) r.stats.compressedBytes = zipBytes + (srcs.some((x) => !x.split("?")[0].toLowerCase().endsWith(".zip")) ? r.stats.compressedBytes : 0);
+  return r;
 }
+
+export const reduceSource = (src: string, opts: Omit<ReduceOpts, "gzip"> = {}) => reduceSources([src], opts);
 
 /** Stream of the largest .json entry in a zip. */
 function openZipEntry(file: string): Promise<Readable> {

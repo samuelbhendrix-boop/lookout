@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.9.0 — 2026-11-05
+- **Every major New England carrier's negotiated rates:** Blue Cross Blue Shield of Massachusetts (HMO Blue), Anthem (NH, ME, CT), Blue Cross RI, Blue Cross VT, Cigna (OAP, LocalPlus, PPO, New England GPPO, Maine HMO, RI GPPO), Aetna, UnitedHealthcare, Tufts Health Direct, Fallon, Neighborhood Health Plan of RI and Maine Community Health Options join MGB and Harvard Pilgrim. Every Harvard Pilgrim and MGB network is now reduced, not just the largest two.
+- **Rates page:** one column per carrier (networks combined, per-network values on hover), state filter, provider state shown; CSV export one row per carrier network.
+- Multi-part rate files merge exactly; identical networks are stored once; APC-priced hospital outpatient contracts map to the procedures in each APC.
+- Medicare benchmarks use the provider's own state (all New England fee-schedule localities and state wage indexes); provider names and states fall back to the IRS exempt-organization register; strict automatic hospital matching extends the reviewed list.
+- Exclusions now name source-side problems too: BCBSMA's own transparency site and WellSense's portal refuse automated clients; Community Health Options' file hasn't been updated since December 2025; NHPRI publishes no professional rates.
+- Rate imports run as one job per carrier and resume in fresh processes at a memory budget, so a 51-network carrier fits the 512 MB server; secondary networks are stored as deltas (~5× fewer rows).
+- Outlier prices (>10× or <0.2× Medicare — bundled case rates or file errors) are flagged and excluded from comparisons; carriers that publish no dollar prices for a whole category are listed.
+- ~160 New England hospitals now carry hospital-specific Medicare rates (reviewed + strict auto-matching, NPPES and IRS names); critical-access and VA hospitals are explained rather than compared.
+
 ## 0.8.0 — 2026-11-04
 - **% of Medicare** on every negotiated rate, network distribution and carrier card, from CMS's 2026 physician, outpatient-hospital and lab fee schedules and the FY2027 inpatient rule. Inpatient comparisons use each hospital's own Medicare rate (wage index, teaching and safety-net add-ons) through a reviewed list of 64 New England hospital TINs.
 - **What's not included:** the Rates page lists every carrier without data, every file found but not reduced (68 this month, with reasons), prices dropped inside reduced files, comparisons excluded from the index, and services/hospitals with no Medicare comparison. Feed, Market, Employers, Transparency and competitor profiles gained "Not included" panels.

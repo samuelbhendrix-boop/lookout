@@ -68,6 +68,7 @@ export const BENCH_CODES: BenchCode[] = [
 /** Normalizes billing_code_type: CPT and HCPCS share one code space; DRG variants are kept apart. */
 export function codeKey(type: string, code: string) {
   const t = type.toUpperCase().replace(/\s/g, "");
+  if (t === "APC") return `APC|${/^\d+$/.test(code.trim()) ? String(Number(code.trim())).padStart(4, "0") : code.trim()}`;
   const norm = t === "CPT" || t === "HCPCS" ? "CPT" : t === "MS-DRG" || t === "MSDRG" || t === "DRG" ? "MS-DRG" : t === "APR-DRG" || t === "APRDRG" ? "APR-DRG" : t;
   let c = code.trim().toUpperCase();
   // APR-DRG is 3 digits; some carriers append severity of illness as a 4th digit ("3024" = APR 302, SOI 4).
@@ -76,3 +77,20 @@ export function codeKey(type: string, code: string) {
 }
 
 export const benchCodeMap = (codes: BenchCode[] = BENCH_CODES) => new Map(codes.map((c) => [codeKey(c.type, c.code), c]));
+
+/**
+ * Some carriers price hospital outpatient services by APC group rather than CPT. Under an APC contract the facility
+ * payment for a CPT is its APC's rate, so APC items map to every basket CPT that Medicare's OPPS assigns to that APC.
+ * Built from the OPPS Addendum B mapping shipped in data/medicare/reference.json.
+ */
+export function apcToBasket(codes: BenchCode[], oppsApc: Record<string, { apc: string | null }>): Map<string, string[]> {
+  const m = new Map<string, string[]>();
+  for (const c of codes) {
+    if (c.type !== "CPT") continue;
+    const apc = c.code === "99203" || c.code === "99204" || c.code === "99213" || c.code === "99214" ? oppsApc.G0463?.apc : oppsApc[c.code]?.apc;
+    if (!apc) continue;
+    const k = `APC|${String(Number(apc)).padStart(4, "0")}`;
+    m.set(k, [...(m.get(k) ?? []), codeKey(c.type, c.code)]);
+  }
+  return m;
+}

@@ -1,7 +1,8 @@
 import type { Readable } from "node:stream";
 import { createGunzip } from "node:zlib";
 import { MrfScanner } from "./scan";
-import { benchCodeMap, codeKey, type BenchCode } from "./codes";
+import { apcToBasket, benchCodeMap, codeKey, BENCH_CODES, type BenchCode } from "./codes";
+import medicareRef from "../../../data/medicare/reference.json";
 
 /** One provider (TIN) × code × billing class × rate type: the compact chunk we keep from a rate file. */
 export type RateRow = {
@@ -48,8 +49,30 @@ export type ReduceOpts = {
  * Prices are never expanded across a group's TINs in memory, which is what keeps multi-GB files under ~300 MB.
  */
 export async function reduceRateFile(input: Readable, opts: ReduceOpts): Promise<ReduceResult> {
+  const r = new RateReducer(opts);
+  await r.consume(input, opts.gzip);
+  return r.finish();
+}
+
+/**
+ * Multi-part networks (e.g. "…_3_of_11.json.gz") are separate JSON documents whose provider_group_ids are local to each
+ * part. consume() each part in turn: group ids are namespaced by part, TINs are shared, so per-provider stats merge exactly.
+ */
+export class RateReducer {
+  private consumeImpl: (input: Readable, gzip: boolean) => Promise<void>;
+  finish: () => ReduceResult;
+  constructor(opts: Omit<ReduceOpts, "gzip">) {
+    const built = build(opts);
+    this.consumeImpl = built.consume;
+    this.finish = built.finish;
+  }
+  consume(input: Readable, gzip: boolean) { return this.consumeImpl(input, gzip); }
+}
+
+function build(opts: Omit<ReduceOpts, "gzip">) {
   const t0 = Date.now();
   const targets = benchCodeMap(opts.codes);
+  const apcs = apcToBasket(opts.codes ?? BENCH_CODES, medicareRef.opps.codes as Record<string, { apc: string | null }>);
   const today = opts.today ?? new Date().toISOString().slice(0, 10);
 
   // TIN interning keeps provider_references cheap: group id → [tinIdx, npiCount, tinIdx, npiCount, …]
@@ -72,17 +95,23 @@ export async function reduceRateFile(input: Readable, opts: ReduceOpts): Promise
     for (const g of gs) { const id = tinIdx(g); if (id >= 0) out.push(id, g.npi?.length ?? 0); }
     return out;
   };
-  let inline = -1;
+  let inline = 0;
+  let part = -1;
+  // Group ids are only unique within one part; fold the part number in (exact for < 2^32 ids, < 900k parts).
+  const gkey = (gid: number) => part * 1e10 + gid;
 
   // "code\tclass\ttype" → groupId → prices
   const acc = new Map<string, Map<number, number[]>>();
-  let current: string | null = null;
+  // Basket keys the current in_network item feeds; APC items feed facility rates of every CPT in that APC.
+  let current: string[] | null = null;
+  let facilityOnly = false;
   let prices = 0, skippedModifier = 0, skippedExpired = 0;
 
   const addRate = (el: RateEl) => {
     if (!current) return;
     let refs = el.provider_references ?? [];
-    if (el.provider_groups?.length) { groups.set(inline, packGroups(el.provider_groups)); refs = [...refs, inline--]; }
+    let keys = refs.map(gkey);
+    if (el.provider_groups?.length) { const k = gkey(5e9 + inline++); groups.set(k, packGroups(el.provider_groups)); keys = [...keys, k]; }
     for (const p of el.negotiated_prices ?? []) {
       const type = (p.negotiated_type ?? "").toLowerCase();
       const rate = Number(p.negotiated_rate);
@@ -90,48 +119,63 @@ export async function reduceRateFile(input: Readable, opts: ReduceOpts): Promise
       if (p.billing_code_modifier?.some((m) => m && m.trim())) { skippedModifier++; continue; }
       if (p.expiration_date && p.expiration_date < today && !p.expiration_date.startsWith("9999")) { skippedExpired++; continue; }
       const cls = (p.billing_class ?? "").toLowerCase() || "unknown";
-      const k = `${current}\t${cls}\t${type}`;
-      let byGroup = acc.get(k);
-      if (!byGroup) acc.set(k, (byGroup = new Map()));
-      for (const r of refs) {
-        let a = byGroup.get(r);
-        if (!a) byGroup.set(r, (a = []));
-        a.push(rate);
-        prices++;
+      if (facilityOnly && cls !== "institutional") continue;
+      for (const ck of current) {
+        const k = `${ck}\t${cls}\t${type}`;
+        let byGroup = acc.get(k);
+        if (!byGroup) acc.set(k, (byGroup = new Map()));
+        for (const r of keys) {
+          let a = byGroup.get(r);
+          if (!a) byGroup.set(r, (a = []));
+          a.push(rate);
+          prices++;
+        }
       }
     }
   };
-  const headerKey = (text: string): string | null => {
+  const headerKey = (text: string): string[] | null => {
     const code = /"billing_code"\s*:\s*"([^"]*)"/.exec(text)?.[1];
     const type = /"billing_code_type"\s*:\s*"([^"]*)"/.exec(text)?.[1];
+    facilityOnly = false;
     if (!code || !type) return null;
     const k = codeKey(type, code);
-    return targets.has(k) ? k : null;
+    if (targets.has(k)) return [k];
+    const viaApc = apcs.get(k);
+    if (viaApc) { facilityOnly = true; return viaApc; }
+    return null;
   };
 
-  const scanner = new MrfScanner({
-    providerRef(o) {
+  const handlers = {
+    providerRef(o: unknown) {
       const r = o as { provider_group_id?: number; provider_groups?: Group[] };
-      if (typeof r.provider_group_id === "number") groups.set(r.provider_group_id, packGroups(r.provider_groups));
+      if (typeof r.provider_group_id === "number") groups.set(gkey(r.provider_group_id), packGroups(r.provider_groups));
     },
-    header(text) { current = headerKey(text); return current !== null; },
-    rate(o) { addRate(o as RateEl); },
-    whole(o) {
+    header(text: string) { current = headerKey(text); return current !== null; },
+    rate(o: unknown) { addRate(o as RateEl); },
+    whole(o: unknown) {
       const item = o as { billing_code?: string; billing_code_type?: string; negotiated_rates?: RateEl[] };
       current = item.billing_code && item.billing_code_type ? headerKey(JSON.stringify({ billing_code: item.billing_code, billing_code_type: item.billing_code_type })) : null;
       for (const el of item.negotiated_rates ?? []) addRate(el);
     },
-  });
+  };
+  let compressed = 0, bytes = 0, items = 0, kept = 0, oversize = 0, head = "";
 
-  let compressed = 0;
-  input.on("data", (b: Buffer) => { compressed += b.length; });
-  const stream = opts.gzip ? input.pipe(createGunzip()) : input;
-  let last = 0;
-  for await (const chunk of stream as AsyncIterable<Buffer>) {
-    scanner.write(chunk);
-    if (opts.onProgress && scanner.bytes - last > 1e9) { last = scanner.bytes; opts.onProgress(scanner.bytes, scanner.items); }
+  async function consume(input: Readable, gzip: boolean) {
+    part++;
+    current = null;
+    const scanner = new MrfScanner(handlers);
+    input.on("data", (b: Buffer) => { compressed += b.length; });
+    const stream = gzip ? input.pipe(createGunzip()) : input;
+    let last = 0;
+    for await (const chunk of stream as AsyncIterable<Buffer>) {
+      scanner.write(chunk);
+      if (opts.onProgress && scanner.bytes - last > 1e9) { last = scanner.bytes; opts.onProgress(bytes + scanner.bytes, items + scanner.items); }
+    }
+    if (!head) head = scanner.head;
+    bytes += scanner.bytes; items += scanner.items; kept += scanner.kept; oversize += scanner.oversize;
   }
 
+  function finish(): ReduceResult {
   // Key providers: hospitals (institutional inpatient DRG rates), largest groups, and requested TINs.
   const key = new Set<number>();
   const npiOf = new Int32Array(tins.length);
@@ -174,7 +218,6 @@ export async function reduceRateFile(input: Readable, opts: ReduceOpts): Promise
     medians.sort((a, b) => a - b);
     summary.push({ code, codeType, billingClass: cls, negotiatedType: type, providers: medians.length, p10: pct(medians, 0.1), p25: pct(medians, 0.25), p50: pct(medians, 0.5), p75: pct(medians, 0.75), p90: pct(medians, 0.9) });
   }
-  const head = scanner.head;
   return {
     meta: {
       reportingEntity: /"reporting_entity_name"\s*:\s*"([^"]*)"/.exec(head)?.[1] ?? null,
@@ -182,12 +225,14 @@ export async function reduceRateFile(input: Readable, opts: ReduceOpts): Promise
       version: /"version"\s*:\s*"([^"]*)"/.exec(head)?.[1] ?? null,
     },
     stats: {
-      compressedBytes: compressed, bytes: scanner.bytes, items: scanner.items, itemsKept: scanner.kept, providerGroups: groups.size, prices,
-      skippedModifier, skippedExpired, oversize: scanner.oversize, seconds: (Date.now() - t0) / 1000, rows: rows.length, providers: everyone.size, keyProviders: key.size,
+      compressedBytes: compressed, bytes, items, itemsKept: kept, providerGroups: groups.size, prices,
+      skippedModifier, skippedExpired, oversize, seconds: (Date.now() - t0) / 1000, rows: rows.length, providers: everyone.size, keyProviders: key.size,
     },
     rows,
     summary,
   };
+  }
+  return { consume, finish };
 }
 
 function median(s: number[]) {

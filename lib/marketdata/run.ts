@@ -11,14 +11,18 @@ import type { Dataset } from "./datasets";
  */
 export async function runImport(dataset: Dataset, year: number): Promise<string> {
   const cwd = process.cwd();
+  // Prefer the precompiled bundle (npm run build:import): running through tsx costs ~90 MB more per import process,
+  // enough to push a 51-network rate import past a 512 MB server.
+  const compiled = join(cwd, "dist", "import-market-data.cjs");
   const script = join(cwd, "scripts", "import-market-data.ts");
   const tsx = join(cwd, "node_modules", "tsx", "dist", "cli.mjs");
-  if (!existsSync(script) || !existsSync(tsx)) {
+  const args = existsSync(compiled) ? [compiled] : existsSync(script) && existsSync(tsx) ? [tsx, script] : null;
+  if (!args) {
     const rows = await importDataset(dataset, year);
     return `${dataset} ${year}: ${rows} rows (in-process)`;
   }
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, ["--max-old-space-size=256", tsx, script, dataset, String(year)], {
+    const child = spawn(process.execPath, ["--max-old-space-size=256", ...args, dataset, String(year)], {
       cwd,
       // One malloc arena + eager trim: zlib/undici fragment native memory across threads (409 → 304 MB peak on rate files).
       env: { ...process.env, MALLOC_ARENA_MAX: "1", MALLOC_TRIM_THRESHOLD_: "131072" },

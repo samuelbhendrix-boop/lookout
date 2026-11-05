@@ -12,7 +12,7 @@ import { ALLOWED_DATA_HOSTS, DATASETS, REFRESH_DAYS, type Dataset } from "./data
 import { importChia, importStateSnapshots } from "./state";
 import { importDol } from "./dol";
 import { importTransparency } from "./tic";
-import { importRates } from "./mrf/files";
+import { importRates, ResumeLater } from "./mrf/files";
 
 // ─── helpers (exported for tests) ────────────────────────────────────
 
@@ -232,7 +232,7 @@ export async function importDataset(dataset: Dataset, year: number) {
     else if (dataset === "ma_chia") rows = await importChia(await download(def.url, dir, "chia.xlsx"));
     else if (dataset === "dol_5500") rows = await importDol(year, def.url, dir);
     else if (dataset === "tic") rows = await importTransparency();
-    else if (dataset === "rates") rows = await importRates();
+    else if (dataset === "rates") rows = await importRates(year);
     else {
       const zip = await download(def.url, dir);
       rows = dataset === "urrt" ? await importUrrt(year, zip) : await importMlr(year, zip);
@@ -245,6 +245,11 @@ export async function importDataset(dataset: Dataset, year: number) {
     });
     return rows;
   } catch (e) {
+    if (e instanceof ResumeLater) {
+      // Stopped at the memory budget; due again on the next scheduler tick, continuing from the saved cursor.
+      await db.dataImport.update({ where: { dataset_year: { dataset, year } }, data: { status: "partial", rows: e.rows, error: e.message, finishedAt: new Date() } });
+      return e.rows;
+    }
     await db.dataImport.update({
       where: { dataset_year: { dataset, year } },
       data: { status: "failed", error: (e as Error).message.slice(0, 500), finishedAt: new Date() },
@@ -283,6 +288,7 @@ export async function dueImports() {
     if (!e) return true;
     if (e.status === "running" || e.status === "queued") return Date.now() - e.startedAt.getTime() > 60 * 60_000; // stuck >1h
     if (e.status === "failed") return Date.now() - (e.finishedAt?.getTime() ?? 0) > 6 * 3600e3;
+    if (e.status === "partial") return true; // resume right away in a fresh process
     return (e.finishedAt?.getTime() ?? 0) < cutoff;
   });
 }

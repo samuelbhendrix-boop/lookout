@@ -469,12 +469,16 @@ describe("rate file reducer", () => {
 import { readdirSync } from "node:fs";
 
 describe("rate snapshots", () => {
-  it("are well-formed", () => {
-    for (const n of readdirSync("data/rates").filter((x) => x.endsWith(".json"))) {
-      const s = JSON.parse(readFileSync(`data/rates/${n}`, "utf8"));
-      expect(s.carrier && s.carrierName && s.network).toBeTruthy();
-      expect(s.rows.length).toBeGreaterThan(100);
-      for (const r of s.rows) expect(r.median > 0 && /^\d{9}$|^npi:\d+$/.test(r.tin)).toBe(true);
+  it("are well-formed", async () => {
+    const { gunzipSync } = await import("node:zlib");
+    for (const n of readdirSync("data/rates").filter((x) => /\.json(\.gz)?$/.test(x))) {
+      const raw = readFileSync(`data/rates/${n}`);
+      const s = JSON.parse((n.endsWith(".gz") ? gunzipSync(raw) : raw).toString("utf8"));
+      expect(s.carrier && s.carrierName && s.network, n).toBeTruthy();
+      if (s.network === "Files not reduced") { expect(s.skipped?.length, n).toBeGreaterThan(0); continue; }
+      expect(s.note, n).toBeTruthy();
+      expect(s.rows.length, n).toBeGreaterThan(100);
+      for (const r of s.rows) expect(r.median > 0 && /^\d{9}$|^npi:\d+$/.test(r.tin), n).toBe(true);
     }
   });
 });
@@ -505,11 +509,62 @@ describe("medicare reference", () => {
   it("hospital TIN map points at real New England hospitals in the right state", () => {
     const prefixState: Record<string, string> = { "01": "ME", "02": "NH", "03": "VT", "04": "MA", "05": "RI", "06": "CT" };
     const hospitals = medicareRef.hospitals as Record<string, { state: string }>;
-    for (const [tin, ccn] of Object.entries(tinMap.map)) {
+    for (const [tin, ccn] of Object.entries({ ...((tinMap as { auto?: Record<string, string> }).auto ?? {}), ...tinMap.map })) {
       expect(hospitals[ccn], `${tin} → ${ccn}`).toBeTruthy();
-      const st = prefixState[tin.slice(0, 2)];
+      const st = tin.startsWith("npi:") ? undefined : prefixState[tin.slice(0, 2)];
       if (st) expect(hospitals[ccn].state, `${tin} → ${ccn}`).toBe(st);
       expect(hospitalFor(tin)).toBeTruthy();
     }
+  });
+});
+
+import { RateReducer } from "@/lib/marketdata/mrf/reduce";
+
+describe("multi-part rate files", () => {
+  const part = (tin: string, name: string, rate: number) => Buffer.from(JSON.stringify({
+    reporting_entity_name: "Blue", last_updated_on: "2026-11-01",
+    provider_references: [{ provider_group_id: 1, provider_groups: [{ npi: [1], tin: { type: "ein", value: tin, business_name: name } }] }],
+    in_network: [{ billing_code_type: "MS-DRG", billing_code: "470", negotiated_rates: [{ provider_references: [1], negotiated_prices: [{ negotiated_type: "negotiated", negotiated_rate: rate, billing_class: "institutional" }] }] }],
+  }));
+  it("keeps group ids local to each part and merges TINs exactly", async () => {
+    const r = new RateReducer({ today: "2026-11-04" });
+    await r.consume(Readable.from([part("041111111", "Hospital A", 30000)]), false);
+    await r.consume(Readable.from([part("042222222", "Hospital B", 50000)]), false);
+    await r.consume(Readable.from([part("041111111", "Hospital A", 32000)]), false);
+    const out = r.finish();
+    const byTin = Object.fromEntries(out.rows.map((x) => [x.tin, x]));
+    expect(byTin["041111111"]).toMatchObject({ n: 2, min: 30000, max: 32000, median: 31000 });
+    expect(byTin["042222222"]).toMatchObject({ n: 1, median: 50000, providerName: "Hospital B" });
+    expect(out.summary[0].providers).toBe(2);
+  });
+});
+
+describe("APC-priced facility rates", () => {
+  it("feed every basket CPT in that APC, facility class only", async () => {
+    const file = JSON.stringify({
+      reporting_entity_name: "RI plan", provider_references: [],
+      in_network: [{ billing_code_type: "APC", billing_code: "5341", negotiated_rates: [{
+        provider_groups: [{ npi: [1], tin: { type: "ein", value: "050258954", business_name: "Rhode Island Hospital" } }],
+        negotiated_prices: [{ negotiated_type: "negotiated", negotiated_rate: 4100, billing_class: "institutional" }, { negotiated_type: "negotiated", negotiated_rate: 99, billing_class: "professional" }] }] }],
+    });
+    const r = await reduceRateFile(Readable.from([Buffer.from(file)]), { gzip: false, today: "2026-11-04", tins: new Set(["050258954"]) });
+    const hernia = r.rows.filter((x) => x.code === "49505");
+    expect(hernia.map((x) => [x.billingClass, x.median])).toEqual([["institutional", 4100]]);
+  });
+});
+
+import { deltaRows } from "@/lib/marketdata/mrf/files";
+
+describe("delta storage", () => {
+  const row = (tin: string, code: string, median: number) => ({ code, codeType: "CPT", billingClass: "professional", negotiatedType: "negotiated", tin, providerName: null, npiCount: 1, n: 1, min: median, median, max: median });
+  it("stores only changed, new and removed prices", () => {
+    const base = [row("041111111", "99213", 100), row("042222222", "99213", 120), row("043333333", "99213", 90)];
+    const net = [row("041111111", "99213", 100), row("042222222", "99213", 130), row("044444444", "99213", 80)];
+    const d = deltaRows(net, base);
+    expect(d.map((x) => [x.tin, x.n, x.median]).sort()).toEqual([["042222222", 1, 130], ["043333333", 0, 0], ["044444444", 1, 80]]);
+    // Rebuild = base − tombstones + overrides
+    const m = new Map(base.map((x) => [x.tin, x.median]));
+    for (const x of d) x.n ? m.set(x.tin, x.median) : m.delete(x.tin);
+    expect([...m.entries()].sort()).toEqual(net.map((x) => [x.tin, x.median]).sort());
   });
 });

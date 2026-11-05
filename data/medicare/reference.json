@@ -23,16 +23,60 @@
   "conversionFactor": 33.4009,
   "gpci": [
    {
+    "state": "CT",
+    "locality": "CONNECTICUT",
+    "work": 1.02,
+    "pe": 1.077,
+    "mp": 1.21
+   },
+   {
+    "state": "ME",
+    "locality": "SOUTHERN MAINE",
+    "work": 1,
+    "pe": 0.991,
+    "mp": 0.631
+   },
+   {
+    "state": "ME",
+    "locality": "REST OF MAINE",
+    "work": 1,
+    "pe": 0.92,
+    "mp": 0.622
+   },
+   {
+    "state": "MA",
     "locality": "METROPOLITAN BOSTON",
     "work": 1.041,
     "pe": 1.194,
     "mp": 0.89
    },
    {
+    "state": "MA",
     "locality": "REST OF MASSACHUSETTS",
     "work": 1.016,
     "pe": 1.053,
     "mp": 0.797
+   },
+   {
+    "state": "NH",
+    "locality": "NEW HAMPSHIRE",
+    "work": 1,
+    "pe": 1.041,
+    "mp": 0.875
+   },
+   {
+    "state": "RI",
+    "locality": "RHODE ISLAND",
+    "work": 1.019,
+    "pe": 1.033,
+    "mp": 0.892
+   },
+   {
+    "state": "VT",
+    "locality": "VERMONT",
+    "work": 1,
+    "pe": 0.99,
+    "mp": 0.506
    }
   ],
   "codes": {
@@ -555,6 +599,38 @@
   "wageIndex": 1.3072000000000008,
   "gaf": 1.2013540820000013,
   "hospitals": 52
+ },
+ "stateAverages": {
+  "ME": {
+   "wageIndex": 0.982542857142857,
+   "gaf": 0.9879262942857141,
+   "hospitals": 14
+  },
+  "MA": {
+   "wageIndex": 1.3072000000000008,
+   "gaf": 1.2013540820000013,
+   "hospitals": 52
+  },
+  "NH": {
+   "wageIndex": 1.1278076923076923,
+   "gaf": 1.0858350799230772,
+   "hospitals": 13
+  },
+  "RI": {
+   "wageIndex": 1.20016,
+   "gaf": 1.133081597,
+   "hospitals": 10
+  },
+  "VT": {
+   "wageIndex": 1.03345,
+   "gaf": 1.0226854803333334,
+   "hospitals": 6
+  },
+  "CT": {
+   "wageIndex": 1.298000000000001,
+   "gaf": 1.1955576129999994,
+   "hospitals": 26
+  }
  },
  "hospitals": {
   "200001": {

@@ -32,8 +32,8 @@ for (const r of pfsRows.slice(hdr + 1)) {
   cf = num(r[25]) ?? cf;
 }
 const gpci = (parse(readFileSync(find(/^GPCI\d+\.csv$/)), { relax_column_count: true }) as string[][])
-  .filter((r) => r[1] === "MA")
-  .map((r) => ({ locality: r[3], work: num(r[4])!, pe: num(r[5])!, mp: num(r[6])! }));
+  .filter((r) => ["MA", "CT", "ME", "NH", "RI", "VT"].includes(r[1]))
+  .map((r) => ({ state: r[1], locality: r[3], work: num(r[4])!, pe: num(r[5])!, mp: num(r[6])! }));
 
 // ── OPPS Addendum B ──
 const addB = readFileSync(find(/Addendum_B.*\.txt$/), "latin1").split(/\r?\n/).map((l) => l.split("\t"));
@@ -71,6 +71,11 @@ for (const r of impact.slice(2)) {
 }
 const ma = Object.values(hospitals).filter((h) => h.state === "MA");
 const avg = (k: string) => ma.reduce((s, h) => s + (h[k] as number), 0) / ma.length;
+const stateAverages = Object.fromEntries(Object.values(NE).map((st) => {
+  const hs = Object.values(hospitals).filter((h) => h.state === st);
+  const a = (k: string) => hs.reduce((s, h) => s + (h[k] as number), 0) / hs.length;
+  return [st, { wageIndex: a("wageIndex"), gaf: a("gaf"), hospitals: hs.length }];
+}));
 
 const aprCrosswalk: Record<string, string[]> = { "302": ["469", "470"], "301": ["469", "470"], "560": ["805", "806", "807"], "540": ["786", "787", "788"], "720": ["871", "872"], "194": ["291", "292", "293"], "139": ["193", "194", "195"], "175": ["321", "322"], "640": ["795"] };
 const needed = new Set([...BENCH_CODES.filter((c) => c.type === "MS-DRG").map((c) => c.code), ...Object.values(aprCrosswalk).flat()]);
@@ -91,6 +96,7 @@ const out = {
   /** APR-DRG has no Medicare equivalent; each maps to the MS-DRG family covering the same condition (severity splits averaged). */
   aprCrosswalk,
   massachusettsAverage: { wageIndex: avg("wageIndex"), gaf: avg("gaf"), hospitals: ma.length },
+  stateAverages,
   hospitals,
 };
 const missing = BENCH_CODES.filter((c) => c.type === "MS-DRG" && !weights[c.code]).map((c) => c.code);

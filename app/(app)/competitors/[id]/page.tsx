@@ -142,8 +142,8 @@ export default async function CompetitorProfilePage({
           <h2 className="text-lg font-semibold tracking-tight">Price position · negotiated rates</h2>
           <div className="card flex flex-wrap items-center gap-x-8 gap-y-3 p-4">
             <div>
-              <p className={`text-3xl font-semibold tabular-nums ${pricing.index >= 1.05 ? "text-red-700" : pricing.index <= 0.95 ? "text-emerald-700" : ""}`}>
-                {pricing.index >= 1 ? "+" : "−"}{Math.abs((pricing.index - 1) * 100).toFixed(0)}%
+              <p className={`text-3xl font-semibold tabular-nums ${pricing.index == null ? "text-stone-400" : pricing.index >= 1.05 ? "text-red-700" : pricing.index <= 0.95 ? "text-emerald-700" : ""}`}>
+                {pricing.index == null ? "—" : `${pricing.index >= 1 ? "+" : "−"}${Math.abs((pricing.index - 1) * 100).toFixed(0)}%`}
               </p>
               <p className="text-xs text-stone-500">vs peers, same service at the same provider</p>
               {pricing.pctMedicare != null && <p className="mt-1 text-sm"><span className="font-medium">{Math.round(pricing.pctMedicare * 100)}%</span> <span className="text-xs text-stone-500">of Medicare (median)</span></p>}
@@ -152,7 +152,7 @@ export default async function CompetitorProfilePage({
               {pricing.byCategory.map((b) => (
                 <div key={b.category} className="flex justify-between">
                   <span className="text-stone-600">{b.category}</span>
-                  <span className="tabular-nums">{b.index >= 1 ? "+" : "−"}{Math.abs((b.index - 1) * 100).toFixed(0)}%{b.pctMedicare != null ? <span className="text-stone-400"> · {Math.round(b.pctMedicare * 100)}% M</span> : null}</span>
+                  <span className="tabular-nums">{b.index == null ? "—" : `${b.index >= 1 ? "+" : "−"}${Math.abs((b.index - 1) * 100).toFixed(0)}%`}{b.pctMedicare != null ? <span className="text-stone-400"> · {Math.round(b.pctMedicare * 100)}% M</span> : null}</span>
                 </div>
               ))}
             </div>

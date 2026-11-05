@@ -52,7 +52,7 @@ export const MRF_REGISTRY: Registry[] = [
   { id: "fallon", carrier: "Fallon Community Health Plan", regional: true, url: "https://fallon.sapphiremrfhub.com/", method: "Sapphire MRF hub (JavaScript app)" },
   { id: "cho", carrier: "Maine Community Health Options", regional: true, url: "https://index.opynhealth.com/Community-Health-Options/Community-Health-Options", method: "Opyn Health index" },
   { id: "nhpri", carrier: "Neighborhood Health Plan of Rhode Island", regional: true, url: "https://www.nhpri.org/members/commercial-members-individual-family-plans/price-transparency-machine-readable-files/", method: "Plan web page with file links" },
-  { id: "wellsense", carrier: "WellSense Health Plan", regional: true, url: "https://bmchp-wellsense.healthtrioconnect.com/app/index.page", method: "HealthTrio portal (JavaScript app)" },
+  { id: "wellsense", carrier: "WellSense Health Plan", regional: true, url: "https://bmchp-wellsense.healthtrioconnect.com/app/index.page", method: "HealthTrio portal (JavaScript app)", note: "The HealthTrio portal sits behind a Cloudflare browser challenge, so no automated client can list files. Download a rate file in a browser and run npm run mrf:reduce on it" },
 ];
 
 // ─── helpers ─────────────────────────────────────────────────────────
