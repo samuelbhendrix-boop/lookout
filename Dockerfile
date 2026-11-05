@@ -27,6 +27,7 @@ COPY --from=build /app/lib ./lib
 COPY --from=build /app/worker ./worker
 COPY --from=build /app/package.json ./package.json
 COPY --from=build /app/scripts ./scripts
+COPY --from=build /app/data ./data
 USER app
 EXPOSE 3000
 # Migrations are idempotent and run on every boot, so a fresh database just works.

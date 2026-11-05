@@ -9,6 +9,7 @@ import { parse } from "csv-parse";
 import type { Prisma, Segment } from "@prisma/client";
 import { db } from "../db";
 import { ALLOWED_DATA_HOSTS, DATASETS, REFRESH_DAYS, type Dataset } from "./datasets";
+import { importChia, importStateSnapshots } from "./state";
 
 // ─── helpers (exported for tests) ────────────────────────────────────
 
@@ -29,12 +30,12 @@ export const cleanName = (s: string) => s.replace(/\\"/g, '"').replace(/^"+|"+$/
 
 // ─── download + unzip (streaming) ────────────────────────────────────
 
-async function download(url: string, dir: string): Promise<string> {
+async function download(url: string, dir: string, name = "data.zip"): Promise<string> {
   const u = new URL(url);
   if (!ALLOWED_DATA_HOSTS.has(u.hostname)) throw new Error(`Refusing to download from ${u.hostname}`);
   const res = await fetch(url, { signal: AbortSignal.timeout(10 * 60_000), headers: { "User-Agent": "LookoutBot/0.4" } });
   if (!res.ok || !res.body) throw new Error(`Download failed: HTTP ${res.status} for ${url}`);
-  const file = join(dir, "data.zip");
+  const file = join(dir, name);
   await pipeline(Readable.fromWeb(res.body as never), createWriteStream(file));
   return file;
 }
@@ -223,8 +224,13 @@ export async function importDataset(dataset: Dataset, year: number) {
   });
   const dir = await mkdtemp(join(tmpdir(), "lookout-"));
   try {
-    const zip = await download(def.url, dir);
-    const rows = dataset === "urrt" ? await importUrrt(year, zip) : await importMlr(year, zip);
+    let rows: number;
+    if (dataset === "state_snapshots") rows = await importStateSnapshots();
+    else if (dataset === "ma_chia") rows = await importChia(await download(def.url, dir, "chia.xlsx"));
+    else {
+      const zip = await download(def.url, dir);
+      rows = dataset === "urrt" ? await importUrrt(year, zip) : await importMlr(year, zip);
+    }
     // A real file always has thousands of rows; zero means CMS changed the layout — fail loudly.
     if (rows === 0) throw new Error("File parsed but produced 0 rows — CMS may have changed the file layout");
     await db.dataImport.update({

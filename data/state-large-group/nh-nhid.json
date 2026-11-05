@@ -1,0 +1,243 @@
+{
+ "source": "nh_nhid",
+ "state": "NH",
+ "segment": "LARGE_GROUP",
+ "title": "NHID 2023 Final Report \u2014 Health Care Premium and Claim Cost Drivers (large group situs enrollment by insurer)",
+ "publisher": "New Hampshire Insurance Department",
+ "url": "https://mm.nh.gov/files/uploads/nhid/documents/nhid-annualhearing-report-2023.pdf",
+ "notes": "Published as shares of segment totals (pp. 13\u201314); member counts are estimates = share \u00d7 total. Totals are calendar-year member months \u00f7 12. Newest public edition (2022 data); later editions available from NHID by email.",
+ "rows": [
+  {
+   "year": 2020,
+   "funding": "SELF_INSURED",
+   "payer": "Elevance Health (Anthem) / Matthew Thornton",
+   "sharePct": 40,
+   "segmentTotal": 273800,
+   "note": null
+  },
+  {
+   "year": 2020,
+   "funding": "SELF_INSURED",
+   "payer": "Harvard Pilgrim Health Care",
+   "sharePct": 16,
+   "segmentTotal": 273800,
+   "note": null
+  },
+  {
+   "year": 2020,
+   "funding": "SELF_INSURED",
+   "payer": "Cigna",
+   "sharePct": 36,
+   "segmentTotal": 273800,
+   "note": null
+  },
+  {
+   "year": 2020,
+   "funding": "SELF_INSURED",
+   "payer": "UnitedHealthcare Freedom Plans",
+   "sharePct": 7,
+   "segmentTotal": 273800,
+   "note": "Formerly Tufts Health Freedom Plan"
+  },
+  {
+   "year": 2020,
+   "funding": "SELF_INSURED",
+   "payer": "UnitedHealthcare Insurance Company",
+   "sharePct": 1,
+   "segmentTotal": 273800,
+   "note": null
+  },
+  {
+   "year": 2020,
+   "funding": "FULLY_INSURED",
+   "payer": "Elevance Health (Anthem) / Matthew Thornton",
+   "sharePct": 41,
+   "segmentTotal": 104600,
+   "note": null
+  },
+  {
+   "year": 2020,
+   "funding": "FULLY_INSURED",
+   "payer": "Harvard Pilgrim Health Care",
+   "sharePct": 40,
+   "segmentTotal": 104600,
+   "note": null
+  },
+  {
+   "year": 2020,
+   "funding": "FULLY_INSURED",
+   "payer": "Cigna",
+   "sharePct": 10,
+   "segmentTotal": 104600,
+   "note": null
+  },
+  {
+   "year": 2020,
+   "funding": "FULLY_INSURED",
+   "payer": "UnitedHealthcare Freedom Plans",
+   "sharePct": 6,
+   "segmentTotal": 104600,
+   "note": "Formerly Tufts Health Freedom Plan"
+  },
+  {
+   "year": 2020,
+   "funding": "FULLY_INSURED",
+   "payer": "UnitedHealthcare Insurance Company",
+   "sharePct": 3,
+   "segmentTotal": 104600,
+   "note": null
+  },
+  {
+   "year": 2021,
+   "funding": "SELF_INSURED",
+   "payer": "Elevance Health (Anthem) / Matthew Thornton",
+   "sharePct": 42,
+   "segmentTotal": 268800,
+   "note": null
+  },
+  {
+   "year": 2021,
+   "funding": "SELF_INSURED",
+   "payer": "Harvard Pilgrim Health Care",
+   "sharePct": 17,
+   "segmentTotal": 268800,
+   "note": null
+  },
+  {
+   "year": 2021,
+   "funding": "SELF_INSURED",
+   "payer": "Cigna",
+   "sharePct": 34,
+   "segmentTotal": 268800,
+   "note": null
+  },
+  {
+   "year": 2021,
+   "funding": "SELF_INSURED",
+   "payer": "UnitedHealthcare Freedom Plans",
+   "sharePct": 6,
+   "segmentTotal": 268800,
+   "note": "Formerly Tufts Health Freedom Plan"
+  },
+  {
+   "year": 2021,
+   "funding": "SELF_INSURED",
+   "payer": "UnitedHealthcare Insurance Company",
+   "sharePct": 1,
+   "segmentTotal": 268800,
+   "note": null
+  },
+  {
+   "year": 2021,
+   "funding": "FULLY_INSURED",
+   "payer": "Elevance Health (Anthem) / Matthew Thornton",
+   "sharePct": 43,
+   "segmentTotal": 104200,
+   "note": null
+  },
+  {
+   "year": 2021,
+   "funding": "FULLY_INSURED",
+   "payer": "Harvard Pilgrim Health Care",
+   "sharePct": 38,
+   "segmentTotal": 104200,
+   "note": null
+  },
+  {
+   "year": 2021,
+   "funding": "FULLY_INSURED",
+   "payer": "Cigna",
+   "sharePct": 10,
+   "segmentTotal": 104200,
+   "note": null
+  },
+  {
+   "year": 2021,
+   "funding": "FULLY_INSURED",
+   "payer": "UnitedHealthcare Freedom Plans",
+   "sharePct": 6,
+   "segmentTotal": 104200,
+   "note": "Formerly Tufts Health Freedom Plan"
+  },
+  {
+   "year": 2021,
+   "funding": "FULLY_INSURED",
+   "payer": "UnitedHealthcare Insurance Company",
+   "sharePct": 3,
+   "segmentTotal": 104200,
+   "note": null
+  },
+  {
+   "year": 2022,
+   "funding": "SELF_INSURED",
+   "payer": "Elevance Health (Anthem) / Matthew Thornton",
+   "sharePct": 50,
+   "segmentTotal": 264900,
+   "note": null
+  },
+  {
+   "year": 2022,
+   "funding": "SELF_INSURED",
+   "payer": "Harvard Pilgrim Health Care",
+   "sharePct": 18,
+   "segmentTotal": 264900,
+   "note": null
+  },
+  {
+   "year": 2022,
+   "funding": "SELF_INSURED",
+   "payer": "Cigna",
+   "sharePct": 31,
+   "segmentTotal": 264900,
+   "note": null
+  },
+  {
+   "year": 2022,
+   "funding": "SELF_INSURED",
+   "payer": "UnitedHealthcare Insurance Company",
+   "sharePct": 1,
+   "segmentTotal": 264900,
+   "note": "Chart leaves this 1% unlabeled; attributed to United (its share in prior years) since the report says the Freedom Plan exited self-insured"
+  },
+  {
+   "year": 2022,
+   "funding": "FULLY_INSURED",
+   "payer": "Elevance Health (Anthem) / Matthew Thornton",
+   "sharePct": 44,
+   "segmentTotal": 99900,
+   "note": null
+  },
+  {
+   "year": 2022,
+   "funding": "FULLY_INSURED",
+   "payer": "Harvard Pilgrim Health Care",
+   "sharePct": 35,
+   "segmentTotal": 99900,
+   "note": null
+  },
+  {
+   "year": 2022,
+   "funding": "FULLY_INSURED",
+   "payer": "Cigna",
+   "sharePct": 12,
+   "segmentTotal": 99900,
+   "note": null
+  },
+  {
+   "year": 2022,
+   "funding": "FULLY_INSURED",
+   "payer": "UnitedHealthcare Freedom Plans",
+   "sharePct": 6,
+   "segmentTotal": 99900,
+   "note": "Formerly Tufts Health Freedom Plan"
+  },
+  {
+   "year": 2022,
+   "funding": "FULLY_INSURED",
+   "payer": "UnitedHealthcare Insurance Company",
+   "sharePct": 3,
+   "segmentTotal": 99900,
+   "note": null
+  }
+ ]
+}

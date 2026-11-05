@@ -76,6 +76,17 @@ Design choices:
 
 To add a new year: one line in `lib/marketdata/datasets.ts`.
 
+### Large group (state sources)
+
+| State | Source | What it adds | How it's loaded |
+|---|---|---|---|
+| MA | CHIA Enrollment Trends databook | Members by carrier × **fully/self-insured** × product × group size, quarterly | Automatic import (Excel) |
+| ME | Bureau of Insurance financial results | Fully insured LG lives, premium, claims, **admin, underwriting gain** by carrier | Curated snapshot `data/state-large-group/me-boi.json` |
+| RI | OHIC rate review | LG **requested vs approved** rates by carrier + trend/retention assumptions | Curated snapshot `ri-ohic.json` |
+| NH | NHID cost drivers report | LG membership shares by carrier, fully & self-insured (2020–22) | Curated snapshot `nh-nhid.json` (estimates) |
+
+PDF sources are snapshots, not scrapers: a regulator PDF layout changes every edition and a silent mis-parse is worse than a stale number. Every snapshot is guarded by tests (Maine rows must balance to the dollar and sum to published totals; RI weighted averages must reproduce the printed totals; NH shares must sum to 100%; every carrier must map to exactly one competitor). SERFF Filing Access isn't scraped (its network blocks automated clients and its terms aren't verifiable); profiles link to each state's SERFF search instead.
+
 ## 3. File structure
 
 ```

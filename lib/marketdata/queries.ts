@@ -209,7 +209,7 @@ export async function marketShare(workspaceId: string, state: string, segment: S
   }
   const total = [...agg.values()].reduce((s, a) => s + a.coveredLives, 0);
   // Drop run-off entities: no members and trivial premium.
-  const out = [...agg.values()].filter((a) => a.coveredLives >= 1 || a.premium >= MIN_PREMIUM_FOR_LR).map((a) => ({
+  const out = [...agg.values()].filter((a) => a.coveredLives >= 100).map((a) => ({
     ...a,
     share: total > 0 ? a.coveredLives / total : 0,
     lossRatio: lossRatio(a.claims, a.premium),

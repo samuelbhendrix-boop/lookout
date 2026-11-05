@@ -389,3 +389,76 @@ model DataImport {
 
   @@unique([dataset, year])
 }
+
+// ─── State large-group data (incl. self-insured) ─────────────────────
+
+enum Funding {
+  FULLY_INSURED
+  SELF_INSURED
+}
+
+/**
+ * Membership by carrier × funding × market sector, from state sources (MA CHIA, NH NHID).
+ */
+model MarketEnrollment {
+  id          String   @id @default(cuid())
+  source      String // "ma_chia" | "nh_nhid"
+  state       String
+  asOf        DateTime
+  payer       String // canonical name (matched by Competitor.issuerPattern)
+  funding     Funding
+  segment     Segment
+  sector      String // source's own label, e.g. "Jumbo-Size Group (501+)"
+  productType String   @default("")
+  members     Float
+  estimated   Boolean  @default(false) // true when derived from published shares
+  note        String?
+
+  @@unique([source, state, asOf, payer, funding, sector, productType])
+  @@index([state, segment, asOf])
+  @@index([payer])
+}
+
+/**
+ * Carrier financials published by a state regulator (e.g. Maine BOI) — adds admin & underwriting gain.
+ */
+model StateFinancial {
+  id               String  @id @default(cuid())
+  source           String // "me_boi"
+  state            String
+  year             Int
+  company          String
+  segment          Segment
+  coveredLives     Float?
+  memberMonths     Float?
+  premium          Float
+  claims           Float
+  reserveChange    Float?
+  adminExpense     Float?
+  underwritingGain Float?
+  isTotal          Boolean @default(false)
+
+  @@unique([source, state, year, company, segment])
+  @@index([state, segment, year])
+}
+
+/**
+ * Rate actions reviewed by a state regulator (e.g. RI OHIC large group), requested vs approved.
+ */
+model GroupRateAction {
+  id        String  @id @default(cuid())
+  source    String // "ri_ohic"
+  state     String
+  segment   Segment
+  planYear  Int
+  carrier   String // canonical name
+  label     String // as printed by the regulator
+  members   Float?
+  requested Float?
+  approved  Float?
+  details   Json? // trend & retention components as printed
+  isTotal   Boolean @default(false)
+
+  @@unique([source, state, segment, planYear, carrier])
+  @@index([state, segment, planYear])
+}

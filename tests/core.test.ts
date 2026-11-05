@@ -291,3 +291,62 @@ describe("feed hygiene", () => {
     expect(mentions("CVSHealthy snacks recall", aetna)).toBe(false); // whole word only
   });
 });
+
+import { readFileSync } from "node:fs";
+import { CHIA_PAYERS, chiaSegment, chiaFunding } from "@/lib/marketdata/state";
+
+const snap = (f: string) => JSON.parse(readFileSync(`data/state-large-group/${f}`, "utf8"));
+
+describe("state large-group snapshots (guards against transcription errors)", () => {
+  it("Maine: every row balances — gain = premium − claims − reserves − admin", () => {
+    for (const r of snap("me-boi.json").rows) {
+      const calc = r.premium - r.claims - (r.reserveChange ?? 0) - (r.adminExpense ?? 0);
+      expect(Math.abs(calc - r.underwritingGain), `${r.company} ${r.year}`).toBeLessThanOrEqual(2);
+    }
+  });
+  it("Maine: carriers sum to the published grand totals", () => {
+    const rows = snap("me-boi.json").rows;
+    for (const y of [2023, 2024, 2025]) {
+      const total = rows.find((r: any) => r.isTotal && r.year === y);
+      const parts = rows.filter((r: any) => !r.isTotal && r.year === y);
+      for (const k of ["premium", "claims", "adminExpense", "underwritingGain"])
+        expect(Math.abs(parts.reduce((s: number, r: any) => s + (r[k] ?? 0), 0) - total[k]), `${k} ${y}`).toBeLessThanOrEqual(5);
+      expect(parts.reduce((s: number, r: any) => s + (r.coveredLives ?? 0), 0)).toBe(total.coveredLives);
+    }
+  });
+  it("Rhode Island: members reconcile and the weighted average matches the printed total", () => {
+    const acts = snap("ri-ohic.json").actions;
+    for (const y of [2026, 2027]) {
+      const t = acts.find((a: any) => a.isTotal && a.planYear === y);
+      const parts = acts.filter((a: any) => !a.isTotal && a.planYear === y);
+      expect(Math.abs(parts.reduce((s: number, a: any) => s + a.members, 0) - t.members)).toBeLessThanOrEqual(1);
+      const w = parts.reduce((s: number, a: any) => s + a.approved * a.members, 0) / parts.reduce((s: number, a: any) => s + a.members, 0);
+      expect(Math.abs(w - t.approved), `approved ${y}`).toBeLessThan(0.002);
+    }
+  });
+  it("New Hampshire: published shares sum to 100% per year and funding type", () => {
+    const by = new Map<string, number>();
+    for (const r of snap("nh-nhid.json").rows) by.set(`${r.year}${r.funding}`, (by.get(`${r.year}${r.funding}`) ?? 0) + r.sharePct);
+    for (const v of by.values()) expect(v).toBe(100);
+  });
+  it("every carrier in every state source maps to exactly one starter-pack competitor", () => {
+    const comps = STARTER_PACKS.flatMap((p) => p.competitors).filter((c, i, a) => a.findIndex((x) => x.name === c.name) === i);
+    const names = [
+      ...snap("me-boi.json").rows.filter((r: any) => !r.isTotal && !/all other/i.test(r.company)).map((r: any) => r.company),
+      ...snap("ri-ohic.json").actions.filter((a: any) => !a.isTotal).map((a: any) => a.carrier),
+      ...snap("nh-nhid.json").rows.map((r: any) => r.payer),
+      ...Object.values(CHIA_PAYERS),
+    ];
+    for (const n of new Set(names)) {
+      const hits = comps.filter((c) => new RegExp(issuerPatternFor({ ...c, issuerPattern: c.issuerPattern ?? null }), "i").test(n));
+      expect(hits.map((h) => h.name), n).toHaveLength(1);
+    }
+  });
+  it("CHIA sectors and funding map correctly (51–100 is large group in MA)", () => {
+    expect(chiaSegment("Mid-Size Group (51-100)")).toBe("LARGE_GROUP");
+    expect(chiaSegment("Jumbo-Size Group (501+)")).toBe("LARGE_GROUP");
+    expect(chiaSegment("Small Group (1-50)")).toBe("SMALL_GROUP");
+    expect(chiaSegment("Other")).toBeNull();
+    expect(chiaFunding("Self-Insured")).toBe("SELF_INSURED");
+  });
+});

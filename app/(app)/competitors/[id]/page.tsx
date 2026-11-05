@@ -7,6 +7,8 @@ import { competitorProfile, type SegmentYear } from "@/lib/marketdata/queries";
 import { Sparkline, fmtInt, fmtMoneyM, fmtPct, fmtSignedPct, fmtUsd, lrClass, deltaClass, SEGMENT_LABEL } from "@/components/charts";
 import { Empty, Importance, TypeBadge, timeAgo } from "@/components/ui";
 import { IssuerPatternEditor } from "@/components/IssuerPatternEditor";
+import { competitorLargeGroup } from "@/lib/marketdata/largegroup";
+import { CompetitorLargeGroup } from "@/components/LargeGroup";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +28,7 @@ export default async function CompetitorProfilePage({
   const comp = await db.competitor.findFirst({ where: { id, workspaceId: session.workspaceId } });
   if (!comp) notFound();
 
-  const [profile, allStates, signals, importsDone] = await Promise.all([
+  const [profile, allStates, signals, importsDone, largeGroup] = await Promise.all([
     competitorProfile(comp, state),
     state ? competitorProfile(comp).then((p) => p.states) : null,
     db.signal.findMany({
@@ -35,8 +37,10 @@ export default async function CompetitorProfilePage({
       take: 6,
     }),
     db.dataImport.count({ where: { status: "done" } }),
+    competitorLargeGroup(comp, state),
   ]);
-  const states = allStates ?? profile.states;
+  const lgStates = [...largeGroup.enrollment.map((e) => e.state), ...largeGroup.financials.map((f) => f.state), ...largeGroup.rateActions.map((a) => a.state)];
+  const states = [...new Set([...(allStates ?? profile.states), ...(state ? [] : lgStates)])].sort();
   const years = [...new Set(profile.performance.map((p) => p.year))].sort();
   const latestYear = years[years.length - 1];
   const get = (seg: Segment, y: number) => profile.performance.find((p) => p.segment === seg && p.year === y);
@@ -113,6 +117,9 @@ export default async function CompetitorProfilePage({
           </details>
         </section>
       )}
+
+      {/* ── Large group (state sources, incl. self-insured) ── */}
+      <CompetitorLargeGroup data={largeGroup} serffStates={(state ? [state] : states).filter((s) => ["MA", "NH", "ME", "RI", "CT", "VT"].includes(s))} />
 
       {/* ── Products ── */}
       {profile.products.length > 0 && (

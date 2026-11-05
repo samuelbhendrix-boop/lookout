@@ -9,6 +9,7 @@ import { claimDueSources, DeferJob, pollSource } from "../lib/ingest";
 import { claimDueDigests, deliverAlert, sendDigest } from "../lib/alerts";
 import { scheduleNextImport } from "../lib/marketdata/import";
 import { runImport } from "../lib/marketdata/run";
+import type { Dataset } from "../lib/marketdata/datasets";
 
 const TICK_MS = Number(process.env.WORKER_TICK_MS ?? 15_000);
 const CONCURRENCY = Number(process.env.WORKER_CONCURRENCY ?? 5);
@@ -45,7 +46,7 @@ async function runJob(job: Awaited<ReturnType<typeof claimJobs>>[number]) {
         await sendDigest(payload.ruleId, payload.since);
         break;
       case "import_market_data":
-        log(`import done — ${await runImport(payload.dataset as "urrt" | "mlr", Number(payload.year))}`);
+        log(`import done — ${await runImport(payload.dataset as Dataset, Number(payload.year))}`);
         break;
       default:
         throw new Error(`Unknown job kind: ${job.kind}`);

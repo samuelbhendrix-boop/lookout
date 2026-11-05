@@ -4,6 +4,8 @@ import { getSession } from "@/lib/auth";
 import { availableYears, marketShare, rateActions } from "@/lib/marketdata/queries";
 import { ShareBar, fmtInt, fmtMoneyM, fmtPct, fmtSignedPct, fmtUsd, lrClass, deltaClass, SEGMENT_LABEL } from "@/components/charts";
 import { Empty } from "@/components/ui";
+import { marketLargeGroup } from "@/lib/marketdata/largegroup";
+import { MarketLargeGroup } from "@/components/LargeGroup";
 
 export const dynamic = "force-dynamic";
 
@@ -25,9 +27,10 @@ export default async function MarketPage({ searchParams }: { searchParams: Promi
   const state = /^[A-Z]{2}$/.test(sp.state ?? "") ? sp.state! : "MA";
   const segment = (SEGMENTS.includes(sp.segment as Segment) ? sp.segment : "LARGE_GROUP") as Segment;
   const year = financialYears.includes(Number(sp.year)) ? Number(sp.year) : financialYears[0];
-  const [share, actions] = await Promise.all([
+  const [share, actions, lg] = await Promise.all([
     marketShare(session.workspaceId, state, segment, year),
     rateActions(session.workspaceId, state),
+    segment === "LARGE_GROUP" ? marketLargeGroup(session.workspaceId, state) : null,
   ]);
   const qs = (o: Record<string, string | number>) => "?" + new URLSearchParams({ state, segment, year: String(year), ...Object.fromEntries(Object.entries(o).map(([k, v]) => [k, String(v)])) });
 
@@ -35,7 +38,7 @@ export default async function MarketPage({ searchParams }: { searchParams: Promi
     <div className="space-y-6">
       <div>
         <h1 className="h1">Market</h1>
-        <p className="text-sm text-stone-500">Who holds the fully insured market, how it&apos;s moving, and what everyone filed for next year.</p>
+        <p className="text-sm text-stone-500">Who holds each market (fully insured and, where states publish it, self-insured), how it&apos;s moving, and what everyone filed for next year.</p>
       </div>
 
       <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -46,9 +49,11 @@ export default async function MarketPage({ searchParams }: { searchParams: Promi
         {financialYears.slice(0, 5).map((y) => <Pill key={y} href={qs({ year: y })} active={y === year} label={String(y)} />)}
       </div>
 
+      {lg && <MarketLargeGroup data={lg} state={state} />}
+
       <section className="space-y-2">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="text-lg font-semibold tracking-tight">{state} {SEGMENT_LABEL[segment].toLowerCase()} · {year}</h2>
+          <h2 className="text-lg font-semibold tracking-tight">{state} {SEGMENT_LABEL[segment].toLowerCase()}{segment === "LARGE_GROUP" ? ", fully insured only" : ""} · {year}</h2>
           <p className="text-sm text-stone-500">{fmtInt(share.total)} covered lives · {fmtMoneyM(share.totalPremium)} premium</p>
         </div>
         <p className="text-xs text-stone-500">Share of fully insured covered lives (CMS medical loss ratio reports). Self-funded employers are not in this data. Your competitors are highlighted.</p>

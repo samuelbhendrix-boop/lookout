@@ -52,15 +52,15 @@ export default async function SettingsPage() {
       <h2 className="font-mono text-xs uppercase tracking-wide text-stone-500">Market data</h2>
       <div className="card p-4 text-sm">
         <p className="mb-3 text-stone-600">
-          Public CMS files, imported automatically and refreshed monthly: rate review filings (products, plans, SERFF numbers)
-          and medical loss ratio reports (premium, claims, covered lives by segment).
+          Public data, imported automatically and refreshed monthly: CMS rate filings (products, plans, SERFF numbers) and loss ratio
+          reports; MA CHIA enrollment including self-insured; and Maine, Rhode Island and New Hampshire large-group reports.
         </p>
         <ul className="divide-y divide-stone-100">
           {DATASETS.map((d) => {
             const i = imports.find((x) => x.dataset === d.dataset && x.year === d.year);
             return (
               <li key={`${d.dataset}${d.year}`} className="flex items-center justify-between py-1.5">
-                <span>{d.dataset === "urrt" ? "Rate filings" : "Loss ratio reports"} · {d.year}</span>
+                <span>{({ urrt: "CMS rate filings", mlr: "CMS loss ratio reports", ma_chia: "MA CHIA enrollment (incl. self-insured)", state_snapshots: "ME / RI / NH large group" } as Record<string, string>)[d.dataset] ?? d.dataset} · {d.dataset === "state_snapshots" ? "v" : ""}{d.year}</span>
                 <span className={`font-mono text-xs ${i?.status === "failed" ? "text-red-600" : "text-stone-500"}`}>
                   {!i ? "waiting" : i.status === "done" && i.finishedAt && i.finishedAt.getTime() > 0 ? `${i.rows.toLocaleString()} rows · ${i.finishedAt.toISOString().slice(0, 10)}` : i.status === "failed" ? `failed: ${i.error?.slice(0, 60)}` : i.status}
                 </span>

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.0 — 2026-11-04
+- **Large group, including self-insured:** MA CHIA enrollment by carrier × fully/self-insured × group size (quarterly 2021–2025, auto-imported); Maine carrier financials with admin and underwriting gain (2023–2025); Rhode Island large-group requested vs approved rates with trend/retention assumptions (2026–2027); NH large-group shares incl. self-insured (2020–2022).
+- New "Large group" section on competitor profiles and large-group panels on the Market page; SERFF search links per state.
+- Snapshot data is test-guarded (balances, totals, mapping uniqueness).
+
 ## 0.3.1 — 2026-11-04
 - **Fresher feed:** articles older than 30 days are never ingested (`MAX_ARTICLE_AGE_DAYS`), Google News queries ask for recent results only, and the feed is ordered by publication date rather than import time.
 - **More relevant feed:** items from a competitor's own news feed must actually name that competitor; general market items about no tracked competitor and with no clear type are archived. Filtered items are tagged `auto-filtered` and stay searchable under Status → archived.

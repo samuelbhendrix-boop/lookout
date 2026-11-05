@@ -1,0 +1,215 @@
+{
+ "source": "ri_ohic",
+ "state": "RI",
+ "segment": "LARGE_GROUP",
+ "title": "OHIC Rate Review \u2014 Large Employer Group (2027 requested detail; 2026 & 2027 requested vs approved)",
+ "publisher": "Rhode Island Office of the Health Insurance Commissioner",
+ "urls": [
+  "https://ohic.ri.gov/sites/g/files/xkgbur736/files/2026-06/2027%20Large%20Group%20Rate%20Review%20Detailed%20Summary.pdf",
+  "https://ohic.ri.gov/sites/g/files/xkgbur736/files/2026-09/Final%202027%20Rate%20Review%20All%20Market%20Requested%20and%20Approved%20Summary.pdf",
+  "https://ohic.ri.gov/sites/g/files/xkgbur736/files/2025-09/Final%202026%20Rate%20Review%20All%20Market%20Requested%20and%20Approved%20Summary.pdf"
+ ],
+ "notes": "Members as printed (2027: enrollment as of March 2026; UHC as of Feb 2026). Trend/retention components are from the June 2026 requested-rate detail.",
+ "actions": [
+  {
+   "planYear": 2027,
+   "label": "Aetna",
+   "carrier": "Aetna",
+   "members": 1711,
+   "requested": 0.138,
+   "approved": 0.103,
+   "details": {
+    "inpatientTrend": 0.146,
+    "outpatientTrend": 0.125,
+    "professionalTrend": 0.089,
+    "otherMedicalTrend": 0.0,
+    "capitationTrend": 0.0,
+    "rxTrend": 0.14,
+    "medicalTrendExLeverage": 0.125,
+    "leverage": 0.01,
+    "medicalTrendTotal": 0.137,
+    "premiumTax": 0.02,
+    "contributionToReserves": 0.03,
+    "otherRetention": 0.06,
+    "totalRetention": 0.11
+   },
+   "isTotal": false
+  },
+  {
+   "planYear": 2027,
+   "label": "BCBSRI",
+   "carrier": "Blue Cross & Blue Shield of Rhode Island",
+   "members": 52119,
+   "requested": 0.122,
+   "approved": 0.079,
+   "details": {
+    "inpatientTrend": 0.071,
+    "outpatientTrend": 0.074,
+    "professionalTrend": 0.074,
+    "otherMedicalTrend": 0.08,
+    "capitationTrend": 0.507,
+    "rxTrend": 0.061,
+    "medicalTrendExLeverage": 0.076,
+    "leverage": 0.008,
+    "medicalTrendTotal": 0.085,
+    "premiumTax": 0.02,
+    "contributionToReserves": 0.03,
+    "otherRetention": 0.111,
+    "totalRetention": 0.161
+   },
+   "isTotal": false
+  },
+  {
+   "planYear": 2027,
+   "label": "Cigna",
+   "carrier": "Cigna",
+   "members": 42,
+   "requested": 0.125,
+   "approved": 0.055,
+   "details": {
+    "inpatientTrend": 0.11,
+    "outpatientTrend": 0.107,
+    "professionalTrend": 0.091,
+    "otherMedicalTrend": 0.058,
+    "capitationTrend": 0.058,
+    "rxTrend": 0.098,
+    "medicalTrendExLeverage": 0.098,
+    "leverage": 0.015,
+    "medicalTrendTotal": 0.115,
+    "premiumTax": 0.02,
+    "contributionToReserves": 0.02,
+    "otherRetention": 0.073,
+    "totalRetention": 0.113
+   },
+   "isTotal": false
+  },
+  {
+   "planYear": 2027,
+   "label": "HPHC & HPIC",
+   "carrier": "Harvard Pilgrim Health Care & HPHC Insurance Company",
+   "members": 5759,
+   "requested": 0.159,
+   "approved": 0.108,
+   "details": {
+    "inpatientTrend": 0.113,
+    "outpatientTrend": 0.113,
+    "professionalTrend": 0.113,
+    "otherMedicalTrend": 0.113,
+    "capitationTrend": 0.113,
+    "rxTrend": 0.148,
+    "medicalTrendExLeverage": 0.12,
+    "leverage": 0.01,
+    "medicalTrendTotal": 0.132,
+    "premiumTax": 0.02,
+    "contributionToReserves": 0.02,
+    "otherRetention": 0.1,
+    "totalRetention": 0.141
+   },
+   "isTotal": false
+  },
+  {
+   "planYear": 2027,
+   "label": "UHCNE & UHIC",
+   "carrier": "UnitedHealthcare of New England & UnitedHealthcare Insurance Company",
+   "members": 8918,
+   "requested": 0.349,
+   "approved": 0.177,
+   "details": {
+    "inpatientTrend": 0.095,
+    "outpatientTrend": 0.132,
+    "professionalTrend": 0.104,
+    "otherMedicalTrend": 0.174,
+    "capitationTrend": 0.103,
+    "rxTrend": 0.145,
+    "medicalTrendExLeverage": 0.12,
+    "leverage": 0.01,
+    "medicalTrendTotal": 0.131,
+    "premiumTax": 0.02,
+    "contributionToReserves": 0.04,
+    "otherRetention": 0.068,
+    "totalRetention": 0.128
+   },
+   "isTotal": false
+  },
+  {
+   "planYear": 2027,
+   "label": "Total",
+   "carrier": "Total",
+   "members": 68549,
+   "requested": 0.155,
+   "approved": 0.095,
+   "details": {
+    "inpatientTrend": 0.08,
+    "outpatientTrend": 0.086,
+    "professionalTrend": 0.081,
+    "otherMedicalTrend": 0.093,
+    "capitationTrend": 0.409,
+    "rxTrend": 0.081,
+    "medicalTrendExLeverage": 0.087,
+    "leverage": 0.008,
+    "medicalTrendTotal": 0.096
+   },
+   "isTotal": true
+  },
+  {
+   "planYear": 2026,
+   "label": "BCBSRI",
+   "carrier": "Blue Cross & Blue Shield of Rhode Island",
+   "members": 57179,
+   "requested": 0.243,
+   "approved": 0.197,
+   "details": null,
+   "isTotal": false
+  },
+  {
+   "planYear": 2026,
+   "label": "HPHC & HPIC",
+   "carrier": "Harvard Pilgrim Health Care & HPHC Insurance Company",
+   "members": 5736,
+   "requested": 0.264,
+   "approved": 0.217,
+   "details": null,
+   "isTotal": false
+  },
+  {
+   "planYear": 2026,
+   "label": "UHCNE & UHIC",
+   "carrier": "UnitedHealthcare of New England & UnitedHealthcare Insurance Company",
+   "members": 12880,
+   "requested": 0.238,
+   "approved": 0.174,
+   "details": null,
+   "isTotal": false
+  },
+  {
+   "planYear": 2026,
+   "label": "Aetna",
+   "carrier": "Aetna",
+   "members": 1296,
+   "requested": 0.134,
+   "approved": 0.133,
+   "details": null,
+   "isTotal": false
+  },
+  {
+   "planYear": 2026,
+   "label": "Cigna",
+   "carrier": "Cigna",
+   "members": 563,
+   "requested": 0.168,
+   "approved": 0.174,
+   "details": null,
+   "isTotal": false
+  },
+  {
+   "planYear": 2026,
+   "label": "Total",
+   "carrier": "Total",
+   "members": 77654,
+   "requested": 0.241,
+   "approved": 0.193,
+   "details": null,
+   "isTotal": true
+  }
+ ]
+}
