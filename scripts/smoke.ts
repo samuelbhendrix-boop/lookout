@@ -45,7 +45,7 @@ const hooks: any[] = [];
 let feedItems: Array<{ title: string; link: string; description?: string }> = [];
 const rss = () =>
   `<?xml version="1.0"?><rss version="2.0"><channel><title>Smoke wire</title>${feedItems
-    .map((i) => `<item><title>${i.title}</title><link>${i.link}</link><description>${i.description ?? ""}</description></item>`)
+    .map((i: any) => `<item><title>${i.title}</title><link>${i.link}</link><description>${i.description ?? ""}</description>${i.pubDate ? `<pubDate>${i.pubDate}</pubDate>` : ""}</item>`)
     .join("")}</channel></rss>`;
 
 const server = http.createServer((req, res) => {
@@ -111,12 +111,13 @@ async function main() {
   check((await a.req("POST", `/sources/${src.data.id}/poll`)).status === 200, "queue poll");
   const first = await waitFor(async () => {
     const r = await a.req("GET", "/signals?limit=50");
-    return r.data?.items?.length >= 2 && r.data.items;
+    return r.data?.items?.some((s: any) => s.title.includes("Bayline")) && r.data.items;
   }, "worker ingested feed");
   const merger = first.find((s: any) => s.title.includes("Bayline"));
   check(merger?.competitor?.id === harbor.data.id, "auto-attributed to competitor via alias");
   check(merger?.type === "M_AND_A" && merger.importance >= 4, "classified as high-importance M&A");
 
+  feedItems.push({ title: "Harbor Mutual names new CFO in 2019 shakeup", link: "https://old.example/harbor-cfo", pubDate: "Mon, 04 Mar 2019 12:00:00 GMT" } as any);
   feedItems.push({ title: "Harbor Mutual, Bayline Health to merge in $3B deal", link: "https://other.example/harbor-bayline-merge" });
   feedItems.push({ title: "Harbor Mutual announces merger with Bayline Health", link: "https://www.news.example/harbor-bayline" }); // same URL, normalized
   await a.req("POST", `/sources/${src.data.id}/poll`);
@@ -126,7 +127,11 @@ async function main() {
   }, "second outlet clustered under the story lead");
   const feed = (await a.req("GET", "/signals?limit=50")).data.items;
   check(feed.filter((s: any) => s.title.includes("Bayline")).length === 1, "feed shows one row per story");
-  check(feed.length === 2, "tracking-param URL variant deduped (no new row)");
+  const all = (await a.req("GET", "/signals?q=CFO&limit=50")).data.items;
+  check(all.length === 0, "7-year-old article never ingested");
+  check(feed.length === 1, "tracking-param URL variant deduped; off-topic market item kept out of the feed");
+  const archived = (await a.req("GET", "/signals?status=ARCHIVED&limit=50")).data.items;
+  check(archived.some((s: any) => s.title.startsWith("Weather") && s.tags.some((t: any) => t.tag.name === "auto-filtered")), "off-topic item archived and tagged auto-filtered (not lost)");
 
   // ── Manual entry, dedupe, triage, comments
   const manual = await a.req("POST", "/signals", { title: "Broker: Harbor discounting 3% on 50-99 groups", tags: ["Broker"] });
@@ -144,7 +149,7 @@ async function main() {
   // ── CSV export
   const csv = await a.req("GET", "/signals/export");
   check(csv.status === 200 && csv.text.startsWith("date,competitor,type"), "CSV export");
-  check(csv.text.includes("Bayline") && csv.text.includes("Weather delays"), "CSV includes feed rows");
+  check(csv.text.includes("Bayline") && !csv.text.includes("Weather delays"), "CSV mirrors the feed (archived excluded)");
 
   // ── Invites
   const inv = await a.req("POST", "/invites", { role: "VIEWER", days: 1 });

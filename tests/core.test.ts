@@ -263,3 +263,31 @@ describe("market data helpers", () => {
     expect(num("")).toBeNull();
   });
 });
+
+import { isStale, withRecency, mentions } from "@/lib/relevance";
+
+describe("feed hygiene", () => {
+  it("drops articles older than 30 days, keeps undated and fresh ones", () => {
+    const now = Date.UTC(2026, 10, 4);
+    expect(isStale(new Date(Date.UTC(2023, 5, 15)), now)).toBe(true);
+    expect(isStale(new Date(Date.UTC(2026, 10, 1)), now)).toBe(false);
+    expect(isStale(null, now)).toBe(false);
+  });
+  it("adds Google News recency once, leaves other feeds alone", () => {
+    const g = "https://news.google.com/rss/search?q=%22Fallon+Health%22&hl=en-US";
+    const r = withRecency(g);
+    expect(new URL(r).searchParams.get("q")).toBe('"Fallon Health" when:30d');
+    expect(withRecency(r)).toBe(r);
+    expect(withRecency("https://kffhealthnews.org/feed/")).toBe("https://kffhealthnews.org/feed/");
+  });
+  it("Bing fallback strips Google's when: operator", () => {
+    const r = withRecency("https://news.google.com/rss/search?q=%22Fallon+Health%22");
+    expect(decodeURIComponent(bingFallback(r)!)).not.toContain("when:");
+  });
+  it("relevance: requires the competitor to be named", () => {
+    const aetna = { id: "a", name: "Aetna", aliases: ["aetna", "cvs health", "cvs"] };
+    expect(mentions("CVS to split off drugstore business", aetna)).toBe(true);
+    expect(mentions("Best Medicare Advantage Plans In Rhode Island 2027 - Forbes", aetna)).toBe(false);
+    expect(mentions("CVSHealthy snacks recall", aetna)).toBe(false); // whole word only
+  });
+});

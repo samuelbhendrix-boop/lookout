@@ -23,9 +23,9 @@ export type StarterCompetitor = {
  * into one competitor (aliases unioned) with one state-scoped news source per pack.
  */
 const C = {
-  point32: { name: "Point32Health", issuerPattern: "harvard pilgrim|hphc|tufts (associated|insurance|health)", aliases: ["point32health", "harvard pilgrim", "harvard pilgrim health care", "tufts health plan"], website: "https://www.point32health.org", terms: '"Point32Health" OR "Harvard Pilgrim" OR "Tufts Health Plan"' },
+  point32: { name: "Point32Health", issuerPattern: "harvard pilgrim|hphc|tufts (associated|insurance|health)", aliases: ["point32health", "harvard pilgrim", "harvard pilgrim health care", "tufts health plan", "tufts health"], website: "https://www.point32health.org", terms: '"Point32Health" OR "Harvard Pilgrim" OR "Tufts Health Plan"' },
   uhc: { name: "UnitedHealthcare", issuerPattern: "unitedhealthcare|united healthcare", aliases: ["unitedhealthcare", "united healthcare", "unitedhealth", "unitedhealth group", "uhc", "optum"], website: "https://www.uhc.com", terms: '"UnitedHealthcare" OR "UnitedHealth"' },
-  aetna: { name: "Aetna", issuerPattern: "aetna", aliases: ["aetna", "cvs health"], website: "https://www.aetna.com", terms: '"Aetna"' },
+  aetna: { name: "Aetna", issuerPattern: "aetna", aliases: ["aetna", "cvs health", "cvs"], website: "https://www.aetna.com", terms: '"Aetna"' },
   cigna: { name: "Cigna", issuerPattern: "cigna|connecticut general life", aliases: ["cigna", "the cigna group", "evernorth"], website: "https://www.cigna.com", terms: '"Cigna"' },
   elevance: { name: "Elevance Health (Anthem)", issuerPattern: "anthem|matthew thornton|elevance|empire healthchoice|healthkeepers|wellpoint", aliases: ["elevance", "elevance health", "anthem", "anthem blue cross", "carelon", "wellpoint"], website: "https://www.elevancehealth.com", terms: '"Anthem" OR "Elevance Health"' },
   centene: { name: "Centene (Ambetter)", issuerPattern: "celtic insurance|ambetter|centene|granite state health|health net|wellcare", aliases: ["centene", "ambetter", "wellcare", "health net", "nh healthy families", "celtic insurance"], website: "https://www.centene.com", terms: '"Centene" OR "Ambetter"' },
@@ -54,9 +54,9 @@ export const STARTER_PACKS: StarterPack[] = [
     name: "Massachusetts",
     description: "Local plans, nationals operating in MA, and state market/regulatory news.",
     competitors: [
-      { name: "Blue Cross Blue Shield of Massachusetts", issuerPattern: "blue cross and blue shield of massachusetts", aliases: ["bcbsma", "blue cross blue shield of massachusetts", "blue cross massachusetts"], tier: 1, website: "https://www.bluecrossma.org", query: '"Blue Cross Blue Shield of Massachusetts" OR "BCBSMA"' },
+      { name: "Blue Cross Blue Shield of Massachusetts", issuerPattern: "blue cross and blue shield of massachusetts", aliases: ["bcbsma", "blue cross blue shield of massachusetts", "blue cross massachusetts", "blue cross of massachusetts", "blue cross and blue shield of massachusetts"], tier: 1, website: "https://www.bluecrossma.org", query: '"Blue Cross Blue Shield of Massachusetts" OR "BCBSMA"' },
       { ...inState(C.point32, 1, "Massachusetts"), query: C.point32.terms }, // v0.2 query kept so reloading MA adds no duplicates
-      { name: "Mass General Brigham Health Plan", issuerPattern: "mass general brigham|allways", aliases: ["mass general brigham health plan", "allways health partners", "mgb health plan"], tier: 1, website: "https://www.massgeneralbrighamhealthplan.org", query: '"Mass General Brigham Health Plan" OR "AllWays Health Partners"' },
+      { name: "Mass General Brigham Health Plan", issuerPattern: "mass general brigham|allways", aliases: ["mass general brigham health plan", "allways health partners", "mgb health plan", "mass general brigham health"], tier: 1, website: "https://www.massgeneralbrighamhealthplan.org", query: '"Mass General Brigham Health Plan" OR "AllWays Health Partners"' },
       { name: "Fallon Health", issuerPattern: "fallon", aliases: ["fallon health", "fallon community health plan"], tier: 2, website: "https://www.fallonhealth.org", query: '"Fallon Health"' },
       { name: "Health New England", issuerPattern: "health new england", aliases: ["health new england"], tier: 2, website: "https://healthnewengland.org", query: '"Health New England" insurer OR plan' },
       { ...inState(C.wellsense, 2, "Massachusetts"), query: C.wellsense.terms },
@@ -115,7 +115,7 @@ export const STARTER_PACKS: StarterPack[] = [
     description: "Carriers in OHIC's 2026 rate review (individual, small and large group), plus OHIC and HealthSource RI news.",
     competitors: [
       { name: "Blue Cross & Blue Shield of Rhode Island", issuerPattern: "blue cross.*rhode island", aliases: ["bcbsri", "blue cross & blue shield of rhode island", "blue cross blue shield of rhode island", "blue cross rhode island"], tier: 1, website: "https://www.bcbsri.com", query: '"Blue Cross & Blue Shield of Rhode Island" OR "BCBSRI" OR "Blue Cross Blue Shield of Rhode Island"' },
-      { name: "Neighborhood Health Plan of Rhode Island", issuerPattern: "neighborhood health plan of rhode island", aliases: ["neighborhood health plan", "neighborhood health plan of rhode island", "nhpri"], tier: 1, website: "https://www.nhpri.org", query: '"Neighborhood Health Plan of Rhode Island"' },
+      { name: "Neighborhood Health Plan of Rhode Island", issuerPattern: "neighborhood health plan of rhode island", aliases: ["neighborhood health plan", "neighborhood health plan of rhode island", "nhpri", "neighborhood health"], tier: 1, website: "https://www.nhpri.org", query: '"Neighborhood Health Plan of Rhode Island"' },
       inState(C.uhc, 1, "Rhode Island"),
       inState(C.point32, 2, "Rhode Island"),
       inState(C.aetna, 3, "Rhode Island"),

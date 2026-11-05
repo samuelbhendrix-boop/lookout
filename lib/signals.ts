@@ -1,9 +1,10 @@
-import type { SignalType } from "@prisma/client";
+import type { SignalStatus, SignalType } from "@prisma/client";
 import { db } from "./db";
 import { classify } from "./classify";
 import { dedupeKey, matchCompetitor } from "./match";
 import { evaluateAlerts } from "./alerts";
 import { CLUSTER_WINDOW_HOURS, findLead } from "./cluster";
+import { AUTO_FILTER_TAG, mentions } from "./relevance";
 
 export type SignalInput = {
   title: string;
@@ -15,6 +16,8 @@ export type SignalInput = {
   type?: SignalType;
   importance?: number;
   tags?: string[];
+  /** Where a feed item came from — drives the off-topic filter. Omit for manual entries. */
+  origin?: "competitor-feed" | "market-feed";
 };
 
 /**
@@ -60,7 +63,16 @@ export async function ingestSignal(workspaceId: string, input: SignalInput) {
     duplicateOfId = findLead(input.title, competitorId, candidates);
   }
 
-  const tagNames = [...new Set((input.tags ?? []).map((t) => t.toLowerCase()))];
+  // Off-topic filter (see lib/relevance.ts): archive rather than drop, so it stays auditable.
+  let status: SignalStatus = "NEW";
+  if (input.origin === "competitor-feed" && competitorId) {
+    const c = await db.competitor.findUnique({ where: { id: competitorId }, select: { id: true, name: true, aliases: true } });
+    if (c && !mentions(text, c)) status = "ARCHIVED";
+  } else if (input.origin === "market-feed" && !competitorId && type === "OTHER") {
+    status = "ARCHIVED";
+  }
+
+  const tagNames = [...new Set([...(input.tags ?? []), ...(status === "ARCHIVED" ? [AUTO_FILTER_TAG] : [])].map((t) => t.toLowerCase()))];
 
   // INSERT … ON CONFLICT DO NOTHING: a concurrent poll that wins the race simply makes this a no-op.
   const [signal] = await db.signal.createManyAndReturn({
@@ -76,15 +88,16 @@ export async function ingestSignal(workspaceId: string, input: SignalInput) {
         dedupeKey: key,
         type,
         importance,
-        publishedAt: input.publishedAt ?? null,
+        publishedAt: input.publishedAt ?? new Date(), // manual entries are "now"
         duplicateOfId,
+        status,
       },
     ],
   });
   if (!signal) return null;
 
   if (tagNames.length) await setTags(workspaceId, signal.id, tagNames);
-  if (!signal.duplicateOfId) await evaluateAlerts(signal);
+  if (!signal.duplicateOfId && signal.status !== "ARCHIVED") await evaluateAlerts(signal);
   return signal;
 }
 

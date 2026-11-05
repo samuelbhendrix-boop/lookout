@@ -30,8 +30,8 @@ export default async function CompetitorProfilePage({
     competitorProfile(comp, state),
     state ? competitorProfile(comp).then((p) => p.states) : null,
     db.signal.findMany({
-      where: { workspaceId: session.workspaceId, competitorId: comp.id, duplicateOfId: null },
-      orderBy: { createdAt: "desc" },
+      where: { workspaceId: session.workspaceId, competitorId: comp.id, duplicateOfId: null, status: { not: "ARCHIVED" } },
+      orderBy: [{ publishedAt: { sort: "desc", nulls: "last" } }, { id: "desc" }],
       take: 6,
     }),
     db.dataImport.count({ where: { status: "done" } }),

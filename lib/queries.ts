@@ -25,7 +25,7 @@ export async function listSignals(workspaceId: string, f: SignalFilters) {
   };
   const rows = await db.signal.findMany({
     where,
-    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    orderBy: [{ publishedAt: { sort: "desc", nulls: "last" } }, { id: "desc" }], // newest news first, not newest import
     take: f.limit + 1,
     ...(f.cursor ? { cursor: { id: f.cursor }, skip: 1 } : {}),
     include: {
@@ -45,15 +45,15 @@ export async function workspaceStats(workspaceId: string) {
   const [newCount, escalated, week, byType, byCompetitor, failingSources] = await Promise.all([
     db.signal.count({ where: { workspaceId, status: "NEW", duplicateOfId: null } }),
     db.signal.count({ where: { workspaceId, status: "ESCALATED", duplicateOfId: null } }),
-    db.signal.count({ where: { workspaceId, createdAt: { gte: since }, duplicateOfId: null } }),
+    db.signal.count({ where: { workspaceId, publishedAt: { gte: since }, duplicateOfId: null, status: { not: "ARCHIVED" } } }),
     db.signal.groupBy({
       by: ["type"],
-      where: { workspaceId, createdAt: { gte: since }, duplicateOfId: null },
+      where: { workspaceId, publishedAt: { gte: since }, duplicateOfId: null, status: { not: "ARCHIVED" } },
       _count: { _all: true },
     }),
     db.signal.groupBy({
       by: ["competitorId"],
-      where: { workspaceId, createdAt: { gte: since }, competitorId: { not: null }, duplicateOfId: null },
+      where: { workspaceId, publishedAt: { gte: since }, competitorId: { not: null }, duplicateOfId: null, status: { not: "ARCHIVED" } },
       _count: { _all: true },
       orderBy: { _count: { competitorId: "desc" } },
       take: 5,

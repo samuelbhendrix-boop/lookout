@@ -18,7 +18,7 @@ export default async function CompetitorsPage() {
     }),
     db.signal.groupBy({
       by: ["competitorId"],
-      where: { workspaceId: session.workspaceId, createdAt: { gte: since }, duplicateOfId: null },
+      where: { workspaceId: session.workspaceId, publishedAt: { gte: since }, duplicateOfId: null, status: { not: "ARCHIVED" } },
       _count: { _all: true },
     }),
   ]);

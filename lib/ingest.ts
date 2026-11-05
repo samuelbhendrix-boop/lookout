@@ -2,6 +2,7 @@ import Parser from "rss-parser";
 import { db } from "./db";
 import { ingestSignal } from "./signals";
 import { safeFetch } from "./net";
+import { isStale, withRecency } from "./relevance";
 
 const parser = new Parser();
 const UA = {
@@ -52,7 +53,7 @@ export function bingFallback(url: string): string | null {
   try {
     const u = new URL(url);
     if (u.hostname !== "news.google.com" || !u.pathname.startsWith("/rss/search")) return null;
-    const q = u.searchParams.get("q");
+    const q = u.searchParams.get("q")?.replace(/\s*\bwhen:\d+[dhmy]\b/g, "").trim();
     return q ? `https://www.bing.com/news/search?format=rss&q=${encodeURIComponent(q)}` : null;
   } catch {
     return null;
@@ -132,7 +133,7 @@ export async function pollSource(sourceId: string): Promise<number> {
 
   try {
     // Fetch ourselves (SSRF-checked on every redirect hop, size-capped), then parse.
-    const feed = await parser.parseString(await fetchFeed(source.url));
+    const feed = await parser.parseString(await fetchFeed(withRecency(source.url)));
     let created = 0;
     // Cap per poll so one firehose feed can't starve the queue.
     for (const item of feed.items.slice(0, 50)) {
@@ -140,14 +141,17 @@ export async function pollSource(sourceId: string): Promise<number> {
       if (!title) continue;
       const summary = stripHtml(textOf(item.contentSnippet ?? item.content ?? item.summary)).slice(0, 2000);
       const url = linkOf(item, source.url);
+      const publishedAt = item.isoDate ? new Date(item.isoDate) : null;
+      if (isStale(publishedAt)) continue; // old articles aren't news
       const s = await ingestSignal(source.workspaceId, {
         title,
         url,
         summary: summary || null,
-        publishedAt: item.isoDate ? new Date(item.isoDate) : null,
+        publishedAt,
         sourceId: source.id,
         // Competitor-specific source → always attribute; general source → let the matcher decide.
         competitorId: source.competitorId ?? undefined,
+        origin: source.competitorId ? "competitor-feed" : "market-feed",
       });
       if (s) created++;
     }
