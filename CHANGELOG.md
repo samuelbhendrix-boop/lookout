@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.11.0 — 2026-11-09
+- **Briefing (new home page):** the week's top five across competitors, ranked, each with a one-line "why it matters"; then up to three items per competitor. News and data-detected changes together; stock quotes and analyst ratings filtered out. Weekly digests carry the same why-it-matters lines.
+- **Accounts in play:** employer groups renewing in the next 60–365 days, ranked by evidence the account can be won — premium per person up, claims running hot or cold against premium, a new broker, and what the carrier just did (rate increases, lost hospitals). Filter by state and competitor; CSV export.
+- **Broker league table:** who moved accounts between carriers, how many people, from whom to whom, and each broker's book.
+- **Rate-change alerts live now:** UnitedHealthcare's October file seeds last month's history, so November's changes are detected today (36 provider rate changes, 1 hospital no longer priced) instead of in December.
+- **System status page** (admins): worker, stuck jobs, failed imports, rate history, memory — the screen to check when a page is empty. Networks rebuilds its data automatically and shows progress.
+- Alerts now fire on newly *detected* changes (an account switch filed months after the plan year used to be treated as old news and never alerted).
+- Refreshed snapshots are imported on deploy rather than at the next monthly cycle.
+
 ## 0.10.0 — 2026-11-09
 - **Changes page:** what moved, detected from the data — employers switching carriers (Form 5500 year over year, materiality-filtered: 701 New England account changes), ACA rate filings (132 New England filings with enrollment-weighted rate changes), month-over-month negotiated-rate changes and network adds/drops. Filter by kind, state, carrier, competitor or "major only".
 - **Changes feed the alerts:** every change becomes a signal for the matching competitor (hourly sync), so existing alert rules and digests fire on them; back-history is added silently. Competitor profiles show recent market changes.

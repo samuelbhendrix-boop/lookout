@@ -29,7 +29,7 @@ export default async function NetworksPage({ searchParams }: { searchParams: Pro
             {!st.files ? "No rate files imported yet." : !j ? "Rebuild not started yet — the worker checks every 5 minutes." : `Rebuild ${j.status.toLowerCase()} · started ${j.createdAt.toISOString().slice(11, 16)} UTC${j.lastError ? ` · ${j.lastError.slice(0, 200)}` : ""}`}
           </span>
           {session && hasRole(session.role, "ADMIN") && st.files > 0 && (
-            <span className="mt-3 block"><ActionButton method="POST" path="/market-data/rebuild-history" className="btn" doneText="Queued — refresh in a minute">Rebuild now</ActionButton></span>
+            <span className="mt-3 block"><a className="mr-3 text-xs underline" href="/status">System status</a><ActionButton method="POST" path="/market-data/rebuild-history" className="btn" doneText="Queued — refresh in a minute">Rebuild now</ActionButton></span>
           )}
         </Empty>
       </div>

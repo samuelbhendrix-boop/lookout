@@ -14,6 +14,8 @@ import { db } from "../lib/db";
     const { detectAll } = await import("../lib/marketdata/events");
     const t = Date.now();
     await refreshCarrierIndex();
+    const { loadHistorySeeds } = await import("../lib/marketdata/history");
+    await loadHistorySeeds();
     await detectAll(["rates"]);
     console.log(`refresh_index: ${await db.rateHistory.count()} history rows in ${Math.round((Date.now() - t) / 1000)}s (rss ${Math.round(process.memoryUsage().rss / 1e6)} MB)`);
     await db.$disconnect();

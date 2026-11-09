@@ -26,3 +26,25 @@ export async function ensureHistoryJob(force = false) {
   await enqueue(null, "import_market_data", { dataset: "refresh_index", year: "0" });
   return { queued: true, reason: "queued" };
 }
+
+/**
+ * Seeds for earlier months (data/rates/history/<month>-<carrier>.json.gz, built by scripts/seed-history.ts from a
+ * carrier's still-published older file). Loaded once per carrier × month, so change detection has a prior month.
+ */
+export async function loadHistorySeeds(): Promise<number> {
+  const { readdir, readFile } = await import("node:fs/promises");
+  const { gunzipSync } = await import("node:zlib");
+  const { join } = await import("node:path");
+  const dir = join(process.cwd(), "data", "rates", "history");
+  let names: string[] = [];
+  try { names = (await readdir(dir)).filter((n) => n.endsWith(".json.gz")); } catch { return 0; }
+  let n = 0;
+  for (const name of names) {
+    const s = JSON.parse(gunzipSync(await readFile(join(dir, name))).toString("utf8")) as { carrier: string; carrierName: string; month: string; rows: Array<[string, string, string, string, number]> };
+    if (await db.rateHistory.count({ where: { carrier: s.carrier, month: s.month } })) continue;
+    const data = s.rows.map(([codeType, code, billingClass, tin, median]) => ({ carrier: s.carrier, carrierName: s.carrierName, codeType, code, billingClass, tin, month: s.month, median }));
+    for (let i = 0; i < data.length; i += 5000) await db.rateHistory.createMany({ data: data.slice(i, i + 5000), skipDuplicates: true });
+    n += data.length;
+  }
+  return n;
+}

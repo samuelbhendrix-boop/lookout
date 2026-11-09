@@ -170,9 +170,12 @@ async function computeCarrierIndex(suspectsOut: Suspects = []) {
   const suspects = new Map<string, { carrierName: string; count: number; examples: string[] }>();
   // Monthly history of carrier-level rates (basis for rate- and network-change events). Rewritten each refresh.
   const month = new Date().toISOString().slice(0, 7);
-  const history: Array<{ carrier: string; carrierName: string; codeType: string; code: string; billingClass: string; tin: string; month: string; median: number }> = [];
+  // Written one service at a time (not held in memory): the month is cleared first, then refilled.
+  let history: Array<{ carrier: string; carrierName: string; codeType: string; code: string; billingClass: string; tin: string; month: string; median: number }> = [];
+  await db.rateHistory.deleteMany({ where: { month } });
   const nameOf = new Map(files.map((f) => [f.carrier, f.carrierName]));
   for (const svc of services) {
+    if (history.length) { await db.rateHistory.createMany({ data: history, skipDuplicates: true }); history = []; }
     const rows = await effectiveRows({ codeType: svc.codeType, code: svc.code, negotiatedType: { in: DOLLAR_TYPES }, billingClass: { in: ["institutional", "professional"] } });
     // network × class × provider → preferred type
     const best = new Map<string, (typeof rows)[number]>();
@@ -228,13 +231,10 @@ async function computeCarrierIndex(suspectsOut: Suspects = []) {
       }
     }
   }
-  await db.$transaction(async (tx) => {
-    await tx.rateHistory.deleteMany({ where: { month } });
-    for (let i = 0; i < history.length; i += 5000) await tx.rateHistory.createMany({ data: history.slice(i, i + 5000) });
-    // Keep 13 months.
-    const cutoff = new Date(); cutoff.setUTCMonth(cutoff.getUTCMonth() - 13);
-    await tx.rateHistory.deleteMany({ where: { month: { lt: cutoff.toISOString().slice(0, 7) } } });
-  }, { timeout: 300_000 });
+  if (history.length) await db.rateHistory.createMany({ data: history, skipDuplicates: true });
+  // Keep 13 months.
+  const cutoff = new Date(); cutoff.setUTCMonth(cutoff.getUTCMonth() - 13);
+  await db.rateHistory.deleteMany({ where: { month: { lt: cutoff.toISOString().slice(0, 7) } } });
   const name = new Map(files.map((f) => [f.carrier, f.carrierName]));
   suspectsOut.push(...suspects.values());
   return [...new Set([...acc.keys(), ...pctAcc.keys()])]

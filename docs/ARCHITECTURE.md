@@ -116,7 +116,15 @@ National files (UHC/UMR, Cigna, Aetna: 10–100+ GB compressed) use the same cod
 - **Accounts won/lost** — Form 5500 Schedule A health carriers for the same plan (EIN + plan number) in consecutive plan years, legal entities grouped by `canonicalCarrier()`. A change counts only if the carrier covers ≥50 people and ≥20% of participants (filters small add-on contracts); insured → self-funded is a loss for the insurer.
 - **Rate filings** — New England URRT filings: enrollment-weighted average rate change of renewing plans; ±8% or more is "major".
 - **Negotiated-rate changes** — `RateHistory` keeps each carrier × provider × service median per month (13 months, written when the carrier index is recomputed). ≥5% and ≥$5 month over month → one event per carrier × provider. Network add/drop only when a carrier's coverage is otherwise stable (>80% of last month's providers present), so a failed file doesn't read as a mass termination.
-- **Fan-out** — the hourly `sync_market_events` job (and one after every import) turns events whose carrier matches a competitor's issuer pattern into Signals (`PRICING`/`NETWORK`/`OTHER`), deduped by the signal key; events older than 45 days are added silently (no alerts) so new competitors get history without an alert storm.
+- **Fan-out** — the hourly `sync_market_events` job (and one after every import) turns events whose carrier matches a competitor's issuer pattern into Signals (`PRICING`/`NETWORK`/`OTHER`), deduped by the signal key; the first bulk load of filing-based events, and anything detected more than 48 hours ago, is added silently (no alerts) so history and newly added competitors don't cause an alert storm.
+
+### Briefing and accounts in play
+
+- **Briefing** (`lib/briefing.ts`, `/briefing`): news signals plus data-detected changes from the last 7 or 30 days. A data change is "new" when newly detected (`isNewlyDetected`): the first bulk load of account switches and filings is history and stays on Changes. Score = importance + tier weight + coverage + magnitude; top five allow at most two per competitor. `whyItMatters()` is rule-based per kind of change. `MARKET_NOISE` drops stock quotes and analyst ratings.
+- **Accounts in play** (`lib/marketdata/inplay.ts`, `/accounts`): per plan (EIN + plan number), one roll-up per plan year of major-medical contracts by carrier. Renewal = next anniversary of the policy start. Reasons, each with a weight and the numbers behind it: premium per person up ≥10% with the same carrier and a comparable head count; claims ≥92% or ≤70% of premium; a broker not seen in any earlier year (names normalised by `brokerKey`/`sameBroker`); switched carrier last year (negative); carrier's filed or regulator-reported increases and lost hospitals in that state. The roll-up is cached in-process for 15 minutes.
+- **Broker league**: carrier switches between consecutive plan years (both carriers recognised), credited to the brokers on the new carrier's contract.
+- **History seeds** (`scripts/seed-history.ts`, `data/rates/history/`): a prior month built from a carrier's still-published older file, limited to the providers in the current snapshot so months are comparable.
+- **Status** (`/status`): job queue by kind and state, stuck and failed jobs, import table, rate-history months, web memory.
 
 ### Networks (`lib/marketdata/networks.ts`)
 

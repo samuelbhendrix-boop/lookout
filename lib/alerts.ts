@@ -82,7 +82,7 @@ export async function claimDueDigests() {
 /** Builds the digest text — pure, unit tested. Top items by importance, grouped by competitor. */
 export function formatDigest(
   ruleName: string,
-  items: Array<{ id: string; title: string; type: Signal["type"]; importance: number; competitor: string | null; coverage: number }>,
+  items: Array<{ id: string; title: string; type: Signal["type"]; importance: number; competitor: string | null; coverage: number; why?: string }>,
   base = appUrl(),
 ) {
   if (!items.length) return `🗞️ ${ruleName} — weekly digest\nQuiet week: no matching signals.`;
@@ -94,9 +94,12 @@ export function formatDigest(
   const lines = [`🗞️ ${ruleName} — weekly digest (${items.length} ${items.length === 1 ? "signal" : "signals"})`];
   for (const [who, list] of groups) {
     lines.push("", `*${who}*`);
-    for (const s of list)
+    for (const s of list) {
       lines.push(`• [${s.importance}] ${typeLabel(s.type)} — <${base}/signals/${s.id}|${s.title}>${s.coverage ? ` (+${s.coverage} outlets)` : ""}`);
+      if (s.why) lines.push(`   ↳ ${s.why}`);
+    }
   }
+  lines.push("", `Full briefing: ${base}/briefing`);
   return lines.join("\n");
 }
 
@@ -116,12 +119,15 @@ export async function sendDigest(ruleId: string, sinceIso: string) {
     },
     orderBy: [{ importance: "desc" }, { createdAt: "desc" }],
     take: 200,
-    include: { competitor: { select: { name: true } }, _count: { select: { coverage: true } } },
+    include: { competitor: { select: { name: true } }, tags: { include: { tag: true } }, _count: { select: { coverage: true } } },
   });
+  const { whyItMatters } = await import("./briefing");
+  const kindOf = (s: (typeof signals)[number]) => s.tags.map((t) => t.tag.name).find((n) => /^(account|rate|network)-/.test(n))?.replace("-", "_") ?? null;
   const matched = signals.filter((s) => ruleMatches(rule, s)).slice(0, 15); // keywords filtered in JS
   const text = formatDigest(
     rule.name,
-    matched.map((s) => ({ id: s.id, title: s.title, type: s.type, importance: s.importance, competitor: s.competitor?.name ?? null, coverage: s._count.coverage })),
+    // The top five carry a why-it-matters line; the rest stay one line each.
+    matched.map((s, i) => ({ id: s.id, title: s.title, type: s.type, importance: s.importance, competitor: s.competitor?.name ?? null, coverage: s._count.coverage, why: i < 5 ? whyItMatters({ kind: kindOf(s), type: s.type, title: s.title, competitor: s.competitor?.name ?? null }) : undefined })),
   );
   await postWebhook(rule.webhookUrl, { text, digest: { ruleId: rule.id, since: since.toISOString(), count: matched.length } });
 }

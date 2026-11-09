@@ -8,7 +8,7 @@ import { api } from "@/lib/client";
 export function AuthForm({ mode, inviteToken, joining, ssoLabel }: { mode: "login" | "signup"; inviteToken?: string; joining?: string; ssoLabel?: string }) {
   const router = useRouter();
   const params = useSearchParams();
-  const next = params.get("next") ?? "/feed";
+  const next = params.get("next") ?? "/briefing";
   const [error, setError] = useState<string | null>(params.get("error"));
   const [busy, setBusy] = useState(false);
 
@@ -20,7 +20,7 @@ export function AuthForm({ mode, inviteToken, joining, ssoLabel }: { mode: "logi
     if (inviteToken) form.inviteToken = inviteToken;
     try {
       await api("POST", `/auth/${mode}`, form);
-      router.replace(next.startsWith("/") ? next : "/feed");
+      router.replace(next.startsWith("/") ? next : "/briefing");
       router.refresh();
     } catch (err) {
       setError((err as Error).message);

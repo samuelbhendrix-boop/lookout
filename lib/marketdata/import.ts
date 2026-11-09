@@ -1,4 +1,5 @@
-import { createWriteStream } from "node:fs";
+import { createWriteStream, readdirSync, statSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -217,9 +218,26 @@ async function importMlr(year: number, zipPath: string): Promise<number> {
 
 // ─── orchestration ───────────────────────────────────────────────────
 
+/**
+ * Snapshots ship in the repo, so "has it changed" is a fingerprint of the files (names + sizes), stored as the import's
+ * url. A deploy that carries refreshed snapshots re-imports them right away instead of waiting for the monthly cycle.
+ */
+export function snapshotVersion(): string {
+  const h = createHash("sha1");
+  for (const sub of ["", "history"]) {
+    const dir = join(process.cwd(), "data", "rates", sub);
+    let names: string[] = [];
+    try { names = readdirSync(dir).filter((n) => n.endsWith(".gz")).sort(); } catch { /* no directory */ }
+    for (const n of names) h.update(`${sub}/${n}:${statSync(join(dir, n)).size};`);
+  }
+  return `repo:data/rates#${h.digest("hex").slice(0, 12)}`;
+}
+const isSnapshots = (d: { dataset: string; year: number }) => d.dataset === "rates" && d.year === 99;
+
 export async function importDataset(dataset: Dataset, year: number) {
-  const def = DATASETS.find((d) => d.dataset === dataset && d.year === year);
-  if (!def) throw new Error(`Unknown dataset ${dataset} ${year}`);
+  const found = DATASETS.find((d) => d.dataset === dataset && d.year === year);
+  if (!found) throw new Error(`Unknown dataset ${dataset} ${year}`);
+  const def = isSnapshots(found) ? { ...found, url: snapshotVersion() } : found;
   await db.dataImport.upsert({
     where: { dataset_year: { dataset, year } },
     create: { dataset, year, url: def.url, status: "running" },
@@ -288,12 +306,14 @@ export async function scheduleNextImport(enqueue: (payload: { dataset: Dataset; 
 export async function dueImports() {
   const existing = await db.dataImport.findMany();
   const cutoff = Date.now() - REFRESH_DAYS * 864e5;
+  const version = snapshotVersion();
   return DATASETS.filter((d) => {
     const e = existing.find((x) => x.dataset === d.dataset && x.year === d.year);
     if (!e) return true;
     if (e.status === "running" || e.status === "queued") return Date.now() - e.startedAt.getTime() > 60 * 60_000; // stuck >1h
     if (e.status === "failed") return Date.now() - (e.finishedAt?.getTime() ?? 0) > 6 * 3600e3;
     if (e.status === "partial") return true; // resume right away in a fresh process
+    if (isSnapshots(d) && e.url !== version) return true; // refreshed snapshots arrived with this deploy
     return (e.finishedAt?.getTime() ?? 0) < cutoff;
   });
 }

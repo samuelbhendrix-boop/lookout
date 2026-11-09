@@ -33,7 +33,10 @@ export default async function SettingsPage() {
           <h1 className="h1">Settings</h1>
           <p className="text-sm text-stone-500">{session.workspaceName}</p>
         </div>
-        <ActionButton method="POST" path="/auth/logout" className="btn-ghost">Sign out</ActionButton>
+        <div className="flex gap-2">
+          {isAdmin && <a href="/status" className="btn-ghost">System status</a>}
+          <ActionButton method="POST" path="/auth/logout" className="btn-ghost">Sign out</ActionButton>
+        </div>
       </div>
       {isAdmin && (
         <>

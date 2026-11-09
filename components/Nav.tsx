@@ -5,6 +5,8 @@ import { usePathname, useRouter } from "next/navigation";
 import { api } from "@/lib/client";
 
 const LINKS = [
+  { href: "/briefing", label: "Briefing" },
+  { href: "/accounts", label: "In play" },
   { href: "/feed", label: "Feed" },
   { href: "/competitors", label: "Competitors" },
   { href: "/market", label: "Market" },
@@ -24,7 +26,7 @@ export function Nav({ workspaceId, workspace, workspaces, email, role }: Props) 
   const router = useRouter();
   async function switchTo(id: string) {
     await api("POST", "/auth/switch", { workspaceId: id });
-    router.replace("/feed");
+    router.replace("/briefing");
     router.refresh();
   }
   async function logout() {

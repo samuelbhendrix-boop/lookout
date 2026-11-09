@@ -40,7 +40,7 @@ npm run worker                  # in a second terminal — polls feeds, sends al
 
 Click any competitor to see its performance by segment, every individual and small-group product it sells, its rate filings (with SERFF numbers), and recent news. The **Market** page shows fully insured market share by state. Both come from public CMS files that import automatically a few minutes after deploy (status: Settings → Market data). See [ARCHITECTURE.md §2b](docs/ARCHITECTURE.md) for sources and limits.
 
-**Changes** lists what moved, detected from the data itself: employers switching carriers (Form 5500, year over year), ACA rate filings, month-over-month negotiated-rate changes and hospitals entering or leaving a carrier's priced network. Each change also becomes a signal for the matching competitor, so alert rules and digests pick it up. **Networks** maps which New England hospitals each carrier's rate files price, with network breadth per state.
+**Briefing** is the home page: the week's top five with a line on why each matters, then each competitor's latest. **In play** ranks employer groups renewing soon by evidence they can be won, with a broker league table. **Changes** lists what moved, detected from the data itself: employers switching carriers (Form 5500, year over year), ACA rate filings, month-over-month negotiated-rate changes and hospitals entering or leaving a carrier's priced network. Each change also becomes a signal for the matching competitor, so alert rules and digests pick it up. **Networks** maps which New England hospitals each carrier's rate files price, with network breadth per state.
 
 ## Single sign-on
 
@@ -60,7 +60,7 @@ Rate files too large for the server, or listed only in browser-only indexes, shi
 
 ## Testing
 
-- `npm test` — 73 unit tests, including market-data parsing and matching: classifier, attribution, dedupe, story clustering, alert rules, digest formatting, SSRF ranges, CSV escaping.
+- `npm test` — 80 unit tests, including market-data parsing and matching: classifier, attribution, dedupe, story clustering, alert rules, digest formatting, SSRF ranges, CSV escaping.
 - `npm run smoke` — 35 end-to-end checks against a running web + worker + Postgres. It covers auth, validation, ingestion, clustering, alerts firing once per story, digests, tenant isolation, invites and CSV. Run the app and worker with `ALLOW_PRIVATE_URLS=true ALLOW_HTTP_WEBHOOKS=true`, then `SMOKE_HTTP_WEBHOOKS=true npm run smoke`.
 - CI (`.github/workflows/ci.yml`) runs all of it on every push and PR against Postgres 16.
 
