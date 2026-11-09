@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.13.1 — 2026-11-09
+- **Blue Cross snapshots refresh automatically:** 18 of 20 Blue networks (Anthem CT/ME/NH, BCBSRI, BCBSVT) are found each month in Anthem's public index, streamed; only BCBSMA HMO Blue and Anthem NH HMO Blue New England Choice still need BCBSMA's browser-only index.
+- **Import order:** never-imported and quick datasets go first (plan designs, filings), hours-long ones (hospital files) last, so new features don't wait behind slow refreshes.
+
 ## 0.13.0 — 2026-11-09
 - **Price leverage page:** what each carrier pays each hospital as a multiple of that hospital's own Medicare rate, compared on the services 2+ carriers price there. By carrier: median multiple, how it compares with other carriers at the same hospitals, and where it has the best and worst deal. Carriers whose files publish one network-wide fee schedule (Fallon) are flagged and kept out of rankings.
 - **Hospitals' own price files:** reads each hospital's cms-hpt.txt and standard-charges file (CMS template v2/v3, JSON or CSV, tall or wide, zipped or not) for ~50 New England hospital systems, keeps commercial basket prices by payer and product. Fills BCBSMA's PPO and WellSense, splits carriers into HMO/PPO/POS, and cross-checks hospital-published rates against carriers' own files.

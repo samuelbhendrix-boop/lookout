@@ -9,9 +9,9 @@
  *   Cigna  www.cigna.com/static/mrf/latest.json → TOC zip → the Cigna Health & Life index → network file by slug
  *   Aetna  HealthSparq latest_metadata.json for the same entity folder → file by network code (pl-sk, pl-wg, …)
  *   UHC    transparency-in-coverage.uhc.com blob listing → newest file with the same name after the date
- *   Blues  BCBSMA's table of contents. Its host only serves browsers, so save a copy from a browser as
- *          data/blue-toc.json (or pass --blue-toc); without one the Blue snapshots are kept and reported stale, and the
- *          Rates page flags them once they're more than 45 days old.
+ *   Blues  Anthem's monthly index (public, ~2 GB, streamed): Anthem CT/ME/NH networks and the BCBSRI and BCBSVT host
+ *          files. BCBSMA HMO Blue and Anthem NH's HMO Blue New England Choice are listed only in BCBSMA's index, which
+ *          only serves browsers: save it as data/blue-toc.json to refresh those two; otherwise they're kept and flagged.
  * Provider detail is kept for TINs in any snapshot plus every mapped hospital (plus the database's tracked TINs when
  * DATABASE_URL is reachable — optional).
  * Exit code 0 even when some files fail; the summary at the end (and refresh-report.json) says what happened.
@@ -122,23 +122,55 @@ const resolvers: Record<Kind, (e: Entry[]) => Promise<Map<string, string[]>>> = 
     }
     return out;
   },
+  /**
+   * The Blues' files live on the BCBS national host with signed links. Two indexes list them: BCBSMA's (browser-only, so
+   * used only when a saved copy is supplied) and Anthem's own monthly index, which any client can fetch and which
+   * carries Anthem CT/ME/NH's networks plus the BCBSRI and BCBSVT host files. Anthem's is ~2 GB compressed, so it is
+   * streamed and only the wanted links are kept.
+   */
   async blue(entries) {
+    const wanted = new Map<string, Entry[]>(); // "271_35A0" → snapshots
+    for (const e of entries) { const m = /\d{4}-\d{2}_(\d+_[0-9A-Z]+)_in-network-rates/.exec(e.snap.url); if (m) wanted.set(m[1], [...(wanted.get(m[1]) ?? []), e]); }
+    const found = new Map<string, Map<string, string>>(); // key → file name → signed url
+    const add = (name: string, url: string) => { const m = /^\d{4}-\d{2}_(\d+_[0-9A-Z]+)_in-network-rates/.exec(name); if (m && wanted.has(m[1])) { const x = found.get(m[1]) ?? found.set(m[1], new Map()).get(m[1])!; if (!x.has(name)) x.set(name, url); } };
     const src = arg("--blue-toc") ?? ["data/blue-toc.json.gz", "data/blue-toc.json"].find((p) => existsSync(p));
-    if (!src) throw new Error("BCBSMA's table of contents is served only to browsers — save a copy as data/blue-toc.json or pass --blue-toc");
-    const raw = /^https?:/.test(src) ? await getBuffer(src) : readFileSync(src);
-    const files = [...tocFiles(JSON.parse((src.endsWith(".gz") ? gunzipSync(raw) : raw).toString("utf8")) as Toc).entries()];
+    if (src) {
+      const raw = /^https?:/.test(src) ? await getBuffer(src) : readFileSync(src);
+      for (const [name, url] of tocFiles(JSON.parse((src.endsWith(".gz") ? gunzipSync(raw) : raw).toString("utf8")) as Toc)) add(name, url);
+    }
+    if ([...wanted.keys()].some((k) => !found.has(k))) await scanAnthemIndex(add);
     const out = new Map<string, string[]>();
-    for (const e of entries) {
-      // 2026-11_271_35A0_in-network-rates_1_of_11.json.gz → plan 271, prefix 35A0; part count can change month to month.
-      const m = /\d{4}-\d{2}_(\d+_[0-9A-Z]+)_in-network-rates/.exec(e.snap.url);
-      const parts = m ? files.filter(([name]) => new RegExp(`^\\d{4}-\\d{2}_${m[1]}_in-network-rates(_\\d+_of_\\d+)?\\.json\\.gz$`).test(name)) : [];
-      const months = [...new Set(parts.map(([n]) => n.slice(0, 7)))].sort();
-      const newest = parts.filter(([n]) => n.startsWith(months.at(-1) ?? "_"));
-      if (newest.length) out.set(e.file, newest.sort(([a], [b]) => a.localeCompare(b, "en", { numeric: true })).map(([, url]) => url));
+    for (const [k, es] of wanted) {
+      const files = [...(found.get(k) ?? new Map()).entries()];
+      const months = [...new Set(files.map(([n]) => n.slice(0, 7)))].sort();
+      const newest = files.filter(([n]) => n.startsWith(months.at(-1) ?? "_")).sort(([x], [y]) => x.localeCompare(y, "en", { numeric: true }));
+      if (newest.length) for (const e of es) out.set(e.file, newest.map(([, u]) => u));
     }
     return out;
   },
 };
+
+/** Stream Anthem's monthly index (this month's, else last month's) and hand every BCBS-host in-network link to `add`. */
+async function scanAnthemIndex(add: (name: string, url: string) => void) {
+  const { createGunzip } = await import("node:zlib");
+  const { Readable } = await import("node:stream");
+  const now = new Date();
+  for (const back of [0, 1]) {
+    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - back, 1)).toISOString().slice(0, 7);
+    const url = `https://antm-pt-prod-dataz-nogbd-nophi-us-east1.s3.amazonaws.com/anthem/${d}-01_anthem_index.json.gz`;
+    const res = await fetch(url, { headers: UA, signal: AbortSignal.timeout(60 * 60_000) });
+    if (!res.ok || !res.body) continue;
+    const re = /https:\/\/[a-z0-9.-]+\.mrf\.bcbs\.com\/(\d{4}-\d{2}_\d+_[0-9A-Z]+_in-network-rates(?:_\d+_of_\d+)?\.json\.gz)\?[^"\s]*/g;
+    let tail = "";
+    for await (const chunk of Readable.fromWeb(res.body as never).pipe(createGunzip())) {
+      const text = tail + (chunk as Buffer).toString("latin1");
+      for (const m of text.matchAll(re)) add(m[1], m[0].replace(/\\u0026/g, "&"));
+      tail = text.slice(-2048);
+    }
+    return;
+  }
+  throw new Error("Anthem's index for this or last month isn't available");
+}
 
 const monthOf = (url: string) => /(\d{4}-\d{2})(-\d{2})?_/.exec(url.split("/").pop() ?? "")?.[1] ?? null;
 const monthName = (ym: string) => `${MONTHS[Number(ym.slice(5, 7)) - 1]} ${ym.slice(0, 4)}`;

@@ -292,14 +292,20 @@ export async function importDataset(dataset: Dataset, year: number) {
  * Enqueues at most one due import (never two at once — the files are large and the web
  * instance is small). Called every scheduler tick; cheap when nothing is due.
  */
+/** Rough cost of each import, for ordering (minutes on the server). */
+const IMPORT_COST: Record<string, number> = { state_snapshots: 0, qhp: 1, urrt: 1, mlr: 1, ma_chia: 1, tic: 5, dol_5500: 5, rates: 15, hpt: 120 };
+
 export async function scheduleNextImport(enqueue: (payload: { dataset: Dataset; year: number }) => Promise<unknown>) {
   if (process.env.MARKET_DATA === "off") return null;
   // One import at a time. Busy = a queued job, or a running one whose heartbeat is current; orphans are recovered first.
   const { liveImportJobs, recoverOrphanedImports } = await import("../jobs");
   await recoverOrphanedImports();
   if (await liveImportJobs()) return null;
-  const [next] = await dueImports();
-  if (!next) return null;
+  const due = await dueImports();
+  if (!due.length) return null;
+  // Order: data never imported before (new features), quickest first, then refreshes; hours-long sources last.
+  const existing = new Set((await db.dataImport.findMany({ where: { status: "done" }, select: { dataset: true, year: true } })).map((e) => `${e.dataset}:${e.year}`));
+  const [next] = due.sort((a, b) => Number(existing.has(`${a.dataset}:${a.year}`)) - Number(existing.has(`${b.dataset}:${b.year}`)) || (IMPORT_COST[a.dataset] ?? 5) - (IMPORT_COST[b.dataset] ?? 5));
   await db.dataImport.upsert({
     where: { dataset_year: { dataset: next.dataset, year: next.year } },
     create: { dataset: next.dataset, year: next.year, url: next.url, status: "queued" },
