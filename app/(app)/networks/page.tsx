@@ -3,6 +3,9 @@ import { GENERAL, networkMatrix, DIRECTORY_DATE } from "@/lib/marketdata/network
 import { NetworkMap, type MapDot } from "@/components/NetworkMap";
 import { NotIncluded } from "@/components/NotIncluded";
 import { Empty } from "@/components/ui";
+import { ActionButton } from "@/components/ActionButton";
+import { getSession, hasRole } from "@/lib/auth";
+import { historyStatus } from "@/lib/marketdata/history";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +17,24 @@ export default async function NetworksPage({ searchParams }: { searchParams: Pro
   const state = STATES.includes(sp.state ?? "") ? sp.state! : "MA";
   const all = sp.types === "all";
   const m = await networkMatrix(state);
-  if (!m.month) return <div className="space-y-4"><h1 className="h1">Hospital networks</h1><Empty title="No rate history yet">Networks are built from negotiated-rate files; they appear after the first rate import.</Empty></div>;
+  if (!m.month) {
+    const [st, session] = await Promise.all([historyStatus(), getSession()]);
+    const j = st.job;
+    return (
+      <div className="space-y-4">
+        <h1 className="h1">Hospital networks</h1>
+        <Empty title="Building network data">
+          Networks are built from the {st.files} negotiated-rate files already imported; the worker rebuilds them automatically (about a minute).
+          <span className="mt-2 block font-mono text-xs">
+            {!st.files ? "No rate files imported yet." : !j ? "Rebuild not started yet — the worker checks every 5 minutes." : `Rebuild ${j.status.toLowerCase()} · started ${j.createdAt.toISOString().slice(11, 16)} UTC${j.lastError ? ` · ${j.lastError.slice(0, 200)}` : ""}`}
+          </span>
+          {session && hasRole(session.role, "ADMIN") && st.files > 0 && (
+            <span className="mt-3 block"><ActionButton method="POST" path="/market-data/rebuild-history" className="btn" doneText="Queued — refresh in a minute">Rebuild now</ActionButton></span>
+          )}
+        </Empty>
+      </div>
+    );
+  }
   const carrier = m.carriers.find((c) => c.carrier === sp.carrier)?.carrier;
   const shown = m.hospitals.filter((h) => all || GENERAL.has(h.type));
   const max = Math.max(1, ...shown.map((h) => Object.keys(h.carriers).length));
