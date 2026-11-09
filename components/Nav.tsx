@@ -9,6 +9,7 @@ const LINKS = [
   { href: "/accounts", label: "In play" },
   { href: "/feed", label: "Feed" },
   { href: "/competitors", label: "Competitors" },
+  { href: "/products", label: "Products" },
   { href: "/market", label: "Market" },
   { href: "/employers", label: "Employers" },
   { href: "/rates", label: "Rates" },

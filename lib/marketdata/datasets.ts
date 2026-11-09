@@ -9,7 +9,7 @@
  * When CMS posts a new year, add its URL here (one line) and push; the worker imports it.
  */
 
-export type Dataset = "urrt" | "mlr" | "ma_chia" | "state_snapshots" | "dol_5500" | "tic" | "rates";
+export type Dataset = "urrt" | "mlr" | "ma_chia" | "state_snapshots" | "dol_5500" | "tic" | "rates" | "qhp";
 
 export const DATASETS: Array<{ dataset: Dataset; year: number; url: string }> = [
   { dataset: "urrt", year: 2025, url: "https://www.cms.gov/files/zip/py2025puf20241024.zip" },
@@ -40,12 +40,18 @@ export const DATASETS: Array<{ dataset: Dataset; year: number; url: string }> = 
   { dataset: "rates", year: 6, url: "registry:lib/marketdata/mrf/files.ts#cho" },
   // Offline-reduced snapshots in data/rates/ (BCBSMA + New England Blues, Cigna, Aetna, UnitedHealthcare).
   { dataset: "rates", year: 99, url: "repo:data/rates" },
+  // Exchange plan designs (benefits, cost sharing, networks, premiums by age). lib/marketdata/qhp.ts lists the files:
+  // CMS SBE QHP PUFs (MA, CT, RI, VT, ME) and federal Exchange PUFs (NH). Add a year here when CMS posts it.
+  { dataset: "qhp", year: 2024, url: "registry:lib/marketdata/qhp.ts" },
+  { dataset: "qhp", year: 2025, url: "registry:lib/marketdata/qhp.ts" },
+  { dataset: "qhp", year: 2026, url: "registry:lib/marketdata/qhp.ts" },
+  { dataset: "qhp", year: 2027, url: "registry:lib/marketdata/qhp.ts" },
   // Curated ME/RI/NH large-group snapshots shipped in the repo; bump "year" (a version stamp) after editing them.
   { dataset: "state_snapshots", year: 20261104, url: "repo:data/state-large-group" },
 ];
 
 /** Downloads come only from CMS — hardcoded, never user-supplied. */
-export const ALLOWED_DATA_HOSTS = new Set(["www.cms.gov", "cms.gov", "www.chiamass.gov", "chiamass.gov", "askebsa.dol.gov"]);
+export const ALLOWED_DATA_HOSTS = new Set(["www.cms.gov", "cms.gov", "download.cms.gov", "www.chiamass.gov", "chiamass.gov", "askebsa.dol.gov"]);
 
 /** Re-import a dataset after this long (CMS occasionally republishes corrected files). */
 export const REFRESH_DAYS = 30;

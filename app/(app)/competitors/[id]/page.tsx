@@ -75,6 +75,7 @@ export default async function CompetitorProfilePage({
             <p className="text-sm text-stone-500">
               Tier {comp.tier}
               {comp.website && <> · <a className="underline" href={comp.website} target="_blank" rel="noopener noreferrer">website</a></>}
+              {" · "}<Link className="underline" href={`/competitors/${comp.id}/products${state ? `?state=${state}` : ""}`}>commercial products</Link>
               {" · "}<Link className="underline" href={`/feed?competitorId=${comp.id}`}>all signals</Link>
             </p>
           </div>
@@ -212,6 +213,7 @@ export default async function CompetitorProfilePage({
             title={`Products · plan year ${profile.planYear}`}
             note="Individual & small group (ACA single risk pool) from CMS rate review filings. Large-group products aren't publicly filed. Rate change = enrollment-weighted across renewing plans."
           />
+          <Link href={`/competitors/${comp.id}/products${state ? `?state=${state}` : ""}`} className="inline-block text-sm font-medium underline">Plan designs, pricing position, benefits and year-over-year changes →</Link>
           <div className="card overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="border-b border-stone-200 text-left font-mono text-[11px] uppercase tracking-wide text-stone-500">

@@ -251,6 +251,7 @@ export async function importDataset(dataset: Dataset, year: number) {
     else if (dataset === "dol_5500") rows = await importDol(year, def.url, dir);
     else if (dataset === "tic") rows = await importTransparency();
     else if (dataset === "rates") rows = await importRates(year);
+    else if (dataset === "qhp") rows = await (await import("./qhp")).importQhp(year);
     else {
       const zip = await download(def.url, dir);
       rows = dataset === "urrt" ? await importUrrt(year, zip) : await importMlr(year, zip);

@@ -640,3 +640,60 @@ model RateHistory {
   @@id([carrier, codeType, code, billingClass, tin, month])
   @@index([month])
 }
+
+// ─── Exchange plan designs (CMS QHP PUFs) ────────────────────────────
+// Every individual and small-group plan certified for a state's Exchange: benefit design, cost sharing, network,
+// service area and age-rated premiums. State-based Exchanges (MA, CT, RI, VT, ME) from CMS's SBE QHP PUF; federal
+// platform states (NH) from the Exchange PUFs. Joined to RatePlan (rate filings) on planId for enrollment and rate change.
+
+model QhpPlan {
+  id            String   @id // `${year}:${planId}`
+  year          Int
+  state         String
+  issuerId      String
+  issuerName    String?
+  market        String // "Individual" | "SHOP"
+  planId        String // HIOS standard component id (14 chars), = RatePlan.planId
+  productId     String // HIOS product id (10 chars)
+  name          String
+  metal         String?
+  planType      String? // HMO | PPO | EPO | POS | Indemnity
+  networkId     String?
+  networkName   String?
+  serviceAreaId String?
+  statewide     Boolean  @default(false)
+  counties      Int?
+  isNew         Boolean  @default(false)
+  standardized  Boolean  @default(false) // state/federal standardized design, not issuer-designed
+  hsa           Boolean  @default(false)
+  nationalNetwork Boolean @default(false)
+  referral      Boolean  @default(false)
+  tiered        Boolean  @default(false) // multiple in-network tiers
+  outOfNetwork  Boolean  @default(false) // has an out-of-network benefit
+  wellness      Boolean  @default(false)
+  diseaseMgmt   String?
+  av            Float? // issuer actuarial value, 0–1
+  dedInd        Float? // in-network individual deductible (medical+drug if integrated, else medical)
+  dedFam        Float?
+  drugDed       Float? // separate drug deductible when not integrated
+  moopInd       Float?
+  moopFam       Float?
+  coinsurance   Float? // in-network, after deductible, 0–1
+  sbcBaby       Float? // SBC "having a baby": member's total cost (deductible + copays + coinsurance + excluded)
+  sbcDiabetes   Float?
+  sbcFracture   Float?
+  costShare     Json? // FFE only: { pcp, specialist, er, urgent, generic, brand, specialty, inpatient } as filed text
+  covered       String[] // benefit names covered (the full list; compare across plans)
+  prem21        Float? // median monthly premium across rating areas, non-tobacco
+  prem40        Float?
+  prem60        Float?
+  prem40Min     Float?
+  prem40Max     Float?
+  areaPrem40    Json? // { "Rating Area 1": 512.3, ... }
+  sbcUrl        String?
+  source        String // "SBE QHP PUF" | "Exchange PUF"
+
+  @@index([state, year, market])
+  @@index([issuerId])
+  @@index([planId])
+}

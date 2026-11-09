@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.12.0 — 2026-11-09
+- **Commercial products per competitor** (`/competitors/:id/products`): for each state and market, every exchange plan with premium at age 40 (range across rating areas), deductible, out-of-pocket max, coinsurance, actuarial value, network, service area, HSA eligibility, tiered/out-of-network/referral flags, and the standard SBC cost examples (baby, diabetes, fracture); copays per service in New Hampshire. Enrollment and rate change from the plan's rate filing.
+- **Positioning:** cheapest plan per metal and its rank among all carriers, gap to the market's cheapest, deductible/OOP/SBC vs market median; who holds the lowest and benchmark (second-lowest) silver plan in every rating area.
+- **Benefits beyond the essentials:** adult dental and vision, hearing aids, acupuncture, chiropractic, bariatric surgery, infertility, weight-loss programs and more — this carrier vs everyone else, by carrier.
+- **What changed from last year:** new and discontinued plans (renumbered plans matched by name), premium change on continuing plans vs market, cheapest-by-metal trend, deductible and out-of-pocket changes, networks added or retired, benefit coverage shifts.
+- **Full line-up from rate filings** including off-exchange products, with share of the state market's filed enrollment; group and self-funded plan names from the carrier's transparency index.
+- **Products page** (`/products`): all carriers in a state and market side by side — cheapest plan by metal, networks, HSA, benchmark holders by rating area, every plan in a metal cheapest-first, benefits matrix.
+- New data: CMS QHP public use files 2024–2026 for MA, CT, RI, VT, ME (state-based exchanges) and 2024–2027 for NH (federal platform), imported monthly.
+
 ## 0.11.0 — 2026-11-09
 - **Briefing (new home page):** the week's top five across competitors, ranked, each with a one-line "why it matters"; then up to three items per competitor. News and data-detected changes together; stock quotes and analyst ratings filtered out. Weekly digests carry the same why-it-matters lines.
 - **Accounts in play:** employer groups renewing in the next 60–365 days, ranked by evidence the account can be won — premium per person up, claims running hot or cold against premium, a new broker, and what the carrier just did (rate increases, lost hospitals). Filter by state and competitor; CSV export.
