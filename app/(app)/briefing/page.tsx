@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getSession } from "@/lib/auth";
-import { briefing, type BriefItem } from "@/lib/briefing";
+import { briefing, untrackedCarriers, type BriefItem } from "@/lib/briefing";
+import { ActionButton } from "@/components/ActionButton";
 import { accountsInPlay } from "@/lib/marketdata/inplay";
 import { Importance, TypeBadge, timeAgo } from "@/components/ui";
 import { NotIncluded } from "@/components/NotIncluded";
@@ -33,7 +34,7 @@ export default async function BriefingPage({ searchParams }: { searchParams: Pro
   const session = (await getSession())!;
   const sp = await searchParams;
   const days = sp.days === "30" ? 30 : 7;
-  const [b, play] = await Promise.all([briefing(session.workspaceId, days), accountsInPlay(session.workspaceId, { days: 120 })]);
+  const [b, play, untracked] = await Promise.all([briefing(session.workspaceId, days), accountsInPlay(session.workspaceId, { days: 120 }), untrackedCarriers(session.workspaceId)]);
   const hot = play.rows.filter((r) => r.score >= 3);
   return (
     <div className="space-y-6">
@@ -86,7 +87,36 @@ export default async function BriefingPage({ searchParams }: { searchParams: Pro
               </div>
             ))}
           </div>
-          {b.quiet.length > 0 && <p className="mt-3 text-xs text-stone-500">Nothing new from: {b.quiet.join(", ")}.</p>}
+
+        </section>
+      )}
+
+      {b.quiet.length > 0 && (
+        <section>
+          <h2 className="mb-2 font-mono text-xs uppercase tracking-wide text-stone-500">Quiet this {days === 7 ? "week" : "month"} · {b.quiet.length}</h2>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {b.quiet.map((c) => (
+              <Link key={c.id} href={`/competitors/${c.id}`} className="card flex items-baseline justify-between px-4 py-2.5 text-sm hover:bg-stone-50">
+                <span className="font-medium">{c.name} <span className="ml-1 font-mono text-[10px] text-stone-400">TIER {c.tier}</span></span>
+                <span className="text-xs text-stone-500">{c.last ? `last activity ${timeAgo(c.last)} ago` : "no signals yet"}</span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {untracked.length > 0 && (
+        <section>
+          <h2 className="mb-1 font-mono text-xs uppercase tracking-wide text-stone-500">Carriers in your states you don&apos;t track</h2>
+          <p className="mb-2 text-xs text-stone-500">Fully insured covered lives in New England from CMS loss-ratio filings ({untracked[0].year}). Add one to pull its filings, products, rates and news into Lookout.</p>
+          <ul className="card divide-y divide-stone-100 text-sm">
+            {untracked.map((u) => (
+              <li key={u.name} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2">
+                <span><span className="font-medium">{u.name}</span> <span className="text-xs text-stone-500">· {u.lives.toLocaleString()} lives · {u.states.join(", ")}</span></span>
+                <ActionButton method="POST" path="/competitors" body={{ name: u.name, tier: 3 }} className="btn-ghost text-xs" doneText="Added">Track</ActionButton>
+              </li>
+            ))}
+          </ul>
         </section>
       )}
 

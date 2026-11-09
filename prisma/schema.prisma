@@ -757,3 +757,55 @@ model HospitalFile {
   payers      Json? // [{ payer, plan, carrier, product, rows }]
   processedAt DateTime @default(now())
 }
+
+// ─── Plan provider directories and formularies (CMS machine-readable PUF) ───
+// Exchange insurers publish, per plan, every provider in network and every covered drug (45 CFR 156.122/230).
+model PlanNetworkStat {
+  id          String @id // `${year}:${planId}`
+  carrier     String
+  issuerId    String
+  planId      String
+  year        Int
+  individuals Int    @default(0)
+  pcps        Int    @default(0)
+  accepting   Int    @default(0)
+  hospitals   Int    @default(0)
+  facilities  Int    @default(0)
+  byState     Json? // { NH: 1234, MA: 456 } individuals by practice state
+  drugs       Int?
+  pa          Int?
+  st          Int?
+  ql          Int?
+
+  @@index([planId])
+  @@index([carrier, year])
+}
+
+model PlanHospital {
+  id      String @id @default(cuid())
+  carrier String
+  planId  String
+  year    Int
+  npi     String
+  name    String
+  city    String?
+  state   String?
+
+  @@index([planId, year])
+}
+
+model PlanDrug {
+  id      String  @id @default(cuid())
+  carrier String
+  planId  String
+  year    Int
+  group   String // watch-list label, e.g. "GLP-1 for weight loss"
+  covered Boolean
+  tier    String?
+  pa      Boolean @default(false)
+  st      Boolean @default(false)
+  ql      Boolean @default(false)
+  drugs   Int     @default(0) // formulary entries in the group
+
+  @@index([planId, year])
+}

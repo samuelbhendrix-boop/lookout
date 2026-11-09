@@ -27,6 +27,10 @@ export async function writeEvents(events: EventInput[]) {
 const EXTRA: Record<string, string> = {
   "Blue Cross and Blue Shield of Vermont": "blue cross.*vermont|bcbsvt",
   "Health New England": "health new england",
+  "ConnectiCare": "connecticare",
+  "MVP Health Care": "\\bmvp health",
+  "Ambetter (Centene)": "ambetter|celtic insurance|granite state health plan",
+  "Matthew Thornton Health Plan": "matthew thornton",
 };
 const IDENTITIES = Object.entries({ ...CURATED_ISSUER_PATTERNS, ...EXTRA }).map(([name, p]) => ({ name, re: new RegExp(p, "i") }));
 

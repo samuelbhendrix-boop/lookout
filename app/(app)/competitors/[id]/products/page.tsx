@@ -10,6 +10,8 @@ import { issuerPatternFor } from "@/lib/marketdata/queries";
 import { fmtInt, fmtSignedPct, fmtUsd } from "@/components/charts";
 import { NotIncluded } from "@/components/NotIncluded";
 import { Empty } from "@/components/ui";
+import { PlanNetworkTable } from "@/components/PlanNetworkTable";
+import { directoryErrors } from "@/lib/marketdata/directory";
 
 export const dynamic = "force-dynamic";
 
@@ -44,7 +46,7 @@ export default async function CompetitorProductsPage({ params, searchParams }: {
   const comp = await db.competitor.findFirst({ where: { id, workspaceId: session.workspaceId } });
   if (!comp) notFound();
   const state = sp.state && /^[A-Z]{2}$/.test(sp.state) ? sp.state : undefined;
-  const [r, catalog, asoAll, asoBench] = await Promise.all([competitorProducts(comp, { state }), transparencyPlanCatalog(comp), asoAccounts(), asoBenchmarks(state)]);
+  const [r, catalog, asoAll, asoBench, dirErr] = await Promise.all([competitorProducts(comp, { state }), transparencyPlanCatalog(comp), asoAccounts(), asoBenchmarks(state), directoryErrors()]);
   const compRe = (() => { try { return new RegExp(issuerPatternFor(comp), "i"); } catch { return null; } })();
   const isMine = (admin: string) => !!compRe?.test(admin) || admin === comp.name;
   const aso = asoAll.filter((a) => isMine(a.admin) && (!state || a.state === state)).sort((a, b) => (b.participants ?? 0) - (a.participants ?? 0));
@@ -226,6 +228,8 @@ export default async function CompetitorProductsPage({ params, searchParams }: {
             </Section>
           )}
 
+          <PlanNetworkTable plans={m.plans.map((p: Plan) => ({ planId: p.planId, name: p.name, metal: p.metal }))} />
+
           {m.changes && (
             <Section title={`What changed from ${m.changes.prevYear}`} note={`${m.changes.plansBefore} plans in ${m.changes.prevYear} → ${m.plans.length} in ${m.year}; ${m.changes.continuing} continued (matched on plan id or name). Premium change = median across continuing plans, age 40.`}>
               <div className="grid gap-3 md:grid-cols-2">
@@ -346,6 +350,7 @@ export default async function CompetitorProductsPage({ params, searchParams }: {
         <>Per-service copays are published only for federal-platform states (NH). Elsewhere, compare with the SBC cost examples (baby, diabetes, fracture), which every plan must calculate the same way.</>,
         <>Premiums are list rates before subsidies, non-tobacco. Massachusetts ConnectorCare and other state subsidy programs are not shown.</>,
         <>Large-group and self-funded benefit designs are not filed publicly; only plan names are available.</>,
+        <>Provider networks and formularies come from insurers&apos; machine-readable files, which CMS requires only on the federal platform: in New England that is New Hampshire&apos;s exchange plans (Anthem, Harvard Pilgrim, Ambetter, Matthew Thornton; Ambetter publishes facilities only, Matthew Thornton no formulary). State-exchange plans in MA, CT, RI, VT and ME have no such files.{dirErr?.errors.length ? ` Last run couldn't read: ${dirErr.errors.join("; ")}.` : ""}</>,
       ]} />
     </div>
   );

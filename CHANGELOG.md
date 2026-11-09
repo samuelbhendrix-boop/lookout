@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.14.0 — 2026-11-09
+- **Provider networks and formularies per plan** (from insurers' machine-readable directory and formulary files listed in CMS's MR-PUF): in-network New England hospitals (grouped into distinct networks, with the hospital list), physicians, primary care physicians, share accepting new patients, formulary size, prior-authorization and step-therapy rates, and coverage of 14 high-cost drug groups (GLP-1s for weight loss vs diabetes, adalimumab, Dupixent, Stelara, Skyrizi, Rinvoq, Eliquis, SGLT2s, Entresto, Biktarvy, Trikafta, insulin glargine, PCSK9s). On each competitor's products page and the market products page. Federal-platform plans only (New Hampshire: Anthem, Harvard Pilgrim, Ambetter, Matthew Thornton); WellSense's files are on a port we can't reach.
+- **Briefing shows every competitor:** quiet competitors get a card with their last activity instead of one line, and a new list names carriers with 2,000+ covered lives in your states that you don't track (from NAIC financials), with a one-click Track.
+- ConnectiCare, MVP, Ambetter and Matthew Thornton recognised as carriers in filings.
+
 ## 0.13.2 — 2026-11-09
 - Hospital files: header spellings with spaces ("Code |1| Type", "standard_charge | negotiated_dollar") are read; percent-of-charges contracts get a dollar amount (gross charge × contracted %, else the median allowed); fractional percentages handled. Baystate and Care New England now parse.
 - Mostly-Medicaid carriers (WellSense, Fallon, NHPRI, MGB) count only plans named as commercial, so MassHealth and RIte Care rates aren't read as commercial prices; Tufts Public Plans excluded.

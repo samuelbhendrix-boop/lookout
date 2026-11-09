@@ -252,6 +252,7 @@ export async function importDataset(dataset: Dataset, year: number) {
     else if (dataset === "tic") rows = await importTransparency();
     else if (dataset === "rates") rows = await importRates(year);
     else if (dataset === "qhp") rows = await (await import("./qhp")).importQhp(year);
+    else if (dataset === "directory") rows = (await (await import("./directory")).importDirectories()).rows;
     else if (dataset === "hpt") {
       rows = await (await import("./hpt")).importHospitalFiles();
       await (await import("./mrf/leverage")).refreshLeverage();
@@ -293,7 +294,7 @@ export async function importDataset(dataset: Dataset, year: number) {
  * instance is small). Called every scheduler tick; cheap when nothing is due.
  */
 /** Rough cost of each import, for ordering (minutes on the server). */
-const IMPORT_COST: Record<string, number> = { state_snapshots: 0, qhp: 1, urrt: 1, mlr: 1, ma_chia: 1, tic: 5, dol_5500: 5, rates: 15, hpt: 120 };
+const IMPORT_COST: Record<string, number> = { state_snapshots: 0, qhp: 1, urrt: 1, mlr: 1, ma_chia: 1, tic: 5, dol_5500: 5, rates: 15, directory: 60, hpt: 120 };
 
 export async function scheduleNextImport(enqueue: (payload: { dataset: Dataset; year: number }) => Promise<unknown>) {
   if (process.env.MARKET_DATA === "off") return null;

@@ -6,6 +6,7 @@ import { DIFFERENTIATORS, marketProducts, metalOrder, NE_STATES, qhpYears } from
 import { issuerPatternFor } from "@/lib/marketdata/queries";
 import { fmtInt } from "@/components/charts";
 import { NotIncluded } from "@/components/NotIncluded";
+import { PlanNetworkTable } from "@/components/PlanNetworkTable";
 import { Empty } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -131,7 +132,10 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
             </div>
           </section>
 
+          <PlanNetworkTable title={`Network and formulary · ${metal} plans`} plans={inMetal.map((p) => ({ planId: p.planId, name: p.name, issuer: short(p.issuerName ?? p.issuerId) }))} />
+
           <NotIncluded items={[
+            <>Provider networks and formularies are only published in machine-readable form for federal-platform (New Hampshire) exchange plans; other states show none.</>,
             <>Exchange-certified plans only. Off-exchange products (most of the small-group market in some states) are in each carrier&apos;s line-up from rate filings, without benefit detail.</>,
             <>List premiums before subsidies, non-tobacco, median across rating areas. {metalOrder("Silver") >= 0 ? "Expanded bronze is grouped with bronze." : ""}</>,
             <>Enrollment comes from the plan&apos;s rate filing (enrollment at filing time); new plans and federal-platform years ahead of filings show none.</>,

@@ -119,6 +119,38 @@ export async function briefing(workspaceId: string, days = 7) {
     })
     .filter((c) => c.count > 0)
     .sort((a, b) => a.tier - b.tier || (b.items[0]?.score ?? 0) - (a.items[0]?.score ?? 0));
-  const quiet = competitors.filter((c) => !byCompetitor.some((x) => x.id === c.id)).map((c) => c.name);
+  // Every competitor appears: quiet ones with when they last had any activity.
+  const lastSeen = await db.signal.groupBy({ by: ["competitorId"], where: { workspaceId, competitorId: { in: competitors.map((c) => c.id) } }, _max: { createdAt: true } });
+  const quiet = competitors.filter((c) => !byCompetitor.some((x) => x.id === c.id))
+    .map((c) => ({ id: c.id, name: c.name, tier: c.tier, last: lastSeen.find((l) => l.competitorId === c.id)?._max.createdAt ?? null }));
   return { since, days, total: items.length, major: items.filter((i) => i.importance >= 4).length, dataDetected: items.filter((i) => i.kind).length, noise, top, byCompetitor, quiet };
+}
+
+
+/**
+ * Carriers with real business in New England that this workspace doesn't track: fully insured covered lives from the
+ * latest CMS loss-ratio filings (all segments), grouped by parent where known, minus anything a competitor's filing-name
+ * pattern already matches.
+ */
+export async function untrackedCarriers(workspaceId: string, limit = 10) {
+  const { canonicalCarrier } = await import("./marketdata/events");
+  const { issuerPatternFor } = await import("./marketdata/queries");
+  const competitors = await db.competitor.findMany({ where: { workspaceId }, select: { name: true, aliases: true, issuerPattern: true } });
+  const res = competitors.flatMap((c) => { try { return [new RegExp(issuerPatternFor(c), "i")]; } catch { return []; } });
+  const latest = await db.marketFinancial.aggregate({ _max: { year: true } });
+  const year = latest._max.year;
+  if (!year) return [];
+  const rows = await db.marketFinancial.groupBy({ by: ["company", "state"], where: { year, state: { in: ["MA", "CT", "RI", "NH", "VT", "ME"] } }, _sum: { coveredLives: true } });
+  const by = new Map<string, { name: string; lives: number; states: Set<string>; legal: Set<string> }>();
+  for (const r of rows) {
+    if (res.some((re) => re.test(r.company))) continue;
+    const name = canonicalCarrier(r.company) ?? r.company.replace(/,?\s+(inc|co|company|corporation|corp)\.?$/i, "").trim();
+    const x = by.get(name) ?? by.set(name, { name, lives: 0, states: new Set(), legal: new Set() }).get(name)!;
+    x.lives += r._sum.coveredLives ?? 0;
+    x.states.add(r.state);
+    x.legal.add(r.company);
+  }
+  return [...by.values()].filter((x) => x.lives >= 2000 && !/dental|vision|life insurance|delta/i.test(x.name))
+    .sort((a, b) => b.lives - a.lives).slice(0, limit)
+    .map((x) => ({ name: x.name, lives: Math.round(x.lives), states: [...x.states].sort(), legal: [...x.legal].slice(0, 3), year }));
 }
