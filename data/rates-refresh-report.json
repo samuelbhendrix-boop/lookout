@@ -1,0 +1,16 @@
+{
+  "ranAt": "2026-11-09T19:42:26.552Z",
+  "counts": {
+    "refreshed": 1,
+    "current": 0,
+    "stale": 0,
+    "failed": 0
+  },
+  "results": [
+    {
+      "file": "uhc-options-ppo.json.gz",
+      "status": "refreshed",
+      "detail": "2026-10 → 2026-11: 15.38 GB → 26243 rows in 13 min"
+    }
+  ]
+}
