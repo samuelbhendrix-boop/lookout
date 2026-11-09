@@ -8,6 +8,17 @@ import { db } from "../lib/db";
 
 (async () => {
   const [ds, yr] = process.argv.slice(2);
+  if (ds === "refresh_index") {
+    // Recompute the carrier index + this month's RateHistory from stored rates (no downloads), then detect changes.
+    const { refreshCarrierIndex } = await import("../lib/marketdata/mrf/queries");
+    const { detectAll } = await import("../lib/marketdata/events");
+    const t = Date.now();
+    await refreshCarrierIndex();
+    await detectAll(["rates"]);
+    console.log(`refresh_index: ${await db.rateHistory.count()} history rows in ${Math.round((Date.now() - t) / 1000)}s (rss ${Math.round(process.memoryUsage().rss / 1e6)} MB)`);
+    await db.$disconnect();
+    return;
+  }
   const list = ds ? DATASETS.filter((d) => d.dataset === ds && (!yr || d.year === Number(yr))) : await dueImports();
   for (const d of list) {
     const t = Date.now();

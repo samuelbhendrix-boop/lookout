@@ -18,6 +18,11 @@ export async function runImport(dataset: Dataset, year: number): Promise<string>
   const tsx = join(cwd, "node_modules", "tsx", "dist", "cli.mjs");
   const args = existsSync(compiled) ? [compiled] : existsSync(script) && existsSync(tsx) ? [tsx, script] : null;
   if (!args) {
+    if ((dataset as string) === "refresh_index") {
+      const { refreshCarrierIndex } = await import("./mrf/queries");
+      await refreshCarrierIndex();
+      return "refresh_index (in-process)";
+    }
     const rows = await importDataset(dataset, year);
     return `${dataset} ${year}: ${rows} rows (in-process)`;
   }

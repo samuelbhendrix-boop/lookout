@@ -11,8 +11,10 @@ import { scheduleNextImport } from "../lib/marketdata/import";
 import { runImport } from "../lib/marketdata/run";
 import type { Dataset } from "../lib/marketdata/datasets";
 import { syncEventsToWorkspaces } from "../lib/marketdata/events";
+import { db } from "../lib/db";
 
 let lastEventSync = 0;
+let historyChecked = false;
 
 const TICK_MS = Number(process.env.WORKER_TICK_MS ?? 15_000);
 const CONCURRENCY = Number(process.env.WORKER_CONCURRENCY ?? 5);
@@ -31,6 +33,20 @@ async function schedule() {
   if (digests.length) log(`scheduled ${digests.length} digest(s)`);
   const imp = await scheduleNextImport((p) => enqueue(null, "import_market_data", p));
   if (imp) log(`scheduled market data import ${imp.dataset} ${imp.year}`);
+  // Once per worker start: rate files imported before RateHistory existed (pre-0.10) have no history, so the
+  // Networks page and rate-change detection would stay empty until next month's import. Backfill from stored rates.
+  if (!historyChecked) {
+    historyChecked = true;
+    const [history, files, pending] = await Promise.all([
+      db.rateHistory.count(),
+      db.rateFile.count({ where: { status: "ok" } }),
+      db.job.count({ where: { kind: "import_market_data", status: { in: ["QUEUED", "RUNNING"] } } }),
+    ]);
+    if (!history && files && !pending) {
+      await enqueue(null, "import_market_data", { dataset: "refresh_index", year: "0" });
+      log("rate history empty — backfilling from stored rates");
+    }
+  }
   // Hourly: turn detected market events into signals for every workspace tracking that carrier.
   if (Date.now() - lastEventSync > 3600e3) {
     lastEventSync = Date.now();
