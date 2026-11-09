@@ -41,22 +41,25 @@ export const HPT_DOMAINS: Array<{ domain: string; state: string }> = [
   { domain: "www.stvincenthospital.com", state: "MA" }, { domain: "www.mwmc.com", state: "MA" }, { domain: "www.holyokehealth.com", state: "MA" },
   { domain: "www.capecodhealth.org", state: "MA" }, { domain: "www.harringtonhospital.org", state: "MA" },
   // New Hampshire
-  { domain: "www.dartmouth-health.org", state: "NH" }, { domain: "www.catholicmedicalcenter.org", state: "NH" }, { domain: "www.solutionhealth.org", state: "NH" },
-  { domain: "www.wdhospital.org", state: "NH" }, { domain: "www.concordhospital.org", state: "NH" }, { domain: "www.exeterhospital.com", state: "NH" },
+  { domain: "www.dartmouth-health.org", state: "NH" }, { domain: "www.catholicmedicalcenter.org", state: "NH" }, { domain: "www.elliothospital.org", state: "NH" },
+  { domain: "www.concordhospital.org", state: "NH" }, { domain: "www.exeterhospital.com", state: "NH" },
   // Maine
   { domain: "www.mainehealth.org", state: "ME" }, { domain: "www.northernlighthealth.org", state: "ME" }, { domain: "www.mainegeneral.org", state: "ME" },
   { domain: "www.cmhc.org", state: "ME" },
   // Rhode Island
-  { domain: "www.brownhealth.org", state: "RI" }, { domain: "www.carenewengland.org", state: "RI" }, { domain: "www.chartercare.org", state: "RI" },
+  { domain: "www.brownhealth.org", state: "RI" }, { domain: "www.kentri.org", state: "RI" }, { domain: "www.chartercare.org", state: "RI" },
   // Connecticut
-  { domain: "www.hhchealth.org", state: "CT" }, { domain: "www.ynhhs.org", state: "CT" }, { domain: "www.trinityhealthofne.org", state: "CT" },
+  { domain: "www.ynhhs.org", state: "CT" }, { domain: "www.trinityhealthofne.org", state: "CT" },
   { domain: "www.nuvancehealth.org", state: "CT" },
   // Vermont
   { domain: "www.uvmhealth.org", state: "VT" }, { domain: "www.rrmc.org", state: "VT" },
 ];
 
 /** Not commercial medical coverage: dropped. */
-const NON_COMMERCIAL = /medicare|medicaid|masshealth|mass health|\bmco\b|\baco\b|tricare|champva|veteran|\bva\b|workers|work comp|\bauto\b|\bmva\b|dental|vision|behavioral|catch.?all|self.?pay|uninsured|charity|government|dual|senior|advantage|\bsco\b|one care|pace\b|health safety net|hsn|crisis|connectorcare|cobra/i;
+const NON_COMMERCIAL = /public plans|together|rite ?care|medicare|medicaid|masshealth|mass health|\bmco\b|\baco\b|tricare|champva|veteran|\bva\b|workers|work comp|\bauto\b|\bmva\b|dental|vision|behavioral|catch.?all|self.?pay|uninsured|charity|government|dual|senior|advantage|\bsco\b|one care|pace\b|health safety net|hsn|crisis|connectorcare|cobra/i;
+
+const MEDICAID_HEAVY = new Set(["WellSense Health Plan", "Fallon Health", "Neighborhood Health Plan of Rhode Island", "Mass General Brigham Health Plan"]);
+const COMMERCIAL_HINT = /commercial|clarity|connector|exchange|\bqhp\b|direct|employer|group|self.?insured|\bgic\b|\bppo\b|\bpos\b|\bepo\b|select|navigator|community care|complete hmo/i;
 
 /** Payer + plan text → canonical carrier. State decides which Blue. */
 export function carrierOf(payer: string, plan: string, state: string | null): string | null {
@@ -112,16 +115,26 @@ const basket = benchCodeMap();
 type Row = Omit<Prisma.HospitalRateCreateManyInput, "fileId" | "id">;
 
 /** One item (a service with its codes and per-payer charges) → kept rows. */
-function keep(codes: Array<{ code: string; type: string }>, setting: string | null, billingClass: string | null, payers: Array<{ payer: string; plan: string; dollar: number | null; pct: number | null; method: string | null }>, ctx: { tin: string | null; hospital: string; state: string | null }, out: Row[]) {
+function keep(codes: Array<{ code: string; type: string }>, setting: string | null, billingClass: string | null, payers: Array<{ payer: string; plan: string; dollar: number | null; pct: number | null; method: string | null; median?: number | null; gross?: number | null }>, ctx: { tin: string | null; hospital: string; state: string | null }, out: Row[]) {
   if (billingClass && /professional/i.test(billingClass)) return;
   const k = codes.map((c) => codeKey(c.type, c.code)).find((x) => basket.has(x));
   if (!k) return;
   const [codeType, code] = k.split("|");
-  for (const p of payers) {
+  for (const p0 of payers) {
+    // Percent-of-charges and algorithm contracts publish no dollar figure. Use, in order: the published dollar amount,
+    // gross charge × the contracted percentage, then the median amount allowed (template v3) — last, because some
+    // hospitals report one median across all payers.
+    const frac = p0.pct == null ? null : p0.pct > 1.5 ? p0.pct / 100 : p0.pct;
+    const byPct = frac && p0.gross ? p0.gross * frac : null;
+    const derived = p0.dollar == null ? (byPct ?? (p0.median && p0.median > 0 ? p0.median : null)) : null;
+    const p = { ...p0, dollar: p0.dollar ?? derived, method: derived != null ? `derived (${byPct ? "charge × %" : "median allowed"}) · ${p0.method ?? ""}`.trim() : p0.method };
     if (p.dollar == null && p.pct == null) continue;
     if (NON_COMMERCIAL.test(`${p.payer} ${p.plan}`)) continue;
     const carrier = carrierOf(p.payer, p.plan, ctx.state);
     if (!carrier) continue;
+    // Carriers that are mostly Medicaid: a row counts as commercial only if the plan says so, otherwise their MassHealth
+    // or RIte Care rates (a fraction of commercial) would be read as commercial prices.
+    if (MEDICAID_HEAVY.has(carrier) && !COMMERCIAL_HINT.test(`${p.payer} ${p.plan}`)) continue;
     out.push({ tin: ctx.tin, hospital: ctx.hospital, state: ctx.state, codeType, code, setting, payer: p.payer.slice(0, 120), plan: p.plan.slice(0, 160) || null, carrier, product: productOf(p.plan), dollar: p.dollar, percentage: p.pct, methodology: p.method?.slice(0, 60) ?? null });
   }
 }
@@ -134,6 +147,7 @@ async function parseJson(file: string, ctx: { tin: string | null; hospital: stri
     for (const sc of value.standard_charges ?? []) {
       const payers = ((sc.payers_information as Array<Record<string, unknown>>) ?? []).map((p) => ({
         payer: String(p.payer_name ?? ""), plan: String(p.plan_name ?? ""), dollar: num(p.standard_charge_dollar), pct: num(p.standard_charge_percentage), method: (p.methodology as string) ?? null,
+        median: num(p.median_amount ?? p.estimated_amount), gross: num(sc.gross_charge),
       }));
       keep(codes, (sc.setting as string) ?? null, (sc.billing_class as string) ?? null, payers, ctx, out);
     }
@@ -149,9 +163,9 @@ async function parseCsv(file: string, ctx: { tin: string | null; hospital: strin
   let ix: Record<string, number> = {};
   for await (const row of parser as AsyncIterable<string[]>) {
     if (!head) {
-      head = row.map((h) => h.trim().toLowerCase());
+      head = row.map((h) => h.trim().toLowerCase().replace(/\s*\|\s*/g, "|"));
       wide = head.flatMap((h, i) => { const m = /^standard_charge\|(.+)\|(.+)\|negotiated_(dollar|percentage)$/.exec(h); return m ? [{ i, payer: row[i].split("|")[1], plan: row[i].split("|")[2], kind: m[3] === "dollar" ? "dollar" as const : "pct" as const }] : []; });
-      ix = { setting: idx(/^setting$/), bc: idx(/^billing_class$/), payer: idx(/^payer_name$/), plan: idx(/^plan_name$/), dollar: idx(/^standard_charge\|negotiated_dollar$/), pct: idx(/^standard_charge\|negotiated_percentage$/), method: idx(/^standard_charge\|methodology$/) };
+      ix = { setting: idx(/^setting$/), bc: idx(/^billing_class$/), payer: idx(/^payer_name$/), plan: idx(/^plan_name$/), dollar: idx(/^standard_charge\|negotiated_dollar$/), pct: idx(/^standard_charge\|negotiated_percentage$/), method: idx(/^standard_charge\|methodology$/), median: idx(/^(median_amount|estimated_amount)$/), gross: idx(/^standard_charge\|gross$/) };
       continue;
     }
     const codes: Array<{ code: string; type: string }> = [];
@@ -173,7 +187,7 @@ async function parseCsv(file: string, ctx: { tin: string | null; hospital: strin
       }
       keep(codes, get(ix.setting) || null, get(ix.bc) || null, [...byPlan.values()], ctx, out);
     } else if (ix.payer >= 0) {
-      keep(codes, get(ix.setting) || null, get(ix.bc) || null, [{ payer: get(ix.payer), plan: get(ix.plan), dollar: num(get(ix.dollar)), pct: num(get(ix.pct)), method: get(ix.method) || null }], ctx, out);
+      keep(codes, get(ix.setting) || null, get(ix.bc) || null, [{ payer: get(ix.payer), plan: get(ix.plan), dollar: num(get(ix.dollar)), pct: num(get(ix.pct)), method: get(ix.method) || null, median: num(get(ix.median)), gross: num(get(ix.gross)) }], ctx, out);
     }
   }
 }

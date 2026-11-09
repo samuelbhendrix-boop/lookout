@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.13.2 — 2026-11-09
+- Hospital files: header spellings with spaces ("Code |1| Type", "standard_charge | negotiated_dollar") are read; percent-of-charges contracts get a dollar amount (gross charge × contracted %, else the median allowed); fractional percentages handled. Baystate and Care New England now parse.
+- Mostly-Medicaid carriers (WellSense, Fallon, NHPRI, MGB) count only plans named as commercial, so MassHealth and RIte Care rates aren't read as commercial prices; Tufts Public Plans excluded.
+- Leverage cross-check labelled agree / close / don't match.
+- Hospital domains corrected (Elliot, Care New England); two dead ones removed.
+
 ## 0.13.1 — 2026-11-09
 - **Blue Cross snapshots refresh automatically:** 18 of 20 Blue networks (Anthem CT/ME/NH, BCBSRI, BCBSVT) are found each month in Anthem's public index, streamed; only BCBSMA HMO Blue and Anthem NH HMO Blue New England Choice still need BCBSMA's browser-only index.
 - **Import order:** never-imported and quick datasets go first (plan designs, filings), hours-long ones (hospital files) last, so new features don't wait behind slow refreshes.
