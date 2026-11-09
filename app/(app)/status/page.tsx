@@ -4,6 +4,16 @@ import { db } from "@/lib/db";
 import { ActionButton } from "@/components/ActionButton";
 import { snapshotVersion } from "@/lib/marketdata/import";
 import pkg from "@/package.json";
+import { readFileSync } from "node:fs";
+
+/** Container memory from cgroups (v2, then v1): what the hosting plan actually allows, and what's in use. */
+function containerMemory() {
+  const read = (p: string) => { try { return readFileSync(p, "utf8").trim(); } catch { return null; } };
+  const limit = read("/sys/fs/cgroup/memory.max") ?? read("/sys/fs/cgroup/memory/memory.limit_in_bytes");
+  const used = read("/sys/fs/cgroup/memory.current") ?? read("/sys/fs/cgroup/memory/memory.usage_in_bytes");
+  const n = (x: string | null) => (x && /^\d+$/.test(x) && Number(x) < 2 ** 50 ? Number(x) : null);
+  return { limit: n(limit), used: n(used) };
+}
 
 export const dynamic = "force-dynamic";
 
@@ -26,13 +36,15 @@ export default async function StatusPage() {
   const kinds = [...new Set(jobs.map((j) => j.kind))].sort();
   const count = (k: string, s: string) => jobs.find((j) => j.kind === k && j.status === s)?._count ?? 0;
   const mem = process.memoryUsage();
+  const box = containerMemory();
+  const live = await db.job.findMany({ where: { kind: "import_market_data", status: "RUNNING", updatedAt: { gte: new Date(Date.now() - 3 * 60_000) } }, select: { payload: true, createdAt: true, updatedAt: true, attempts: true } });
   const H = ({ children }: { children: React.ReactNode }) => <h2 className="font-mono text-xs uppercase tracking-wide text-stone-500">{children}</h2>;
   const bad = imports.filter((i) => i.status === "failed");
   return (
     <div className="space-y-5 text-sm">
       <div>
         <h1 className="h1">System status</h1>
-        <p className="text-stone-500">Lookout {pkg.version} · web process {Math.round(mem.rss / 1e6)} MB · snapshots {snapshotVersion().split("#")[1]} · {new Date().toISOString().slice(0, 16).replace("T", " ")} UTC</p>
+        <p className="text-stone-500">Lookout {pkg.version} · web process {Math.round(mem.rss / 1e6)} MB{box.limit ? <> · server memory <span className={box.used && box.used / box.limit > 0.85 ? "font-medium text-red-700" : ""}>{box.used ? `${Math.round(box.used / 1e6)} of ` : ""}{Math.round(box.limit / 1e6)} MB</span>{box.limit < 1e9 ? " (512 MB plan: imports may not fit next to the web server)" : ""}</> : null} · snapshots {snapshotVersion().split("#")[1]} · {new Date().toISOString().slice(0, 16).replace("T", " ")} UTC</p>
       </div>
       <div className="grid gap-3 sm:grid-cols-4">
         {[
@@ -45,6 +57,12 @@ export default async function StatusPage() {
         ))}
       </div>
 
+      {live.length > 0 && (
+        <div className="card p-4">
+          <p className="font-medium">Importing now</p>
+          <ul className="mt-1 font-mono text-xs">{live.map((j, i) => <li key={i}>{JSON.stringify(j.payload)} · started {j.createdAt.toISOString().slice(11, 16)} UTC · last heartbeat {Math.round((Date.now() - j.updatedAt.getTime()) / 1000)}s ago · attempt {j.attempts}</li>)}</ul>
+        </div>
+      )}
       <H>Jobs</H>
       <div className="card overflow-x-auto">
         <table className="w-full">
@@ -54,9 +72,9 @@ export default async function StatusPage() {
       </div>
       {stuck.length > 0 && (
         <div className="card p-4">
-          <p className="font-medium text-red-800">Running for more than 15 minutes without progress</p>
+          <p className="font-medium text-red-800">Marked running, but no heartbeat for over 15 minutes</p>
           <ul className="mt-2 space-y-1 font-mono text-xs">{stuck.map((j) => <li key={j.id}>{j.kind} {JSON.stringify(j.payload)} · since {j.updatedAt.toISOString().slice(0, 16)} · attempt {j.attempts}</li>)}</ul>
-          <p className="mt-2 text-xs text-stone-500">Usually a deploy restarted the server mid-job. Imports are picked up again automatically within the hour.</p>
+          <p className="mt-2 text-xs text-stone-500">The server that ran these was replaced (a deploy) or killed. Imports are re-queued automatically within 3 minutes; after 5 interruptions an import is marked failed with the reason.</p>
         </div>
       )}
       {failed.length > 0 && (

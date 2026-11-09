@@ -4,14 +4,15 @@
  *  - Scheduler tick: claims due sources and digest rules, enqueues their jobs.
  *  - Job loop: claims queued jobs (SKIP LOCKED) and runs them with retry/backoff.
  */
-import { claimJobs, completeJob, deferJob, enqueue, failJob, reapStaleJobs } from "../lib/jobs";
+import { claimJobs, completeJob, deferJob, enqueue, failJob, IMPORT_HEARTBEAT_MS, reapStaleJobs } from "../lib/jobs";
+import { db } from "../lib/db";
 import { claimDueSources, DeferJob, pollSource } from "../lib/ingest";
 import { claimDueDigests, deliverAlert, sendDigest } from "../lib/alerts";
 import { scheduleNextImport } from "../lib/marketdata/import";
-import { runImport } from "../lib/marketdata/run";
+import { killImports, runImport } from "../lib/marketdata/run";
 import type { Dataset } from "../lib/marketdata/datasets";
 import { syncEventsToWorkspaces } from "../lib/marketdata/events";
-import { ensureHistoryJob } from "../lib/marketdata/history";
+import { ensureDerivedData } from "../lib/marketdata/history";
 
 let lastEventSync = 0;
 let lastHistoryCheck = 0;
@@ -37,8 +38,7 @@ async function schedule() {
   // 5 minutes until present, so a deploy that kills the job mid-run doesn't leave the Networks page empty.
   if (Date.now() - lastHistoryCheck > 5 * 60_000) {
     lastHistoryCheck = Date.now();
-    const r = await ensureHistoryJob();
-    if (r.queued) log("rate history empty — backfilling from stored rates");
+    for (const r of await ensureDerivedData()) log(r);
   }
   // Hourly: turn detected market events into signals for every workspace tracking that carrier.
   if (Date.now() - lastEventSync > 3600e3) {
@@ -62,10 +62,19 @@ async function runJob(job: Awaited<ReturnType<typeof claimJobs>>[number]) {
       case "send_digest":
         await sendDigest(payload.ruleId, payload.since);
         break;
-      case "import_market_data":
-        log(`import done — ${await runImport(payload.dataset as Dataset, Number(payload.year))}`);
+      case "import_market_data": {
+        // Heartbeat: proves this import is alive, so a restart's orphans can be told apart from long imports.
+        inFlightImports.add(job.id);
+        const beat = setInterval(() => { db.job.update({ where: { id: job.id }, data: { updatedAt: new Date() } }).catch(() => {}); }, IMPORT_HEARTBEAT_MS);
+        try {
+          log(`import done — ${await runImport(payload.dataset as Dataset, Number(payload.year))}`);
+        } finally {
+          clearInterval(beat);
+          inFlightImports.delete(job.id);
+        }
         lastEventSync = 0; // fan out any new events on the next tick
         break;
+      }
       case "sync_market_events":
         log(`market events → ${await syncEventsToWorkspaces()} new signal(s)`);
         break;
@@ -86,9 +95,27 @@ async function runJob(job: Awaited<ReturnType<typeof claimJobs>>[number]) {
  *  - dispatcher: keeps up to CONCURRENCY jobs in flight, refilling each slot the moment it frees,
  *    so an alert never waits behind a whole batch of rate-limited feed polls.
  */
+const inFlightImports = new Set<string>();
+
+/**
+ * On deploy the old server gets SIGTERM. Stop claiming work, stop any import child, and hand its job straight back to
+ * the queue so the new server resumes it now rather than after the heartbeat times out.
+ */
+function onShutdown() {
+  if (!running) return;
+  running = false;
+  killImports();
+  const ids = [...inFlightImports];
+  if (!ids.length) return;
+  log(`shutting down — returning ${ids.length} import job(s) to the queue`);
+  void db.job.updateMany({ where: { id: { in: ids }, status: "RUNNING" }, data: { status: "QUEUED", attempts: { decrement: 1 }, lastError: "server restarting (deploy); resumed by the new instance", runAt: new Date() } }).catch(() => {});
+}
+
 export async function startWorker() {
   if (running) return;
   running = true;
+  process.once("SIGTERM", onShutdown);
+  process.once("SIGINT", onShutdown);
   log(`worker started (tick ${TICK_MS}ms, concurrency ${CONCURRENCY})`);
   void schedulerLoop();
   void dispatcherLoop();

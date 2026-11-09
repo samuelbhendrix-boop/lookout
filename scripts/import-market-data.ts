@@ -8,6 +8,13 @@ import { db } from "../lib/db";
 
 (async () => {
   const [ds, yr] = process.argv.slice(2);
+  if (ds === "detect_events") {
+    const { detectAll } = await import("../lib/marketdata/events");
+    const n = await detectAll(["accounts", "filings", "rates"]);
+    console.log(`detect_events: ${n} market changes written`);
+    await db.$disconnect();
+    return;
+  }
   if (ds === "refresh_index") {
     // Recompute the carrier index + this month's RateHistory from stored rates (no downloads), then detect changes.
     const { refreshCarrierIndex } = await import("../lib/marketdata/mrf/queries");

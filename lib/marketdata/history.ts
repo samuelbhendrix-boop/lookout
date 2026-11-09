@@ -48,3 +48,24 @@ export async function loadHistorySeeds(): Promise<number> {
   }
   return n;
 }
+
+const isDetect = { kind: "import_market_data", payload: { path: ["dataset"], equals: "detect_events" } } as const;
+
+/**
+ * Data derived from imports (rate history, detected market changes) that may be missing on a server whose imports
+ * finished before the feature existed. Each is rebuilt once from stored data, in the import process. Returns log lines.
+ */
+export async function ensureDerivedData(): Promise<string[]> {
+  const out: string[] = [];
+  const h = await ensureHistoryJob();
+  if (h.queued) out.push("rate history empty — rebuilding from stored rates");
+  const [events, plans, filings, pending] = await Promise.all([
+    db.marketEvent.count(), db.employerPlan.count(), db.rateFiling.count(),
+    db.job.count({ where: { ...isDetect, status: { in: ["QUEUED", "RUNNING"] } } }),
+  ]);
+  if (!events && (plans || filings) && !pending) {
+    await enqueue(null, "import_market_data", { dataset: "detect_events", year: "0" });
+    out.push("no market changes detected yet — running detection over stored filings");
+  }
+  return out;
+}

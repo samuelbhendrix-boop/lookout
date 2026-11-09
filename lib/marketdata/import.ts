@@ -290,8 +290,10 @@ export async function importDataset(dataset: Dataset, year: number) {
  */
 export async function scheduleNextImport(enqueue: (payload: { dataset: Dataset; year: number }) => Promise<unknown>) {
   if (process.env.MARKET_DATA === "off") return null;
-  const busy = await db.dataImport.count({ where: { status: { in: ["queued", "running"] }, startedAt: { gt: new Date(Date.now() - 60 * 60_000) } } });
-  if (busy) return null;
+  // One import at a time. Busy = a queued job, or a running one whose heartbeat is current; orphans are recovered first.
+  const { liveImportJobs, recoverOrphanedImports } = await import("../jobs");
+  await recoverOrphanedImports();
+  if (await liveImportJobs()) return null;
   const [next] = await dueImports();
   if (!next) return null;
   await db.dataImport.upsert({
@@ -311,7 +313,8 @@ export async function dueImports() {
   return DATASETS.filter((d) => {
     const e = existing.find((x) => x.dataset === d.dataset && x.year === d.year);
     if (!e) return true;
-    if (e.status === "running" || e.status === "queued") return Date.now() - e.startedAt.getTime() > 60 * 60_000; // stuck >1h
+    // Marked running/queued but no live job holds it (checked by the caller): its server died; run it again.
+    if (e.status === "running" || e.status === "queued") return true;
     if (e.status === "failed") return Date.now() - (e.finishedAt?.getTime() ?? 0) > 6 * 3600e3;
     if (e.status === "partial") return true; // resume right away in a fresh process
     if (isSnapshots(d) && e.url !== version) return true; // refreshed snapshots arrived with this deploy

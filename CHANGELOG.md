@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.12.1 — 2026-11-09
+- **Imports survive deploys.** A running import now heartbeats every 30 s. An import whose server was replaced or killed is re-queued within 3 minutes (it used to block every other import for an hour, then repeat); after 5 interruptions it is marked failed with the reason. On shutdown the old server hands its import straight back to the queue.
+- Imports run strictly one at a time.
+- Market changes (accounts won/lost, filings, rate changes) are detected from already-imported data on servers that imported before 0.10, so the Changes page, Briefing and alerts aren't empty.
+- System status shows server memory against the plan's limit and the import in progress with its heartbeat.
+
 ## 0.12.0 — 2026-11-09
 - **Commercial products per competitor** (`/competitors/:id/products`): for each state and market, every exchange plan with premium at age 40 (range across rating areas), deductible, out-of-pocket max, coinsurance, actuarial value, network, service area, HSA eligibility, tiered/out-of-network/referral flags, and the standard SBC cost examples (baby, diabetes, fracture); copays per service in New Hampshire. Enrollment and rate change from the plan's rate filing.
 - **Positioning:** cheapest plan per metal and its rank among all carriers, gap to the market's cheapest, deductible/OOP/SBC vs market median; who holds the lowest and benchmark (second-lowest) silver plan in every rating area.

@@ -9,6 +9,12 @@ import type { Dataset } from "./datasets";
  * them means a memory spike can never take the web server down with it, and memory is fully
  * returned to the OS afterwards. Falls back to in-process when the script isn't on disk.
  */
+const children = new Set<import("node:child_process").ChildProcess>();
+/** Stop running import processes (server shutdown); their jobs are re-queued by the worker. */
+export function killImports() {
+  for (const c of children) c.kill("SIGTERM");
+}
+
 export async function runImport(dataset: Dataset, year: number): Promise<string> {
   const cwd = process.cwd();
   // Prefer the precompiled bundle (npm run build:import): running through tsx costs ~90 MB more per import process,
@@ -33,6 +39,8 @@ export async function runImport(dataset: Dataset, year: number): Promise<string>
       env: { ...process.env, MALLOC_ARENA_MAX: "1", MALLOC_TRIM_THRESHOLD_: "131072" },
       stdio: ["ignore", "pipe", "pipe"],
     });
+    children.add(child);
+    child.on("exit", () => children.delete(child));
     let out = "";
     child.stdout.on("data", (d) => (out += d));
     child.stderr.on("data", (d) => (out += d));
