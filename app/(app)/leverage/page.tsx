@@ -127,10 +127,16 @@ export default async function LeveragePage({ searchParams }: { searchParams: Pro
               </table>
             </div>
             {P.check.length > 0 && (
-              <p className="text-xs text-stone-500">
-                Cross-check where a carrier&apos;s own file and the hospital&apos;s file price the same service: {P.check.map((c) => `${short(c.carrier)} ${Math.round(c.medianDiff * 100)}% median difference (${c.pairs} services)`).join(" · ")}.
-                Differences come from different products, effective dates, or which of several listed rates is used.
-              </p>
+              <div className="card p-4 text-xs">
+                <p className="font-medium text-stone-800">Cross-check: hospital files vs carriers&apos; own rate files (same hospital, same service)</p>
+                <ul className="mt-1 space-y-0.5">
+                  {P.check.map((c) => {
+                    const verdict = c.medianDiff < 0.05 ? ["agree", "text-emerald-700"] : c.medianDiff < 0.2 ? ["close", "text-stone-700"] : ["don't match", "text-red-700"];
+                    return <li key={c.carrier}><span className={`font-medium ${verdict[1]}`}>{verdict[0]}</span> · {c.carrier}: median difference {Math.round(c.medianDiff * 100)}% over {c.pairs} services</li>;
+                  })}
+                </ul>
+                <p className="mt-1 text-stone-500">Small differences come from product mix and effective dates. Large ones mean the two sources describe different contracts — the carrier&apos;s file is a single fee schedule (Fallon), or covers a different product than the hospital lists — so treat that carrier&apos;s numbers on this page with caution.</p>
+              </div>
             )}
           </section>
         );
