@@ -1,5 +1,7 @@
 # One-click deploy: https://render.com/deploy?repo=<this repo's URL>
-# Default: one always-on instance running web + worker ($7/mo) and a small Postgres ($6/mo).
+# Default: one always-on Standard instance (1 CPU, 2 GB) running web + worker (~$25/mo) and a small Postgres ($6/mo,
+# includes point-in-time recovery). 2 GB gives the monthly negotiated-rate imports headroom; Starter (0.5c-512mb, $7/mo)
+# also works — imports are budgeted to fit 512 MB — but runs closer to the limit.
 # Why not free: free web services sleep after 15 min idle (feed polling stops) and free
 # Postgres is deleted after 30 days. To scale out, set RUN_WORKER=false on the web service and
 # uncomment the worker below.
@@ -8,7 +10,7 @@ services:
   - type: web
     name: lookout
     runtime: docker
-    plan: 0.5c-512mb
+    plan: 1c-2g
     region: virginia
     dockerfilePath: ./Dockerfile
     healthCheckPath: /api/v1/health
@@ -19,7 +21,20 @@ services:
           property: connectionString
       - key: RUN_WORKER
         value: "true"
+      - key: RATES_RSS_BUDGET_MB
+        value: "1200"
       # Optional: add ANTHROPIC_API_KEY in the Render dashboard to enable LLM classification.
+      # Optional single sign-on (OIDC). Fill these in the dashboard; leave blank to keep password login only.
+      - key: OIDC_ISSUER
+        sync: false
+      - key: OIDC_CLIENT_ID
+        sync: false
+      - key: OIDC_CLIENT_SECRET
+        sync: false
+      - key: OIDC_ALLOWED_DOMAINS
+        sync: false
+      - key: OIDC_WORKSPACE_ID
+        sync: false
 
   # - type: worker
   #   name: lookout-worker

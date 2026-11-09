@@ -5,10 +5,11 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { api } from "@/lib/client";
 
-export function AuthForm({ mode, inviteToken, joining }: { mode: "login" | "signup"; inviteToken?: string; joining?: string }) {
+export function AuthForm({ mode, inviteToken, joining, ssoLabel }: { mode: "login" | "signup"; inviteToken?: string; joining?: string; ssoLabel?: string }) {
   const router = useRouter();
-  const next = useSearchParams().get("next") ?? "/feed";
-  const [error, setError] = useState<string | null>(null);
+  const params = useSearchParams();
+  const next = params.get("next") ?? "/feed";
+  const [error, setError] = useState<string | null>(params.get("error"));
   const [busy, setBusy] = useState(false);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -38,6 +39,12 @@ export function AuthForm({ mode, inviteToken, joining }: { mode: "login" | "sign
         <p className="mb-6 text-sm text-stone-500">
           {mode === "login" ? "Competitor signals, triaged." : joining ? "Create your account to accept the invite." : "One workspace per team. Invite others after."}
         </p>
+        {ssoLabel && mode === "login" && (
+          <>
+            <a href={`/api/v1/auth/sso/start?next=${encodeURIComponent(next)}`} className="btn w-full justify-center">{ssoLabel}</a>
+            <div className="my-4 flex items-center gap-3 text-xs text-stone-400"><span className="h-px flex-1 bg-stone-200" />or with a password<span className="h-px flex-1 bg-stone-200" /></div>
+          </>
+        )}
         <form onSubmit={onSubmit} className="space-y-4">
           {mode === "signup" && (
             <>

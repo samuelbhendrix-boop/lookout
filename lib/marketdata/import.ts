@@ -239,6 +239,11 @@ export async function importDataset(dataset: Dataset, year: number) {
     }
     // A real file always has thousands of rows; zero means CMS changed the layout — fail loudly.
     if (rows === 0) throw new Error("File parsed but produced 0 rows — CMS may have changed the file layout");
+    // Change detection on the new data (accounts won/lost, filing rate changes); fanned out to workspaces by the worker.
+    if (dataset === "dol_5500" || dataset === "urrt") {
+      const { detectAll } = await import("./events");
+      await detectAll([dataset === "dol_5500" ? "accounts" : "filings"]);
+    }
     await db.dataImport.update({
       where: { dataset_year: { dataset, year } },
       data: { status: "done", rows, finishedAt: new Date() },

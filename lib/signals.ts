@@ -18,6 +18,8 @@ export type SignalInput = {
   tags?: string[];
   /** Where a feed item came from — drives the off-topic filter. Omit for manual entries. */
   origin?: "competitor-feed" | "market-feed";
+  /** Store without firing alert rules (back-filled history). */
+  silent?: boolean;
 };
 
 /**
@@ -97,7 +99,7 @@ export async function ingestSignal(workspaceId: string, input: SignalInput) {
   if (!signal) return null;
 
   if (tagNames.length) await setTags(workspaceId, signal.id, tagNames);
-  if (!signal.duplicateOfId && signal.status !== "ARCHIVED") await evaluateAlerts(signal);
+  if (!signal.duplicateOfId && signal.status !== "ARCHIVED" && !input.silent) await evaluateAlerts(signal);
   return signal;
 }
 

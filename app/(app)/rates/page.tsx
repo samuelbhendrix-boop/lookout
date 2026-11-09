@@ -178,7 +178,7 @@ export default async function RatesPage({ searchParams }: { searchParams: Promis
                         const tip = r ? `${bad ? `OUTLIER: ${Math.round((r.median / p.medicare.amount!) * 100)}% of Medicare — likely a bundled case rate or a file error; excluded from the index and % of Medicare.\n` : ""}${r.networks.map((n) => `${n.network}: ${fmtUsd(n.median)} (${n.type})`).join("\n")}\nrange ${fmtUsd(r.min)}–${fmtUsd(r.max)}` : undefined;
                         return (
                           <td key={c.carrier} className={`px-3 py-1.5 text-right tabular-nums ${mark}`} title={tip}>
-                            {r ? <>{fmtUsd(r.median)}{p.medicare.amount ? <span className="block text-[10px] text-stone-400">{pctM(r.median / p.medicare.amount)}{r.networks.length > 1 ? ` · ${r.networks.length} nets` : ""}</span> : null}</> : <span className="text-stone-300">—</span>}
+                            {r ? <>{fmtUsd(r.median)}{r.prev && Math.abs(r.median / r.prev - 1) >= 0.005 ? <span className={`ml-1 text-[10px] ${r.median > r.prev ? "text-red-600" : "text-emerald-700"}`} title={`Last month ${fmtUsd(r.prev)}`}>{r.median > r.prev ? "▲" : "▼"}{Math.abs((r.median / r.prev - 1) * 100).toFixed(0)}%</span> : null}{p.medicare.amount ? <span className="block text-[10px] text-stone-400">{pctM(r.median / p.medicare.amount)}{r.networks.length > 1 ? ` · ${r.networks.length} nets` : ""}</span> : null}</> : <span className="text-stone-300">—</span>}
                           </td>
                         );
                       })}
@@ -209,6 +209,7 @@ export default async function RatesPage({ searchParams }: { searchParams: Promis
           <Gap title={`Files found but not reduced (${gaps.skippedFiles.reduce((s, x) => s + x.files, 0)})`}>
             {gaps.skippedFiles.map((x, i) => <li key={i}><span className="font-medium">{x.carrier}</span>: {x.files} file{x.files === 1 ? "" : "s"} — {x.reason}</li>)}
             {gaps.duplicates.length > 0 && <li>{gaps.duplicates.length} networks were identical to another network of the same carrier and are counted once ({Object.entries(gaps.duplicates.reduce((m, d) => ((m[d.carrier] = (m[d.carrier] ?? 0) + 1), m), {} as Record<string, number>)).map(([c, n]) => `${c}: ${n}`).join("; ")}).</li>}
+            {gaps.stale.length > 0 && <li className="text-amber-800">{gaps.stale.length} offline snapshot{gaps.stale.length === 1 ? " is" : "s are"} more than 45 days old and couldn&apos;t be refreshed automatically ({[...new Set(gaps.stale.map((x) => x.carrier))].join(", ")}; oldest {gaps.stale.map((x) => x.lastUpdated).sort()[0]}). Prices shown are from that month.</li>}
             {gaps.failed.map((x, i) => <li key={`f${i}`} className="text-red-700"><span className="font-medium">{x.carrier} · {x.network}</span> failed this month: {x.error}</li>)}
           </Gap>
           <Gap title={`Whole categories a carrier doesn't publish in dollars (${gaps.missingCategories.length})`}>

@@ -46,6 +46,12 @@ export default async function CompetitorProfilePage({
     competitorEmployers(session.workspaceId, comp.id, state),
     transparencyPlanCatalog(comp),
   ]);
+  let changes: Array<{ id: string; kind: string; title: string; summary: string; url: string | null; occurredAt: Date; importance: number }> = [];
+  try {
+    changes = await db.$queryRaw`SELECT id, kind, title, summary, url, "occurredAt", importance FROM "MarketEvent" WHERE carrier ~* ${issuerPatternFor(comp)} ORDER BY "occurredAt" DESC, importance DESC LIMIT 8`;
+  } catch {
+    changes = [];
+  }
   let pricing: Awaited<ReturnType<typeof carrierIndex>>[number] | undefined;
   try {
     const re = new RegExp(issuerPatternFor(comp), "i");
@@ -136,6 +142,24 @@ export default async function CompetitorProfilePage({
       <CompetitorLargeGroup data={largeGroup} serffStates={(state ? [state] : states).filter((s) => ["MA", "NH", "ME", "RI", "CT", "VT"].includes(s))} />
 
       <EmployerBook data={employers} competitorId={comp.id} state={state} />
+
+      {changes.length > 0 && (
+        <section className="space-y-2">
+          <div className="flex items-baseline justify-between">
+            <h2 className="text-lg font-semibold tracking-tight">Recent market changes</h2>
+            <Link href={`/changes?competitor=${comp.id}`} className="text-xs underline">All changes →</Link>
+          </div>
+          <div className="card divide-y divide-stone-100">
+            {changes.map((e) => (
+              <div key={e.id} className="px-4 py-2 text-sm">
+                <span className="mr-2 text-xs text-stone-400">{e.occurredAt.toISOString().slice(0, 10)}</span>
+                {e.url ? <Link href={e.url} className="hover:underline">{e.title}</Link> : e.title}
+                {e.importance >= 4 && <span className="ml-1.5 text-[10px] font-semibold text-red-700">MAJOR</span>}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {pricing && (
         <section className="space-y-2">

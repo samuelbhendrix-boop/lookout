@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.10.0 — 2026-11-09
+- **Changes page:** what moved, detected from the data — employers switching carriers (Form 5500 year over year, materiality-filtered: 701 New England account changes), ACA rate filings (132 New England filings with enrollment-weighted rate changes), month-over-month negotiated-rate changes and network adds/drops. Filter by kind, state, carrier, competitor or "major only".
+- **Changes feed the alerts:** every change becomes a signal for the matching competitor (hourly sync), so existing alert rules and digests fire on them; back-history is added silently. Competitor profiles show recent market changes.
+- **Rate history:** each month's carrier × provider × service medians are kept for 13 months; the Rates page marks month-over-month moves (▲▼).
+- **Networks page:** map and hospital × carrier matrix of which New England hospitals each carrier's rate files price (inpatient vs outpatient-only), network breadth per state, single-carrier hospitals, unmatched hospitals disclosed.
+- **Single sign-on** (OIDC: Entra ID, Google Workspace, Okta) with PKCE, JWKS-verified ID tokens, domain allow-list and default-workspace provisioning.
+- **Backups:** owners can download a workspace JSON backup; Render point-in-time recovery documented.
+- **Monthly snapshot refresh:** `npm run mrf:refresh` re-finds and re-reduces the Cigna, Aetna and UnitedHealthcare snapshots from the carriers' own indexes (the Blues need a browser-saved table of contents); the Rates page flags snapshots older than 45 days.
+- Render blueprint moves to the Standard instance (1 CPU, 2 GB).
+
 ## 0.9.0 — 2026-11-05
 - **Every major New England carrier's negotiated rates:** Blue Cross Blue Shield of Massachusetts (HMO Blue), Anthem (NH, ME, CT), Blue Cross RI, Blue Cross VT, Cigna (OAP, LocalPlus, PPO, New England GPPO, Maine HMO, RI GPPO), Aetna, UnitedHealthcare, Tufts Health Direct, Fallon, Neighborhood Health Plan of RI and Maine Community Health Options join MGB and Harvard Pilgrim. Every Harvard Pilgrim and MGB network is now reduced, not just the largest two.
 - **Rates page:** one column per carrier (networks combined, per-network values on hover), state filter, provider state shown; CSV export one row per carrier network.

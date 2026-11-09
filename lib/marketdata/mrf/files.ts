@@ -211,6 +211,8 @@ export async function importRates(year = 1): Promise<number> {
   // Recompute the stored carrier index here, in the import process, never in the web process.
   const { refreshCarrierIndex } = await import("./queries");
   await refreshCarrierIndex();
+  const { detectAll } = await import("../events");
+  await detectAll(["rates"]);
   return n;
 }
 

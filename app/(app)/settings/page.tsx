@@ -5,6 +5,7 @@ import { MemberForm } from "@/components/forms";
 import { ActionButton } from "@/components/ActionButton";
 import { InviteManager } from "@/components/InviteManager";
 import { DATASETS } from "@/lib/marketdata/datasets";
+import { ssoConfig } from "@/lib/sso";
 
 export default async function SettingsPage() {
   const session = (await getSession())!;
@@ -50,6 +51,16 @@ export default async function SettingsPage() {
           </li>
         ))}
       </ul>
+      <h2 className="font-mono text-xs uppercase tracking-wide text-stone-500">Sign-in &amp; backups</h2>
+      <div className="card space-y-2 p-4 text-sm text-stone-600">
+        <p>
+          Single sign-on: {ssoConfig() ? <span className="text-emerald-700">on ({ssoConfig()!.issuer})</span> : <span>off — set OIDC_ISSUER, OIDC_CLIENT_ID and OIDC_CLIENT_SECRET to enable (works with Microsoft Entra, Google Workspace, Okta).</span>}
+        </p>
+        <p>
+          Database backups: Render keeps point-in-time recovery for the paid Postgres (restore from the database&apos;s Recovery page) and can make
+          logical exports on demand. {hasRole(session.role, "OWNER") && <>Workspace-only backup: <a className="underline" href="/api/v1/admin/export">download JSON</a> (competitors, sources, signals, alert rules, members).</>}
+        </p>
+      </div>
       <h2 className="font-mono text-xs uppercase tracking-wide text-stone-500">Market data</h2>
       <div className="card p-4 text-sm">
         <p className="mb-3 text-stone-600">

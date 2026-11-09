@@ -59,7 +59,7 @@ type Pick = { fileId: string; tin: string; providerName: string | null; npiCount
 export const SUSPECT = { high: 10, low: 0.2 };
 export const isSuspect = (rate: number, medicare: number | null | undefined) => !!medicare && (rate / medicare > SUSPECT.high || rate / medicare < SUSPECT.low);
 
-export type CarrierRate = { median: number; min: number; max: number; type: string; networks: Array<{ network: string; median: number; type: string }> };
+export type CarrierRate = { median: number; min: number; max: number; type: string; networks: Array<{ network: string; median: number; type: string }>; prev?: number };
 
 /**
  * One code, one billing class, one carrier per column. A provider's carrier rate is the median across that carrier's
@@ -102,13 +102,17 @@ export async function codeBenchmark(codeType: string, code: string, billingClass
     x.npiCount = Math.max(x.npiCount, p.npiCount);
     if (!x.name && p.providerName) x.name = p.providerName;
   }
+  // Last month's carrier-level rate, from history, for the month-over-month marker.
+  const prevMonth = (() => { const d = new Date(); d.setUTCDate(1); d.setUTCMonth(d.getUTCMonth() - 1); return d.toISOString().slice(0, 7); })();
+  const prevRows = await db.rateHistory.findMany({ where: { codeType, code, billingClass, month: prevMonth }, select: { carrier: true, tin: true, median: true } });
+  const prev = new Map(prevRows.map((r) => [`${r.carrier}|${r.tin}`, r.median]));
   const providers = [...byTin.values()]
     .filter((p) => state === "all" || p.state === state)
     .map((p) => {
       const rates: Record<string, CarrierRate> = {};
       for (const [c, list] of p.byCarrier) {
         const med = medianOf(list.map((l) => l.median))!;
-        rates[c] = { median: med, min: Math.min(...list.map((l) => l.min)), max: Math.max(...list.map((l) => l.max)), type: list[0].negotiatedType, networks: list.map((l) => ({ network: l.network, median: l.median, type: l.negotiatedType })) };
+        rates[c] = { median: med, min: Math.min(...list.map((l) => l.min)), max: Math.max(...list.map((l) => l.max)), type: list[0].negotiatedType, networks: list.map((l) => ({ network: l.network, median: l.median, type: l.negotiatedType })), prev: prev.get(`${c}|${p.tin}`) };
       }
       const v = Object.values(rates).map((r) => r.median);
       return { tin: p.tin, name: p.name ?? irsName(p.tin), npiCount: p.npiCount, state: p.state, rates, medicare: medicareFor(codeType, code, billingClass, p.tin), carriers: v.length, spread: v.length > 1 ? Math.max(...v) / Math.min(...v) : null, top: Math.max(...v) };
@@ -164,6 +168,10 @@ async function computeCarrierIndex(suspectsOut: Suspects = []) {
   const acc = new Map<string, { all: number[]; cat: Map<string, number[]>; providers: Set<string> }>();
   const pctAcc = new Map<string, { all: number[]; cat: Map<string, number[]> }>();
   const suspects = new Map<string, { carrierName: string; count: number; examples: string[] }>();
+  // Monthly history of carrier-level rates (basis for rate- and network-change events). Rewritten each refresh.
+  const month = new Date().toISOString().slice(0, 7);
+  const history: Array<{ carrier: string; carrierName: string; codeType: string; code: string; billingClass: string; tin: string; month: string; median: number }> = [];
+  const nameOf = new Map(files.map((f) => [f.carrier, f.carrierName]));
   for (const svc of services) {
     const rows = await effectiveRows({ codeType: svc.codeType, code: svc.code, negotiatedType: { in: DOLLAR_TYPES }, billingClass: { in: ["institutional", "professional"] } });
     // network × class × provider → preferred type
@@ -189,6 +197,7 @@ async function computeCarrierIndex(suspectsOut: Suspects = []) {
     const cat = CATEGORY.get(ck) ?? "Other";
     for (const [k, m] of cells) {
       const [cls, tin] = k.split("\t");
+      for (const [c, x] of m) history.push({ carrier: c, carrierName: nameOf.get(c) ?? c, codeType: svc.codeType, code: svc.code, billingClass: cls, tin, month, median: medianOf(x)! });
       const mc = medicareFor(svc.codeType, svc.code, cls, tin);
       const vals = [...m.entries()].map(([c, x]) => [c, geo(x)] as const).filter(([c, x]) => {
         if (!isSuspect(x, mc.amount)) return true;
@@ -219,6 +228,13 @@ async function computeCarrierIndex(suspectsOut: Suspects = []) {
       }
     }
   }
+  await db.$transaction(async (tx) => {
+    await tx.rateHistory.deleteMany({ where: { month } });
+    for (let i = 0; i < history.length; i += 5000) await tx.rateHistory.createMany({ data: history.slice(i, i + 5000) });
+    // Keep 13 months.
+    const cutoff = new Date(); cutoff.setUTCMonth(cutoff.getUTCMonth() - 13);
+    await tx.rateHistory.deleteMany({ where: { month: { lt: cutoff.toISOString().slice(0, 7) } } });
+  }, { timeout: 300_000 });
   const name = new Map(files.map((f) => [f.carrier, f.carrierName]));
   suspectsOut.push(...suspects.values());
   return [...new Set([...acc.keys(), ...pctAcc.keys()])]
@@ -264,6 +280,10 @@ export async function rateGaps() {
   const skippedFiles = all.filter((f) => f.status === "skipped").flatMap((f) => ((f.stats as { skipped?: Array<Skipped & { carrierName?: string }> } | null)?.skipped ?? []).map((s) => ({ ...s, carrier: s.carrierName ?? f.carrierName })));
   const duplicates = all.filter((f) => f.status === "duplicate").map((f) => ({ carrier: f.carrierName, network: f.network, error: f.error }));
   const failed = all.filter((f) => f.status === "failed").map((f) => ({ carrier: f.carrierName, network: f.network, error: f.error }));
+  // Snapshots the monthly refresh couldn't update (e.g. the Blues, whose table of contents only browsers can fetch).
+  const staleCutoff = new Date(Date.now() - 45 * 864e5).toISOString().slice(0, 10);
+  const stale = ok.filter((f) => (f.stats as { snapshot?: number } | null)?.snapshot && f.lastUpdated && f.lastUpdated < staleCutoff)
+    .map((f) => ({ carrier: f.carrierName, network: f.network, lastUpdated: f.lastUpdated! }));
   const pctProviders = await db.rateSummary.groupBy({ by: ["fileId"], where: { negotiatedType: "percentage" }, _max: { providers: true } });
   const perDiem = await db.rateSummary.groupBy({ by: ["fileId"], where: { negotiatedType: "per diem" }, _max: { providers: true } });
   const perFile = ok.map((f) => {
@@ -314,7 +334,7 @@ export async function rateGaps() {
     ...(h.professional ? [] : [`${h.carrierName}: no professional (physician) dollar prices`]),
   ]);
   return {
-    carriersNotCovered, skippedFiles, failed, duplicates, perFile, missingCategories, unmatchedHospitals, noMedicare,
+    carriersNotCovered, skippedFiles, failed, stale, duplicates, perFile, missingCategories, unmatchedHospitals, noMedicare,
     singleCarrierCells: Number(single[0]?.n ?? 0), totalCells: Number(single[0]?.total ?? 0),
   };
 }

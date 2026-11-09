@@ -108,6 +108,25 @@ PDF sources are snapshots, not scrapers: a regulator PDF layout changes every ed
 8. **Data quality**: prices above 10× or below 0.2× the provider's Medicare rate are treated as outliers — bundled case rates filed under one code, or file errors (e.g. one hospital at ~$260K for every DRG): struck through in tables, excluded from the index and % of Medicare, listed by carrier. The carrier index is computed one service at a time and cached until rate data changes.
 9. **Disclosure** (`rateGaps()`, `components/NotIncluded.tsx`). Discovery records every file it doesn't reduce and why; per-file stats count dropped prices; the Rates page and every other data page list what's left out.
 National files (UHC/UMR, Cigna, Aetna: 10–100+ GB compressed) use the same code via `npm run mrf:reduce -- <url> out.csv` on a bigger machine.
+10. **Refresh** (`scripts/refresh-snapshots.ts`, `npm run mrf:refresh`, run monthly as a scheduled task that commits the new snapshots). Cigna: `www.cigna.com/static/mrf/latest.json` → TOC zip → the Cigna Health & Life index → file by network slug. Aetna: HealthSparq `latest_metadata.json` → file by network code. UHC: blob listing → newest file with the same name. Blues: needs a browser-saved copy of BCBSMA's table of contents (`data/blue-toc.json`); otherwise kept and reported stale. Snapshots older than 45 days are flagged on the Rates page.
+
+### Change detection (`lib/marketdata/events.ts`)
+
+`MarketEvent` is global (public data), idempotent by `eventKey`, written after each import:
+- **Accounts won/lost** — Form 5500 Schedule A health carriers for the same plan (EIN + plan number) in consecutive plan years, legal entities grouped by `canonicalCarrier()`. A change counts only if the carrier covers ≥50 people and ≥20% of participants (filters small add-on contracts); insured → self-funded is a loss for the insurer.
+- **Rate filings** — New England URRT filings: enrollment-weighted average rate change of renewing plans; ±8% or more is "major".
+- **Negotiated-rate changes** — `RateHistory` keeps each carrier × provider × service median per month (13 months, written when the carrier index is recomputed). ≥5% and ≥$5 month over month → one event per carrier × provider. Network add/drop only when a carrier's coverage is otherwise stable (>80% of last month's providers present), so a failed file doesn't read as a mass termination.
+- **Fan-out** — the hourly `sync_market_events` job (and one after every import) turns events whose carrier matches a competitor's issuer pattern into Signals (`PRICING`/`NETWORK`/`OTHER`), deduped by the signal key; events older than 45 days are added silently (no alerts) so new competitors get history without an alert storm.
+
+### Networks (`lib/marketdata/networks.ts`)
+
+CMS Hospital General Information (via `scripts/build-hospital-directory.ts`) gives 213 New England hospitals with ZIP-centroid coordinates (`data/networks/hospitals.json`). A carrier "has" a hospital when its latest `RateHistory` contains institutional prices at one of the hospital's TINs (inpatient DRG → in network; facility CPT only → outpatient only). Breadth = share of the state's matched acute, critical-access and children's hospitals. Hospitals with no TIN match are "unknown", never "out". The map is server-rendered SVG (us-atlas + d3-geo), no client JS.
+
+### Ops
+
+- **SSO** (`lib/sso.ts`, `/api/v1/auth/sso/{start,callback}`): OIDC authorization code + PKCE, state/nonce in a 10-minute httpOnly cookie scoped to the SSO path, ID token verified against the issuer's JWKS (issuer, audience, expiry, nonce, `email_verified`), email-domain allow-list. Unknown users are provisioned into `OIDC_WORKSPACE_ID` with `OIDC_DEFAULT_ROLE` (OWNER is downgraded to ADMIN) and an unusable random password.
+- **Backups**: Render Postgres point-in-time recovery + on-demand exports; `GET /api/v1/admin/export` (OWNER) for a workspace-level JSON.
+- **Hosting**: `render.yaml` runs web + worker on one Standard instance (1 CPU, 2 GB) with `RATES_RSS_BUDGET_MB=1200`; the importers still fit Starter (512 MB) at the default budget.
 
 ## 3. File structure
 
@@ -212,7 +231,7 @@ Envelope: success `{ data }`, failure `{ error: { message, details? } }`. Codes:
 | Web replicas > 1 | now, in prod | move `rate-limit.ts` to Redis |
 | Clustering misses paraphrased headlines | analysts keep hitting "split"/seeing dupes | embeddings (pgvector) for the candidate match; `findLead()` interface unchanged |
 | Big tenants | any single workspace dominates | Postgres RLS on `workspaceId` as defense-in-depth; then partition `Signal` by workspace hash |
-| Enterprise sales | first security questionnaire | SSO (WorkOS/Auth.js), audit log table, per-workspace API keys |
+| Enterprise sales | first security questionnaire | SAML via an OIDC bridge (OIDC SSO is built in), audit log table, per-workspace API keys, SCIM |
 
 ## 8. Security notes
 

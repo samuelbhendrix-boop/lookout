@@ -1,7 +1,7 @@
 import type { Job, Prisma } from "@prisma/client";
 import { db } from "./db";
 
-export type JobKind = "poll_source" | "deliver_alert" | "send_digest" | "import_market_data";
+export type JobKind = "poll_source" | "deliver_alert" | "send_digest" | "import_market_data" | "sync_market_events";
 
 export async function enqueue(
   workspaceId: string | null,

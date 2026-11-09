@@ -605,3 +605,38 @@ model ProviderRate {
   @@index([codeType, code, billingClass])
   @@index([tin])
 }
+
+/// A detected change in market data (account won/lost, rate filing, negotiated-rate change, network change).
+/// Global; lib/marketdata/events.ts fans each one out as a Signal to workspaces tracking that carrier.
+model MarketEvent {
+  id         String   @id @default(cuid())
+  eventKey   String   @unique // deterministic, so re-detection is idempotent
+  kind       String // account_won | account_lost | rate_filing | rate_change | network_add | network_drop
+  carrier    String // carrier name as it appears in the source (matched to competitors by issuer pattern)
+  title      String
+  summary    String
+  url        String? // in-app path to the evidence
+  importance Int      @default(2)
+  state      String?
+  data       Json?
+  occurredAt DateTime
+  createdAt  DateTime @default(now())
+
+  @@index([kind, occurredAt(sort: Desc)])
+  @@index([carrier])
+}
+
+/// Carrier-level negotiated rate per provider × service, one row per month — the basis for rate- and network-change events.
+model RateHistory {
+  carrier      String
+  carrierName  String
+  codeType     String
+  code         String
+  billingClass String
+  tin          String
+  month        String // YYYY-MM
+  median       Float
+
+  @@id([carrier, codeType, code, billingClass, tin, month])
+  @@index([month])
+}

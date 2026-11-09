@@ -10,6 +10,9 @@ import { claimDueDigests, deliverAlert, sendDigest } from "../lib/alerts";
 import { scheduleNextImport } from "../lib/marketdata/import";
 import { runImport } from "../lib/marketdata/run";
 import type { Dataset } from "../lib/marketdata/datasets";
+import { syncEventsToWorkspaces } from "../lib/marketdata/events";
+
+let lastEventSync = 0;
 
 const TICK_MS = Number(process.env.WORKER_TICK_MS ?? 15_000);
 const CONCURRENCY = Number(process.env.WORKER_CONCURRENCY ?? 5);
@@ -28,6 +31,11 @@ async function schedule() {
   if (digests.length) log(`scheduled ${digests.length} digest(s)`);
   const imp = await scheduleNextImport((p) => enqueue(null, "import_market_data", p));
   if (imp) log(`scheduled market data import ${imp.dataset} ${imp.year}`);
+  // Hourly: turn detected market events into signals for every workspace tracking that carrier.
+  if (Date.now() - lastEventSync > 3600e3) {
+    lastEventSync = Date.now();
+    await enqueue(null, "sync_market_events", {});
+  }
 }
 
 async function runJob(job: Awaited<ReturnType<typeof claimJobs>>[number]) {
@@ -47,6 +55,10 @@ async function runJob(job: Awaited<ReturnType<typeof claimJobs>>[number]) {
         break;
       case "import_market_data":
         log(`import done — ${await runImport(payload.dataset as Dataset, Number(payload.year))}`);
+        lastEventSync = 0; // fan out any new events on the next tick
+        break;
+      case "sync_market_events":
+        log(`market events → ${await syncEventsToWorkspaces()} new signal(s)`);
         break;
       default:
         throw new Error(`Unknown job kind: ${job.kind}`);
