@@ -58,12 +58,18 @@ export function CompetitorForm() {
 export function SourceForm({ competitors }: { competitors: { id: string; name: string }[] }) {
   const { busy, error, onSubmit } = useSubmit((f) => [
     "/sources",
-    { name: f.name, kind: "RSS", url: f.url, competitorId: f.competitorId || null, pollMinutes: Number(f.pollMinutes) },
+    { name: f.name, kind: f.kind === "WEBPAGE" ? "WEBPAGE" : "RSS", url: f.url, competitorId: f.competitorId || null, pollMinutes: Number(f.pollMinutes) },
   ]);
   return (
     <form onSubmit={onSubmit} className="card grid gap-3 p-4 sm:grid-cols-6">
       <div className="sm:col-span-2"><label className="label">Name</label><input className="input" name="name" required placeholder="Acme newsroom" /></div>
-      <div className="sm:col-span-4"><label className="label">RSS / Atom URL</label><input className="input" name="url" type="url" required placeholder="https://…/feed" /></div>
+      <div className="sm:col-span-1">
+        <label className="label">Type</label>
+        <select className="input" name="kind" defaultValue="WEBPAGE">
+          <option value="WEBPAGE">Web page</option><option value="RSS">RSS / Atom feed</option>
+        </select>
+      </div>
+      <div className="sm:col-span-3"><label className="label">URL</label><input className="input" name="url" type="url" required placeholder="https://acme.com/newsroom" /></div>
       <div className="sm:col-span-3">
         <label className="label">Competitor</label>
         <select className="input" name="competitorId" defaultValue="">

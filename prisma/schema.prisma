@@ -16,6 +16,7 @@ model User {
   id           String       @id @default(cuid())
   email        String       @unique
   name         String?
+  icon         String? // small image as a data: URL, or an emoji
   passwordHash String
   createdAt    DateTime     @default(now())
   memberships  Membership[]
@@ -27,6 +28,7 @@ model User {
 model Workspace {
   id          String       @id @default(cuid())
   name        String
+  icon        String? // small image as a data: URL, or an emoji
   slug        String       @unique
   createdAt   DateTime     @default(now())
   memberships Membership[]
@@ -97,6 +99,7 @@ model Competitor {
 enum SourceKind {
   RSS
   MANUAL
+  WEBPAGE
 }
 
 model Source {
@@ -110,6 +113,7 @@ model Source {
   pollMinutes  Int         @default(60)
   lastPolledAt DateTime?
   lastError    String?
+  state        Json? // WEBPAGE: links already seen / page text fingerprint
   createdAt    DateTime    @default(now())
   workspace    Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   competitor   Competitor? @relation(fields: [competitorId], references: [id], onDelete: SetNull)

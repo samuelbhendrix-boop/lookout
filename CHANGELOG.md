@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.15.0 — 2026-11-09
+- **Web pages as sources:** add any newsroom, press-release list, regulator notice page or product/policy page. Lookout uses the feed the page advertises if it has one; otherwise it reports headlines that weren't there on the last check; on a page that isn't a list, it reports what text was added or removed. The first check records a baseline. Pages built entirely by JavaScript, or that refuse automated visits, are reported as unreadable rather than worked around.
+- **Sidebar regrouped:** Market Review (Briefing, Feed, Competitors, Products, Market, Rates, Leverage, Networks, Changes), Sales (In play, Employers), Settings (Workspace, Your account, Sources, Alerts). Groups collapse and remember it.
+- The workspace name links to workspace settings, where admins can rename it and set an icon (image or emoji). Your email links to **Your account**: display name, icon, password change (signs out your other sessions).
+
 ## 0.14.0 — 2026-11-09
 - **Provider networks and formularies per plan** (from insurers' machine-readable directory and formulary files listed in CMS's MR-PUF): in-network New England hospitals (grouped into distinct networks, with the hospital list), physicians, primary care physicians, share accepting new patients, formulary size, prior-authorization and step-therapy rates, and coverage of 14 high-cost drug groups (GLP-1s for weight loss vs diabetes, adalimumab, Dupixent, Stelara, Skyrizi, Rinvoq, Eliquis, SGLT2s, Entresto, Biktarvy, Trikafta, insulin glargine, PCSK9s). On each competitor's products page and the market products page. Federal-platform plans only (New Hampshire: Anthem, Harvard Pilgrim, Ambetter, Matthew Thornton); WellSense's files are on a port we can't reach.
 - **Briefing shows every competitor:** quiet competitors get a card with their last activity instead of one line, and a new list names carriers with 2,000+ covered lives in your states that you don't track (from NAIC financials), with a one-click Track.

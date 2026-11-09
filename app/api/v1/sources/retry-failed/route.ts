@@ -5,7 +5,7 @@ import { enqueue } from "@/lib/jobs";
 /** Re-polls every enabled source currently showing an error, spaced out to avoid re-tripping rate limits. */
 export const POST = route("ANALYST", async ({ session }) => {
   const failing = await db.source.findMany({
-    where: { workspaceId: session.workspaceId, enabled: true, kind: "RSS", lastError: { not: null } },
+    where: { workspaceId: session.workspaceId, enabled: true, kind: { in: ["RSS", "WEBPAGE"] }, lastError: { not: null } },
     select: { id: true },
   });
   for (const [i, s] of failing.entries())

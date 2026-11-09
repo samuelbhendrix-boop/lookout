@@ -23,3 +23,41 @@ describe("plan directories and formularies", () => {
     expect(new Set(DIRECTORY_SOURCES.flatMap((s) => s.issuers)).size).toBe(DIRECTORY_SOURCES.flatMap((s) => s.issuers).length);
   });
 });
+
+import { articleLinks, diffPage, feedLink } from "@/lib/webpage";
+
+const page = (items: string[]) => `<html><head><title>Acme Newsroom</title></head><body><nav><a href="/about">About us</a></nav><main><ul>
+${items.map((t, i) => `<li><a href="/news/2026/${t.toLowerCase().replace(/\W+/g, "-")}">${t}</a><span>Nov ${i + 1}, 2026</span></li>`).join("")}
+</ul><a href="/search?q=x">Search all of our news releases here please</a><a href="/careers">Careers</a></main></body></html>`;
+
+describe("web page sources", () => {
+  const base = "https://acme.example/newsroom";
+  const v1 = page(["Acme expands network with Beth Israel", "Acme names new chief medical officer", "Acme files 2027 individual rates"]);
+  it("finds headline links, not navigation or search", () => {
+    const l = articleLinks(v1, base);
+    expect(l.map((x) => x.title)).toEqual(["Acme expands network with Beth Israel", "Acme names new chief medical officer", "Acme files 2027 individual rates"]);
+    expect(l[0].publishedAt?.toISOString().slice(0, 10)).toBe("2026-11-01");
+  });
+  it("records a baseline on the first check, then reports only new headlines", () => {
+    const first = diffPage(v1, base, {});
+    expect(first.items).toEqual([]);
+    const v2 = page(["Acme to acquire Harbor Mutual", "Acme expands network with Beth Israel", "Acme names new chief medical officer", "Acme files 2027 individual rates"]);
+    const second = diffPage(v2, base, first.state);
+    expect(second.items.map((i) => i.title)).toEqual(["Acme to acquire Harbor Mutual"]);
+  });
+  it("watches a page that isn't a list for text changes", () => {
+    const p = (extra: string) => `<html><body><main><p>Our PPO covers care across New England for members and families.</p><p>Premiums are set every year in the fall by the state.</p>${extra}</main></body></html>`;
+    const a = diffPage(p(""), "https://acme.example/ppo", {}, "Acme PPO");
+    expect(a.items).toEqual([]);
+    const b = diffPage(p("<p>Starting January 2027 the plan adds coverage of Wegovy for weight loss.</p>"), "https://acme.example/ppo", a.state, "Acme PPO");
+    expect(b.items).toHaveLength(1);
+    expect(b.items[0].summary).toContain("Wegovy");
+    expect(diffPage(p(""), "https://acme.example/ppo", a.state).items).toEqual([]);
+  });
+  it("uses a feed the page advertises", () => {
+    expect(feedLink(`<head><link rel="alternate" type="application/rss+xml" href="/feed.xml"></head>`, base)).toBe("https://acme.example/feed.xml");
+  });
+  it("says so when a page is built by JavaScript", () => {
+    expect(() => diffPage(`<html><body><div id="root"></div><script>app()</script></body></html>`, base, {})).toThrow(/JavaScript/);
+  });
+});

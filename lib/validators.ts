@@ -55,12 +55,12 @@ export const competitorUpdate = competitorCreate.partial().extend({
 
 export const sourceCreate = z.object({
   name: z.string().trim().min(1).max(120),
-  kind: z.enum(["RSS", "MANUAL"]).default("RSS"),
+  kind: z.enum(["RSS", "WEBPAGE", "MANUAL"]).default("RSS"),
   url: z.string().url().optional(),
   competitorId: z.string().cuid().nullable().optional(),
   pollMinutes: z.coerce.number().int().min(15).max(10080).default(60),
   enabled: z.boolean().default(true),
-}).refine((s) => s.kind !== "RSS" || !!s.url, { message: "RSS sources need a URL", path: ["url"] });
+}).refine((s) => s.kind === "MANUAL" || !!s.url, { message: "Feeds and web pages need a URL", path: ["url"] });
 export const sourceUpdate = z.object({
   name: z.string().trim().min(1).max(120).optional(),
   url: z.string().url().optional(),

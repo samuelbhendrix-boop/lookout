@@ -43,6 +43,8 @@ export type SessionContext = {
   name: string | null;
   workspaceId: string;
   workspaceName: string;
+  workspaceIcon: string | null;
+  userIcon: string | null;
   role: Role;
 };
 
@@ -66,6 +68,8 @@ export async function getSession(): Promise<SessionContext | null> {
     name: session.user.name,
     workspaceId: membership.workspaceId,
     workspaceName: membership.workspace.name,
+    workspaceIcon: membership.workspace.icon,
+    userIcon: session.user.icon,
     role: membership.role,
   };
 }

@@ -3,6 +3,8 @@ import { db } from "./db";
 import { ingestSignal } from "./signals";
 import { safeFetch } from "./net";
 import { isStale, withRecency } from "./relevance";
+import { diffPage, feedLink, titleOf, type PageItem, type PageState } from "./webpage";
+import type { Prisma } from "@prisma/client";
 
 const parser = new Parser();
 const UA = {
@@ -126,12 +128,13 @@ export function linkOf(item: { link?: unknown; title?: unknown }, feedUrl: strin
 /** Polls one RSS/Atom source and ingests new items. Returns count of new signals. */
 export async function pollSource(sourceId: string): Promise<number> {
   const source = await db.source.findUnique({ where: { id: sourceId } });
-  if (!source || !source.enabled || source.kind !== "RSS" || !source.url) return 0;
+  if (!source || !source.enabled || (source.kind !== "RSS" && source.kind !== "WEBPAGE") || !source.url) return 0;
   // Host already busy in this process → step aside (frees the worker slot for other hosts/alerts).
   const load = hostLoad(source.url);
   if (load > 0) throw new DeferJob(hostGapMs(source.url) * (load + 1));
 
   try {
+    if (source.kind === "WEBPAGE") return await pollWebpage(source);
     // Fetch ourselves (SSRF-checked on every redirect hop, size-capped), then parse.
     const feed = await parser.parseString(await fetchFeed(withRecency(source.url)));
     let created = 0;
@@ -164,6 +167,47 @@ export async function pollSource(sourceId: string): Promise<number> {
   }
 }
 
+const PAGE_UA = { "User-Agent": UA["User-Agent"], accept: "text/html,application/xhtml+xml;q=0.9,*/*;q=0.5" };
+
+/**
+ * A plain web page: uses the feed it advertises if any, else new headline links since the last check, else text
+ * changes. The first check records a baseline and creates nothing. Sites that refuse bots (403/429/503) are reported,
+ * never worked around.
+ */
+async function pollWebpage(source: { id: string; workspaceId: string; competitorId: string | null; url: string | null; name: string; state: Prisma.JsonValue }): Promise<number> {
+  const url = source.url!;
+  const prev = (source.state ?? {}) as PageState;
+  const res = await politely(url, () => safeFetch(url, { headers: PAGE_UA }));
+  if (res.status === 403 || res.status === 401) throw new Error(`The site refuses automated visits (HTTP ${res.status}); Lookout doesn't get around that. Try its RSS feed or a Google News query instead.`);
+  if (isTransient(res.status)) throw new TransientFeedError(`Site is busy (HTTP ${res.status}) — retrying automatically`);
+  if (!res.ok) throw new Error(`Page returned HTTP ${res.status}`);
+
+  let items: PageItem[] = [];
+  let state: PageState;
+  const feed = prev.mode === "feed" ? prev.feed! : feedLink(res.text, url);
+  if (feed) {
+    // The page advertises a feed: read it, but still only report items not seen before.
+    const parsed = await parser.parseString(await fetchFeed(feed));
+    const all = parsed.items.slice(0, 50).map((i) => ({ title: stripHtml(textOf(i.title)), url: linkOf(i, feed) ?? "", summary: stripHtml(textOf(i.contentSnippet ?? i.content ?? i.summary)).slice(0, 2000) || null, publishedAt: i.isoDate ? new Date(i.isoDate) : null })).filter((i) => i.title && i.url);
+    const seen = new Set(prev.seen ?? []);
+    items = prev.seen ? all.filter((i) => !seen.has(i.url)) : all.filter((i) => i.publishedAt && !isStale(i.publishedAt));
+    state = { mode: "feed", feed, seen: [...new Set([...all.map((i) => i.url), ...(prev.seen ?? [])])].slice(0, 600) };
+  } else {
+    ({ items, state } = diffPage(res.text, url, prev, source.name || titleOf(res.text) || undefined));
+  }
+  let created = 0;
+  for (const item of items) {
+    if (isStale(item.publishedAt)) continue;
+    const s = await ingestSignal(source.workspaceId, {
+      title: item.title, url: item.url, summary: item.summary, publishedAt: item.publishedAt ?? new Date(), sourceId: source.id,
+      competitorId: source.competitorId ?? undefined, origin: source.competitorId ? "competitor-feed" : "market-feed",
+    });
+    if (s) created++;
+  }
+  await db.source.update({ where: { id: source.id }, data: { lastPolledAt: new Date(), lastError: null, state: state as Prisma.InputJsonValue } });
+  return created;
+}
+
 /**
  * Claims RSS sources whose poll interval has elapsed and stamps lastPolledAt in the same
  * statement, so concurrent schedulers never enqueue the same source twice.
@@ -173,7 +217,7 @@ export async function claimDueSources(limit = 100) {
     UPDATE "Source" SET "lastPolledAt" = (now() AT TIME ZONE 'UTC')
     WHERE id IN (
       SELECT id FROM "Source"
-      WHERE enabled AND kind = 'RSS'
+      WHERE enabled AND kind IN ('RSS', 'WEBPAGE')
         AND ("lastPolledAt" IS NULL OR "lastPolledAt" + ("pollMinutes" * interval '1 minute') <= (now() AT TIME ZONE 'UTC'))
       ORDER BY "lastPolledAt" NULLS FIRST
       FOR UPDATE SKIP LOCKED

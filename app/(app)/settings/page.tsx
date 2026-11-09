@@ -6,6 +6,8 @@ import { ActionButton } from "@/components/ActionButton";
 import { InviteManager } from "@/components/InviteManager";
 import { DATASETS } from "@/lib/marketdata/datasets";
 import { ssoConfig } from "@/lib/sso";
+import { IconPicker, InlineField } from "@/components/IconPicker";
+import Link from "next/link";
 
 export default async function SettingsPage() {
   const session = (await getSession())!;
@@ -30,14 +32,18 @@ export default async function SettingsPage() {
     <div className="space-y-5">
       <div className="flex items-end justify-between">
         <div>
-          <h1 className="h1">Settings</h1>
-          <p className="text-sm text-stone-500">{session.workspaceName}</p>
+          <h1 className="h1">Workspace settings</h1>
+          <p className="text-sm text-stone-500">{session.workspaceName} · <Link className="underline" href="/settings/account">your account</Link> · <Link className="underline" href="/sources">sources</Link> · <Link className="underline" href="/alerts">alerts</Link></p>
         </div>
         <div className="flex gap-2">
           {isAdmin && <a href="/status" className="btn-ghost">System status</a>}
           <ActionButton method="POST" path="/auth/logout" className="btn-ghost">Sign out</ActionButton>
         </div>
       </div>
+      <section className="card space-y-4 p-4">
+        <div><p className="label">Workspace icon</p><IconPicker path="/workspace" icon={session.workspaceIcon} name={session.workspaceName} square disabled={!isAdmin} /></div>
+        {isAdmin ? <InlineField path="/workspace" field="name" label="Workspace name" value={session.workspaceName} minLength={2} /> : <p className="text-xs text-stone-500">Only admins can rename the workspace or change its icon.</p>}
+      </section>
       {isAdmin && (
         <>
           <h2 className="font-mono text-xs uppercase tracking-wide text-stone-500">Invite links</h2>

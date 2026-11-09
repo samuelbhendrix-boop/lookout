@@ -21,7 +21,9 @@ export default async function SourcesPage() {
       <div>
         <h1 className="h1">Sources</h1>
         <p className="text-sm text-stone-500">
-          RSS/Atom feeds polled by the worker. Newsrooms, Google News queries, regulator feeds, trade press.
+          Feeds and web pages checked on a schedule. For a web page (a newsroom, press-release list, regulator notices, a product or policy
+          page), Lookout reports new headlines since the last check, or what changed on a page that isn&apos;t a list. The first check only records what&apos;s
+          already there. Pages that build themselves with JavaScript or refuse automated visits can&apos;t be read; use their RSS feed or a Google News query.
         </p>
       </div>
       {canEdit && <SourceForm competitors={competitors} />}
@@ -46,7 +48,7 @@ export default async function SourcesPage() {
             <li key={s.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
               <span className={`h-2 w-2 shrink-0 rounded-full ${!s.enabled ? "bg-stone-300" : s.lastError ? "bg-red-600" : s.lastPolledAt ? "bg-emerald-500" : "bg-amber-400"}`} />
               <div className="min-w-0 flex-1">
-                <p className="font-medium">{s.name} <span className="text-xs font-normal text-stone-500">· {s.competitor?.name ?? "general"}</span></p>
+                <p className="font-medium">{s.name} <span className="text-xs font-normal text-stone-500">· {s.kind === "WEBPAGE" ? `web page${(s.state as { mode?: string } | null)?.mode === "text" ? " (watching for changes)" : (s.state as { mode?: string } | null)?.mode === "feed" ? " (using its feed)" : ""}` : "feed"} · {s.competitor?.name ?? "general"}</span></p>
                 <p className="truncate font-mono text-xs text-stone-400">{s.url}</p>
                 {s.lastError && <p className="mt-0.5 truncate text-xs text-red-600">{s.lastError}</p>}
               </div>

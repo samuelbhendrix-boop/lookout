@@ -18,8 +18,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <Nav
         workspaceId={session.workspaceId}
         workspace={session.workspaceName}
+        workspaceIcon={session.workspaceIcon}
         workspaces={workspaces.map((w) => w.workspace)}
         email={session.email}
+        userName={session.name}
+        userIcon={session.userIcon}
         role={session.role}
       />
       <main className="mx-auto w-full min-w-0 max-w-6xl flex-1 px-4 py-6 md:px-8">{children}</main>
