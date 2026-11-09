@@ -1,9 +1,12 @@
 import Link from "next/link";
+import { DataAsOf } from "@/components/DataAsOf";
 import { notFound } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { competitorProducts, type Plan } from "@/lib/marketdata/products";
 import { transparencyPlanCatalog } from "@/lib/marketdata/employers";
+import { asoAccounts, asoBenchmarks } from "@/lib/marketdata/aso";
+import { issuerPatternFor } from "@/lib/marketdata/queries";
 import { fmtInt, fmtSignedPct, fmtUsd } from "@/components/charts";
 import { NotIncluded } from "@/components/NotIncluded";
 import { Empty } from "@/components/ui";
@@ -41,7 +44,11 @@ export default async function CompetitorProductsPage({ params, searchParams }: {
   const comp = await db.competitor.findFirst({ where: { id, workspaceId: session.workspaceId } });
   if (!comp) notFound();
   const state = sp.state && /^[A-Z]{2}$/.test(sp.state) ? sp.state : undefined;
-  const [r, catalog] = await Promise.all([competitorProducts(comp, { state }), transparencyPlanCatalog(comp)]);
+  const [r, catalog, asoAll, asoBench] = await Promise.all([competitorProducts(comp, { state }), transparencyPlanCatalog(comp), asoAccounts(), asoBenchmarks(state)]);
+  const compRe = (() => { try { return new RegExp(issuerPatternFor(comp), "i"); } catch { return null; } })();
+  const isMine = (admin: string) => !!compRe?.test(admin) || admin === comp.name;
+  const aso = asoAll.filter((a) => isMine(a.admin) && (!state || a.state === state)).sort((a, b) => (b.participants ?? 0) - (a.participants ?? 0));
+  const myBench = asoBench.find((b) => isMine(b.admin));
   const lineupTotals = new Map(r.totals.map((t) => [`${t.state}|${t.market}`, t.enrollment]));
   const allStates = [...new Set([...r.states, ...r.lineup.map((l) => l.state)])].sort();
   const groupPlans = catalog.filter((p) => p.marketType === "group");
@@ -51,6 +58,7 @@ export default async function CompetitorProductsPage({ params, searchParams }: {
       <div>
         <Link href={`/competitors/${comp.id}${state ? `?state=${state}` : ""}`} className="text-sm text-stone-500 hover:text-stone-900">← {comp.name}</Link>
         <h1 className="mt-2 text-2xl font-semibold tracking-tight">{comp.name} · commercial products</h1>
+        <DataAsOf datasets={["qhp", "urrt", "dol_5500", "tic"]} />
         <p className="max-w-3xl text-sm text-stone-500">
           Every individual and small-group plan this carrier files, from CMS&apos;s Exchange plan files (benefit design, cost sharing, network, premiums by
           age) and its rate filings (enrollment, rate changes, off-exchange plans). Compared against every other carrier in the same state, market and metal tier.{" "}
@@ -274,6 +282,47 @@ export default async function CompetitorProductsPage({ params, searchParams }: {
               </tbody>
             </table>
           </div>
+        </section>
+      )}
+
+      {/* ── Self-funded administration (Schedule C) ── */}
+      {asoBench.length > 0 && (
+        <section className="space-y-3 border-t border-stone-200 pt-6">
+          <h2 className="text-lg font-semibold tracking-tight">Self-funded administration · Form 5500 Schedule C</h2>
+          <p className="max-w-3xl text-xs text-stone-500">Employers whose self-funded plan paid this carrier (or its TPA) to administer medical claims, and what they paid — the only public view of ASO pricing. Fee per participant per month = reported compensation ÷ participants ÷ 12; it can include network access, care management and other services the administrator bills to the plan. Schedule C is filed only when a plan pays providers $5,000+ from plan assets, so this is a sample of each book, not all of it.</p>
+          <div className="card overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="border-b border-stone-200 text-left font-mono text-[10px] uppercase tracking-wide text-stone-500"><tr><th className="px-3 py-2">Administrator{state ? ` · ${state}` : " · New England"}</th><th className="px-3 py-2 text-right">Employers</th><th className="px-3 py-2 text-right">Participants</th><th className="px-3 py-2 text-right">25th pct</th><th className="px-3 py-2 text-right">Median fee PEPM</th><th className="px-3 py-2 text-right">75th pct</th></tr></thead>
+              <tbody className="divide-y divide-stone-100">
+                {asoBench.filter((b) => b.accounts >= 2).map((b) => (
+                  <tr key={b.admin} className={isMine(b.admin) ? "bg-stone-50 font-medium" : ""}>
+                    <td className="px-3 py-1.5">{b.admin}</td><td className="px-3 py-1.5 text-right tabular-nums">{b.accounts}</td><td className="px-3 py-1.5 text-right tabular-nums">{fmtInt(b.participants)}</td>
+                    <td className="px-3 py-1.5 text-right tabular-nums">{fmtUsd(b.p25)}</td><td className="px-3 py-1.5 text-right tabular-nums">{fmtUsd(b.median)}</td><td className="px-3 py-1.5 text-right tabular-nums">{fmtUsd(b.p75)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {aso.length > 0 ? (
+            <details className="card" open={aso.length <= 15}>
+              <summary className="cursor-pointer px-4 py-2 text-sm">{aso.length} self-funded employers administered by {comp.name}{myBench?.median ? ` · median $${myBench.median.toFixed(0)} per participant per month` : ""}</summary>
+              <table className="w-full border-t border-stone-100 text-sm">
+                <thead className="text-left font-mono text-[10px] uppercase tracking-wide text-stone-500"><tr><th className="px-3 py-2">Employer</th><th className="px-3 py-2 text-right">Participants</th><th className="px-3 py-2 text-right">Paid</th><th className="px-3 py-2 text-right">PEPM</th><th className="px-3 py-2">Filed as</th><th className="px-3 py-2">Broker</th></tr></thead>
+                <tbody className="divide-y divide-stone-100">
+                  {aso.map((a) => (
+                    <tr key={a.planId}>
+                      <td className="px-3 py-1.5"><Link className="hover:underline" href={`/employers?q=${encodeURIComponent(a.sponsor)}`}>{a.sponsor}</Link><span className="text-xs text-stone-500"> · {a.city ? `${a.city}, ` : ""}{a.state} · {a.year}</span></td>
+                      <td className="px-3 py-1.5 text-right tabular-nums">{fmtInt(a.participants)}</td>
+                      <td className="px-3 py-1.5 text-right tabular-nums">{fmtUsd(a.fee)}</td>
+                      <td className={`px-3 py-1.5 text-right tabular-nums ${a.pepm && myBench?.median && a.pepm > myBench.median * 1.25 ? "text-red-600" : ""}`}>{a.pepm ? `$${a.pepm.toFixed(0)}` : "—"}</td>
+                      <td className="px-3 py-1.5 text-xs text-stone-500">{a.name}</td>
+                      <td className="px-3 py-1.5 text-xs text-stone-500">{a.brokers.slice(0, 2).join(", ") || "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </details>
+          ) : <p className="text-sm text-stone-500">No self-funded employers name {comp.name} as claims administrator on Schedule C{state ? ` in ${state}` : ""}.</p>}
         </section>
       )}
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.13.0 — 2026-11-09
+- **Price leverage page:** what each carrier pays each hospital as a multiple of that hospital's own Medicare rate, compared on the services 2+ carriers price there. By carrier: median multiple, how it compares with other carriers at the same hospitals, and where it has the best and worst deal. Carriers whose files publish one network-wide fee schedule (Fallon) are flagged and kept out of rankings.
+- **Hospitals' own price files:** reads each hospital's cms-hpt.txt and standard-charges file (CMS template v2/v3, JSON or CSV, tall or wide, zipped or not) for ~50 New England hospital systems, keeps commercial basket prices by payer and product. Fills BCBSMA's PPO and WellSense, splits carriers into HMO/PPO/POS, and cross-checks hospital-published rates against carriers' own files.
+- **Self-funded administration (Form 5500 Schedule C):** names the claims administrator of self-funded plans and what it was paid. Median fee per participant per month by administrator; each competitor's self-funded employers on its products page; ASO accounts join Accounts in play (flagged when paying 25%+ above the administrator's median); administrators shown on Employers.
+- **Network head-to-head:** pick two carriers on Networks to see the hospitals only one of them prices; networks under half the state's hospitals are marked narrow.
+- **"Data as of" line** on every data page: latest period and last refresh per source, amber when stale or failed.
+
 ## 0.12.1 — 2026-11-09
 - **Imports survive deploys.** A running import now heartbeats every 30 s. An import whose server was replaced or killed is re-queued within 3 minutes (it used to block every other import for an hour, then repeat); after 5 interruptions it is marked failed with the reason. On shutdown the old server hands its import straight back to the queue.
 - Imports run strictly one at a time.

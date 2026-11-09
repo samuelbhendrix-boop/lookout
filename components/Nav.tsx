@@ -13,6 +13,7 @@ const LINKS = [
   { href: "/market", label: "Market" },
   { href: "/employers", label: "Employers" },
   { href: "/rates", label: "Rates" },
+  { href: "/leverage", label: "Leverage" },
   { href: "/networks", label: "Networks" },
   { href: "/changes", label: "Changes" },
   { href: "/sources", label: "Sources" },

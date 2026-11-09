@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { DataAsOf } from "@/components/DataAsOf";
 import { NotIncluded } from "@/components/NotIncluded";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -27,6 +28,7 @@ export default async function EmployersPage({ searchParams }: { searchParams: Pr
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="h1">Employers</h1>
+        <DataAsOf datasets={["dol_5500", "tic"]} />
           <p className="text-sm text-stone-500">Employer health plans from DOL Form 5500 filings — who insures them, through which broker, and when they renew.</p>
         </div>
         <div className="flex gap-2">

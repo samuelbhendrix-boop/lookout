@@ -147,6 +147,9 @@ export async function refreshCarrierIndex() {
   const value = await computeCarrierIndex(suspects);
   const data = { carrier: "_cache", carrierName: "_cache", network: "carrier index", url: "", status: "cache", stats: JSON.parse(JSON.stringify({ value, suspects })), processedAt: new Date() };
   await db.rateFile.upsert({ where: { id: INDEX_ID }, create: { id: INDEX_ID, ...data }, update: data });
+  // Hospital leverage (% of Medicare by hospital × carrier) is built from the history just written.
+  const { refreshLeverage } = await import("./leverage");
+  await refreshLeverage();
   return value;
 }
 async function readIndex() {

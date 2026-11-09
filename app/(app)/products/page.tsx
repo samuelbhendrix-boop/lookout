@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { DataAsOf } from "@/components/DataAsOf";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { DIFFERENTIATORS, marketProducts, metalOrder, NE_STATES, qhpYears } from "@/lib/marketdata/products";
@@ -35,6 +36,7 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
     <div className="space-y-6">
       <div>
         <h1 className="h1">Commercial products</h1>
+        <DataAsOf datasets={["qhp", "urrt"]} />
         <p className="max-w-3xl text-sm text-stone-500">Every carrier&apos;s exchange plans side by side: price at each metal tier, deductibles, networks, HSA options and the benefits that set them apart. From CMS&apos;s Exchange plan files, joined to rate filings for enrollment. Open a carrier for its full line-up and what changed this year.</p>
       </div>
       <div className="flex flex-wrap items-center gap-1.5 text-xs">

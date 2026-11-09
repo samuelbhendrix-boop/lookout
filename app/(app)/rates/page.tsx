@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { DataAsOf } from "@/components/DataAsOf";
 import { BENCH_CODES, codeKey } from "@/lib/marketdata/mrf/codes";
 import { DOLLAR_TYPES, SUSPECT, carrierIndex, codeBenchmark, compression, isSuspect, rateFiles, rateGaps, suspectPrices } from "@/lib/marketdata/mrf/queries";
 import { MEDICARE_SOURCES } from "@/lib/marketdata/mrf/medicare";
@@ -21,6 +22,7 @@ export default async function RatesPage({ searchParams }: { searchParams: Promis
     return (
       <div className="space-y-5">
         <h1 className="h1">Negotiated rates</h1>
+        <DataAsOf datasets={["rates"]} />
         <Empty title="Rate files are loading">Regional carriers&apos; rate files are reduced in the background after deploy (Settings → Market data).</Empty>
       </div>
     );
@@ -46,6 +48,7 @@ export default async function RatesPage({ searchParams }: { searchParams: Promis
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="h1">Negotiated rates</h1>
+        <DataAsOf datasets={["rates"]} />
           <p className="max-w-3xl text-sm text-stone-500">
             What each carrier actually pays each hospital and provider group, from their federally required rate files.{" "}
             <span className="text-stone-700">{gb(c.compressed)} downloaded → {gb(c.scanned)} scanned in {Math.round(c.seconds)}s → {fmtInt(c.kept)} provider rates kept.</span>

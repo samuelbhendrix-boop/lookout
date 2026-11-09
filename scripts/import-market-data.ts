@@ -8,6 +8,12 @@ import { db } from "../lib/db";
 
 (async () => {
   const [ds, yr] = process.argv.slice(2);
+  if (ds === "schedule_c") {
+    const { importScheduleC } = await import("../lib/marketdata/dol");
+    console.log(`schedule_c ${yr}: ${await importScheduleC(Number(yr))} service providers`);
+    await db.$disconnect();
+    return;
+  }
   if (ds === "detect_events") {
     const { detectAll } = await import("../lib/marketdata/events");
     const n = await detectAll(["accounts", "filings", "rates"]);

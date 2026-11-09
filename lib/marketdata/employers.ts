@@ -54,6 +54,8 @@ export async function listEmployers(workspaceId: string, f: Filters) {
     select: { ein: true, carrier: true, reportingEntity: true, entityType: true },
     distinct: ["ein", "carrier"],
   });
+  // Claims administrators named on Schedule C (self-funded plans), alongside carriers' transparency indexes.
+  const schedC = await db.employerProvider.findMany({ where: { planId: { in: base.map((b) => b.id) }, role: "administrator" }, select: { planId: true, name: true, carrier: true, directComp: true } });
   const rows: EmployerRow[] = base.map((b) => {
     const mine = contracts.filter((c) => c.planId === b.id);
     return {
@@ -68,10 +70,16 @@ export async function listEmployers(workspaceId: string, f: Filters) {
         };
       }),
       stopLoss: mine.filter((c) => c.kind === "stop_loss").map((c) => c.carrier),
-      administrators: admins.filter((a) => a.ein === b.ein).map((a) => {
-        const m = matchers.find((x) => x.re?.test(a.carrier) || x.re?.test(a.reportingEntity));
-        return { carrier: a.carrier, competitorId: m?.c.id ?? null, competitorName: m?.c.name ?? null, entityType: a.entityType };
-      }),
+      administrators: [
+        ...admins.filter((a) => a.ein === b.ein).map((a) => {
+          const m = matchers.find((x) => x.re?.test(a.carrier) || x.re?.test(a.reportingEntity));
+          return { carrier: a.carrier, competitorId: m?.c.id ?? null, competitorName: m?.c.name ?? null, entityType: a.entityType };
+        }),
+        ...schedC.filter((x) => x.planId === b.id && !admins.some((a) => a.ein === b.ein && x.carrier && a.carrier === x.carrier)).map((x) => {
+          const m = matchers.find((y) => y.re?.test(x.carrier ?? x.name));
+          return { carrier: x.carrier ?? x.name, competitorId: m?.c.id ?? null, competitorName: m?.c.name ?? null, entityType: `Schedule C${x.directComp ? ` · paid $${Math.round(x.directComp).toLocaleString()}` : ""}` };
+        }),
+      ],
     };
   });
   return rows;

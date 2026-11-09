@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { DataAsOf } from "@/components/DataAsOf";
 import { GENERAL, networkMatrix, DIRECTORY_DATE } from "@/lib/marketdata/networks";
 import { NetworkMap, type MapDot } from "@/components/NetworkMap";
 import { NotIncluded } from "@/components/NotIncluded";
@@ -23,6 +24,7 @@ export default async function NetworksPage({ searchParams }: { searchParams: Pro
     return (
       <div className="space-y-4">
         <h1 className="h1">Hospital networks</h1>
+        <DataAsOf datasets={["rates"]} />
         <Empty title="Building network data">
           Networks are built from the {st.files} negotiated-rate files already imported; the worker rebuilds them automatically (about a minute).
           <span className="mt-2 block font-mono text-xs">
@@ -36,6 +38,8 @@ export default async function NetworksPage({ searchParams }: { searchParams: Pro
     );
   }
   const carrier = m.carriers.find((c) => c.carrier === sp.carrier)?.carrier;
+  const cmpA = m.carriers.find((c) => c.carrier === sp.a)?.carrier;
+  const cmpB = m.carriers.find((c) => c.carrier === sp.b)?.carrier;
   const shown = m.hospitals.filter((h) => all || GENERAL.has(h.type));
   const max = Math.max(1, ...shown.map((h) => Object.keys(h.carriers).length));
   const dots: MapDot[] = shown.filter((h) => h.lat != null && h.lon != null).map((h) => {
@@ -51,6 +55,7 @@ export default async function NetworksPage({ searchParams }: { searchParams: Pro
     <div className="space-y-5">
       <div>
         <h1 className="h1">Hospital networks</h1>
+        <DataAsOf datasets={["rates"]} />
         <p className="max-w-3xl text-sm text-stone-500">
           Which hospitals each carrier contracts with, read from their negotiated-rate files ({m.month}): a hospital is in a carrier&apos;s network when the
           carrier&apos;s files price care there. Breadth = share of the state&apos;s {m.general} matched acute, critical-access and children&apos;s hospitals.
@@ -80,13 +85,53 @@ export default async function NetworksPage({ searchParams }: { searchParams: Pro
           <p className="px-4 py-2 font-mono text-[10px] uppercase tracking-wide text-stone-500">Network breadth · {state === "all" ? "New England" : state}</p>
           {m.carriers.map((c) => (
             <Link key={c.carrier} href={href({ carrier: c.carrier === carrier ? undefined : c.carrier })} className={`block px-4 py-2 hover:bg-stone-50 ${c.carrier === carrier ? "bg-stone-100" : ""}`}>
-              <div className="flex justify-between"><span className="truncate">{short(c.carrierName)}</span><span className="tabular-nums font-medium">{Math.round(c.breadth * 100)}%</span></div>
+              <div className="flex justify-between"><span className="truncate">{short(c.carrierName)}{c.breadth < 0.5 && <span className="ml-1.5 rounded bg-amber-50 px-1 text-[10px] text-amber-800" title="Prices under half the state's general hospitals across all its reduced networks">narrow</span>}</span><span className="tabular-nums font-medium">{Math.round(c.breadth * 100)}%</span></div>
               <div className="mt-1 h-1.5 rounded bg-stone-100"><div className="h-1.5 rounded bg-emerald-700" style={{ width: `${Math.round(c.breadth * 100)}%` }} /></div>
               <p className="mt-0.5 text-[11px] text-stone-500">{c.hospitals} of {m.general} hospitals · {c.inpatient} with inpatient prices</p>
             </Link>
           ))}
         </div>
       </div>
+
+      {/* ── Head to head ── */}
+      <section className="space-y-2">
+        <h2 className="text-lg font-semibold tracking-tight">Head to head</h2>
+        <form action="/networks" className="flex flex-wrap items-center gap-2 text-sm">
+          <input type="hidden" name="state" value={state} />
+          {all && <input type="hidden" name="types" value="all" />}
+          <select name="a" defaultValue={cmpA ?? ""} className="input max-w-xs"><option value="">Carrier A…</option>{m.carriers.map((c) => <option key={c.carrier} value={c.carrier}>{c.carrierName}</option>)}</select>
+          <span className="text-stone-400">vs</span>
+          <select name="b" defaultValue={cmpB ?? ""} className="input max-w-xs"><option value="">Carrier B…</option>{m.carriers.map((c) => <option key={c.carrier} value={c.carrier}>{c.carrierName}</option>)}</select>
+          <button className="btn-ghost">Compare</button>
+        </form>
+        {cmpA && cmpB && cmpA !== cmpB && (() => {
+          const gen = m.hospitals.filter((h) => h.matched && GENERAL.has(h.type));
+          const onlyA = gen.filter((h) => h.carriers[cmpA] && !h.carriers[cmpB]);
+          const onlyB = gen.filter((h) => h.carriers[cmpB] && !h.carriers[cmpA]);
+          const both = gen.filter((h) => h.carriers[cmpA] && h.carriers[cmpB]);
+          const nameOf = (c: string) => short(m.carriers.find((x) => x.carrier === c)!.carrierName);
+          const List = ({ title, hs, tone }: { title: string; hs: typeof gen; tone: string }) => (
+            <div className="card p-4">
+              <p className={`font-medium ${tone}`}>{title} <span className="font-normal text-stone-500">({hs.length})</span></p>
+              <ul className="mt-2 space-y-0.5 text-xs text-stone-700">{hs.slice(0, 60).map((h) => <li key={h.ccn}>{h.name} <span className="text-stone-400">{h.city}{h.stars ? ` · ${h.stars}★` : ""}{h.type === "Critical Access Hospitals" ? " · critical access" : h.type === "Childrens" ? " · children's" : ""}</span></li>)}</ul>
+              {hs.length > 60 && <p className="mt-1 text-xs text-stone-400">+{hs.length - 60} more</p>}
+            </div>
+          );
+          return (
+            <>
+              <p className="text-sm text-stone-600">
+                Of {gen.length} matched general hospitals in {state === "all" ? "New England" : state}: {nameOf(cmpA)} prices {onlyA.length + both.length}, {nameOf(cmpB)} prices {onlyB.length + both.length}; {both.length} overlap.
+              </p>
+              <div className="grid gap-3 md:grid-cols-3">
+                <List title={`Only ${nameOf(cmpA)}`} hs={onlyA} tone="text-emerald-800" />
+                <List title={`Only ${nameOf(cmpB)}`} hs={onlyB} tone="text-sky-800" />
+                <List title="Both" hs={both} tone="text-stone-700" />
+              </div>
+            </>
+          );
+        })()}
+        {!(cmpA && cmpB) && <p className="text-xs text-stone-500">Pick two carriers to see which hospitals only one of them prices — the network argument a broker will make.</p>}
+      </section>
 
       <section className="space-y-2">
         <div className="flex flex-wrap items-baseline justify-between gap-2">

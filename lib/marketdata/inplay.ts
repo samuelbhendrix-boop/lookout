@@ -144,6 +144,9 @@ export async function accountsInPlay(workspaceId: string, f: { state?: string; d
     return out;
   };
 
+  const { asoAccounts, asoBenchmarks } = await import("./aso");
+  const asoBy = new Map((await asoAccounts()).map((a) => [`${a.ein}|${a.planNum}`, a]));
+  const asoMedian = new Map((await asoBenchmarks()).filter((b) => b.withFee >= 5).map((b) => [b.admin, b.median!]));
   const now = new Date();
   const rows: InPlay[] = [];
   let considered = 0, noRenewalInWindow = 0, selfFundedSkipped = 0, staleSkipped = 0;
@@ -151,7 +154,9 @@ export async function accountsInPlay(workspaceId: string, f: { state?: string; d
     years.sort((a, b) => a.year - b.year);
     const cur = years.at(-1)!;
     if (cur.year < now.getUTCFullYear() - 3) { staleSkipped++; continue; } // stopped filing: plan likely ended or merged
-    const carrier = mainCarrier(cur);
+    // Self-funded plans have no insurance contract; Schedule C names their claims administrator where it's filed.
+    const aso = mainCarrier(cur) ? null : asoBy.get(`${meta.ein}|${meta.planNum}`) ?? null;
+    const carrier = mainCarrier(cur) ?? aso?.admin ?? null;
     if (!carrier) { selfFundedSkipped++; continue; }
     if ((meta.participants ?? 0) < (f.min ?? 0)) continue;
     considered++;
@@ -164,7 +169,16 @@ export async function accountsInPlay(workspaceId: string, f: { state?: string; d
 
     const prev = years.at(-2)?.year === cur.year - 1 ? years.at(-2)! : null;
     const reasons: Reason[] = [];
-    const c1 = cur.carriers.get(carrier)!;
+    const c1 = cur.carriers.get(carrier) ?? { persons: 0, premium: 0, pricedPersons: 0, claims: 0, claimsPremium: 0, brokers: new Set<string>() };
+    if (aso) {
+      const med = asoMedian.get(aso.admin);
+      if (aso.pepm && med) {
+        const r = aso.pepm / med - 1;
+        if (r >= 0.25) reasons.push({ label: `Admin fee +${Math.round(r * 100)}% vs ${aso.admin.split(" ")[0]} median`, detail: `Paid ${aso.name} $${Math.round(aso.fee!).toLocaleString()} in ${aso.year} — $${aso.pepm.toFixed(0)} per participant per month vs a $${med.toFixed(0)} median across ${aso.admin}'s self-funded accounts on Schedule C.`, weight: 2 });
+        else if (r <= -0.25) reasons.push({ label: `Admin fee ${Math.round(r * 100)}% vs median`, detail: `$${aso.pepm.toFixed(0)} per participant per month vs a $${med.toFixed(0)} median for ${aso.admin} — a low-fee account, hard to undercut on price.`, weight: -1 });
+      }
+      reasons.push({ label: "Self-funded (ASO)", detail: `Claims administered by ${aso.name}; no insured premium is filed, so premium-based signals don't apply.`, weight: 0 });
+    }
     const c0 = prev?.carriers.get(carrier) ?? null;
     const pp = c1.pricedPersons > 0 ? c1.premium / c1.pricedPersons : null;
     const ppPrev = c0 && c0.pricedPersons > 0 ? c0.premium / c0.pricedPersons : null;
@@ -185,13 +199,14 @@ export async function accountsInPlay(workspaceId: string, f: { state?: string; d
     const tenure = (() => { let n = 1; for (let i = years.length - 2; i >= 0 && years[i].year === years[i + 1].year - 1 && mainCarrier(years[i]) === carrier; i--) n++; return n; })();
     if (prev && mainCarrier(prev) && mainCarrier(prev) !== carrier) reasons.push({ label: "Switched last year", detail: `Moved from ${mainCarrier(prev)} to ${carrier} in ${cur.year}; unlikely to move again so soon.`, weight: -2 });
     else if (tenure >= 3 && years.length >= 3) reasons.push({ label: `${tenure}+ years with carrier`, detail: `Same carrier in every filing since ${cur.year - tenure + 1}. Sticky — but not marketed recently either.`, weight: 0 });
-    reasons.push(...carrierReasons(carrier, meta.state));
+    // Premium filings don't apply to self-funded accounts; a narrower network does.
+    reasons.push(...carrierReasons(carrier, meta.state).filter((r) => !aso || r.label.startsWith("Lost")));
 
     rows.push({
       ein: meta.ein, planNum: meta.planNum, sponsor: meta.sponsor, city: meta.city, state: meta.state, sector: sectorOf(meta.naics), participants: meta.participants,
       carrier, competitorId: m?.c.id ?? null, competitorName: m?.c.name ?? null, funding: cur.funding, renewal, daysOut, filingYear: cur.year,
       persons: c1.persons || null, premium: c1.premium || null, perPerson: pp, lossRatio: lr != null && lr > 0.2 && lr < 2 ? lr : null,
-      brokers: [...cur.brokers].map(nice), reasons, score: reasons.reduce((s, r) => s + r.weight, 0),
+      brokers: aso ? aso.brokers.map((b) => titleCase(b)) : [...cur.brokers].map(nice), reasons, score: reasons.reduce((s, r) => s + r.weight, 0),
     });
   }
   rows.sort((a, b) => b.score - a.score || (b.persons ?? 0) - (a.persons ?? 0));

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { DataAsOf } from "@/components/DataAsOf";
 import { db } from "@/lib/db";
 import { fmtInt } from "@/components/charts";
 import { NotIncluded } from "@/components/NotIncluded";
@@ -43,6 +44,7 @@ export default async function ChangesPage({ searchParams }: { searchParams: Prom
     <div className="space-y-5">
       <div>
         <h1 className="h1">Market changes{comp ? ` · ${comp.name}` : ""}</h1>
+        <DataAsOf datasets={["dol_5500", "urrt", "rates"]} />
         <p className="max-w-3xl text-sm text-stone-500">
           What moved, detected from the data itself: employers switching carriers (Form 5500, year over year), ACA rate filings, and month-over-month
           changes in negotiated rates and hospital networks. Each change also lands in your feed as a signal for the competitor involved, so alert rules and

@@ -252,6 +252,10 @@ export async function importDataset(dataset: Dataset, year: number) {
     else if (dataset === "tic") rows = await importTransparency();
     else if (dataset === "rates") rows = await importRates(year);
     else if (dataset === "qhp") rows = await (await import("./qhp")).importQhp(year);
+    else if (dataset === "hpt") {
+      rows = await (await import("./hpt")).importHospitalFiles();
+      await (await import("./mrf/leverage")).refreshLeverage();
+    }
     else {
       const zip = await download(def.url, dir);
       rows = dataset === "urrt" ? await importUrrt(year, zip) : await importMlr(year, zip);

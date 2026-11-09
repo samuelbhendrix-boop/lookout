@@ -57,7 +57,9 @@ const isDetect = { kind: "import_market_data", payload: { path: ["dataset"], equ
  */
 export async function ensureDerivedData(): Promise<string[]> {
   const out: string[] = [];
-  const h = await ensureHistoryJob();
+  // Leverage cache (0.13) is derived from rate history; rebuild once where history exists but the cache doesn't.
+  const lev = await db.rateFile.count({ where: { id: "cache:leverage" } });
+  const h = await ensureHistoryJob(!lev && (await db.rateHistory.count()) > 0);
   if (h.queued) out.push("rate history empty — rebuilding from stored rates");
   const [events, plans, filings, pending] = await Promise.all([
     db.marketEvent.count(), db.employerPlan.count(), db.rateFiling.count(),
@@ -66,6 +68,13 @@ export async function ensureDerivedData(): Promise<string[]> {
   if (!events && (plans || filings) && !pending) {
     await enqueue(null, "import_market_data", { dataset: "detect_events", year: "0" });
     out.push("no market changes detected yet — running detection over stored filings");
+  }
+  // Schedule C (0.13): servers that imported Form 5500 earlier have plans but no service providers.
+  const [providers, dolYears] = await Promise.all([db.employerProvider.count(), db.employerPlan.groupBy({ by: ["formYear"] })]);
+  const schedPending = await db.job.count({ where: { kind: "import_market_data", payload: { path: ["dataset"], equals: "schedule_c" }, status: { in: ["QUEUED", "RUNNING"] } } });
+  if (!providers && dolYears.length && !schedPending) {
+    for (const y of dolYears) await enqueue(null, "import_market_data", { dataset: "schedule_c", year: String(y.formYear) });
+    out.push(`no Schedule C service providers yet — importing for ${dolYears.map((y) => y.formYear).join(", ")}`);
   }
   return out;
 }

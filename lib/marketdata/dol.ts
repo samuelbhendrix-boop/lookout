@@ -145,5 +145,66 @@ export async function importDol(year: number, mainUrl: string, dir: string): Pro
     .filter((c) => ids.has(c.ackId))
     .map(({ ackId, key, ...c }) => ({ ...c, planId: ids.get(ackId)!, brokers: (brokers.get(key) ?? undefined) as Prisma.InputJsonValue | undefined }));
   for (let i = 0; i < rows.length; i += 1000) await db.employerContract.createMany({ data: rows.slice(i, i + 1000) });
-  return written + rows.length;
+  const providers = await importScheduleC(year, mainUrl, dir);
+  return written + rows.length + providers;
+}
+
+/** DOL Schedule C service codes that mean "administers the plan's claims". */
+const ADMIN_CODES = new Set(["12", "13", "14"]); // claims processing, contract administrator, plan administrator
+const BROKER_CODES = new Set(["22", "55"]); // insurance brokerage / agents
+const ADMIN_RELATION = /\b(tpa|third party admin|administrat|claims|aso|carrier|insurer)\b/i;
+const BROKER_RELATION = /\b(broker|agent|consult)/i;
+/** Carrier-owned TPAs file under their own names. */
+const TPA_PARENT: Array<[RegExp, string]> = [
+  [/^health plans,? inc/i, "Point32Health"],
+  [/\bumr\b/i, "UnitedHealthcare"],
+  [/blue benefit administrators of massachusetts|blue benefit administrators of ma|blue cross (and )?blue shield of ma\b/i, "Blue Cross Blue Shield of Massachusetts"],
+  [/^meritain/i, "Aetna"],
+  [/^allied benefit/i, "Allied Benefit Systems"],
+];
+/** Administrators of something other than medical claims (dental, vision, pharmacy, spending accounts). */
+export const NON_MEDICAL_ADMIN = /dental|vision|eyemed|davis vision|\bvsp\b|caremark|express scripts|optumrx|optum rx|allegiant rx|elixir|\bpbm\b|pharmac|wageworks|navia|flex|\bfsa\b|\bhsa\b|cobra|healthequity|benefit resource|\bunum\b|lincoln|hartford|matrix absence|sun life|metlife|metropolitan life|guardian/i;
+
+/**
+ * Schedule C (service providers paid from plan assets) for this form year's plans already in the database. Separate
+ * from importDol so servers that imported Form 5500 before 0.13 can backfill it without re-importing everything.
+ */
+export async function importScheduleC(year: number, mainUrl?: string, dir?: string): Promise<number> {
+  const url = (mainUrl ?? `https://askebsa.dol.gov/FOIA%20Files/${year}/Latest/F_5500_${year}_Latest.zip`);
+  const itemUrl = url.replace(/F_5500_(\d{4})_Latest/, "F_SCH_C_PART1_ITEM2_$1_Latest");
+  const codeUrl = url.replace(/F_5500_(\d{4})_Latest/, "F_SCH_C_PART1_ITEM2_CODES_$1_Latest");
+  const { mkdtemp, rm } = await import("node:fs/promises");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const work = dir ?? (await mkdtemp(join(tmpdir(), "schc-")));
+  try {
+    const plans = new Map((await db.employerPlan.findMany({ where: { formYear: year }, select: { id: true, ackId: true } })).map((p) => [p.ackId, p.id]));
+    const codes = new Map<string, string[]>();
+    await eachCsv(await download(codeUrl, work, "schc-codes.zip"), () => true, (_, r) => {
+      if (!plans.has(r.ACK_ID)) return;
+      const k = `${r.ACK_ID}|${r.ROW_ORDER}`;
+      (codes.get(k) ?? codes.set(k, []).get(k)!).push(clean(r.SERVICE_CODE));
+    }, "upper");
+    const { canonicalCarrier } = await import("./events");
+    const out: Prisma.EmployerProviderCreateManyInput[] = [];
+    await eachCsv(await download(itemUrl, work, "schc.zip"), () => true, (_, r) => {
+      const planId = plans.get(r.ACK_ID);
+      if (!planId) return;
+      const name = clean(r.PROVIDER_OTHER_NAME);
+      if (!name) return;
+      const cs = codes.get(`${r.ACK_ID}|${r.ROW_ORDER}`) ?? [];
+      const relation = clean(r.PROVIDER_OTHER_RELATION) || null;
+      const carrier = canonicalCarrier(name.replace(/SHEILD/gi, "SHIELD")) ?? TPA_PARENT.find(([re]) => re.test(name))?.[1] ?? null;
+      const admin = cs.some((c) => ADMIN_CODES.has(c)) || ADMIN_RELATION.test(relation ?? "") || (!!carrier && !cs.some((c) => BROKER_CODES.has(c)));
+      const broker = !admin && (cs.some((c) => BROKER_CODES.has(c)) || BROKER_RELATION.test(relation ?? ""));
+      // "administrator" = medical claims administrator; dental/vision/pharmacy/account administrators are "other".
+      const role = admin && !NON_MEDICAL_ADMIN.test(name) ? "administrator" : broker ? "broker" : "other";
+      out.push({ planId, name, ein: clean(r.PROVIDER_OTHER_EIN) || null, relation, codes: cs, role, carrier: NON_MEDICAL_ADMIN.test(name) ? null : carrier, directComp: n(r.PROVIDER_OTHER_DIRECT_COMP_AMT) });
+    }, "upper");
+    await db.employerProvider.deleteMany({ where: { plan: { formYear: year } } });
+    for (let i = 0; i < out.length; i += 1000) await db.employerProvider.createMany({ data: out.slice(i, i + 1000) });
+    return out.length;
+  } finally {
+    if (!dir) await rm(work, { recursive: true, force: true });
+  }
 }

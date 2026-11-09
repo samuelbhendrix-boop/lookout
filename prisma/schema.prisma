@@ -486,6 +486,7 @@ model EmployerPlan {
   funding       String
   receivedAt    DateTime?
   contracts     EmployerContract[]
+  providers     EmployerProvider[]
 
   @@index([state, planYearBegin])
   @@index([ein, planNum])
@@ -696,4 +697,63 @@ model QhpPlan {
   @@index([state, year, market])
   @@index([issuerId])
   @@index([planId])
+}
+
+// Form 5500 Schedule C: service providers paid $5,000+ from plan assets — names the claims administrator (TPA/ASO) of
+// self-funded plans and what it was paid, which Schedule A never shows.
+model EmployerProvider {
+  id         String       @id @default(cuid())
+  planId     String
+  name       String
+  ein        String?
+  relation   String? // as filed: "TPA", "CONTRACT ADMINISTRATOR", "BROKER", …
+  codes      String[] // DOL service codes
+  role       String // "administrator" | "broker" | "other"
+  carrier    String? // canonical carrier name when the provider is one
+  directComp Float?
+  plan       EmployerPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@index([planId])
+  @@index([carrier])
+}
+
+// ─── Hospital price transparency files (45 CFR 180) ──────────────────
+// Each hospital's own machine-readable standard charges: the rate it has negotiated with every payer and plan.
+// Fills carriers whose own rate files aren't reachable (BCBSMA's PPO networks, WellSense) and splits HMO vs PPO.
+model HospitalRate {
+  id          String  @id @default(cuid())
+  fileId      String // HospitalFile.id
+  tin         String? // EIN from the file name, when present
+  hospital    String
+  state       String?
+  codeType    String // CPT | MS-DRG | APR-DRG (basket codes only)
+  code        String
+  setting     String? // inpatient | outpatient | both
+  payer       String // as published
+  plan        String?
+  carrier     String? // canonical carrier, when recognised
+  product     String? // HMO | PPO | POS | EPO | Self-insured | All
+  dollar      Float?
+  percentage  Float?
+  methodology String?
+
+  @@index([fileId])
+  @@index([tin])
+  @@index([carrier])
+}
+
+model HospitalFile {
+  id          String   @id // mrf url hash
+  domain      String
+  hospital    String
+  url         String
+  state       String?
+  tin         String?
+  lastUpdated String?
+  version     String?
+  status      String // ok | failed | skipped
+  error       String?
+  rows        Int      @default(0)
+  payers      Json? // [{ payer, plan, carrier, product, rows }]
+  processedAt DateTime @default(now())
 }

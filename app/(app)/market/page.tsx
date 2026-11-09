@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { DataAsOf } from "@/components/DataAsOf";
 import { NotIncluded } from "@/components/NotIncluded";
 import type { Segment } from "@prisma/client";
 import { getSession } from "@/lib/auth";
@@ -21,6 +22,7 @@ export default async function MarketPage({ searchParams }: { searchParams: Promi
     return (
       <div className="space-y-5">
         <h1 className="h1">Market</h1>
+        <DataAsOf datasets={["mlr", "urrt", "ma_chia", "state_snapshots"]} />
         <Empty title="Market data is loading">Public CMS filings import in the background after deploy. Check Settings → Market data for progress.</Empty>
       </div>
     );
@@ -39,6 +41,7 @@ export default async function MarketPage({ searchParams }: { searchParams: Promi
     <div className="space-y-6">
       <div>
         <h1 className="h1">Market</h1>
+        <DataAsOf datasets={["mlr", "urrt", "ma_chia", "state_snapshots"]} />
         <p className="text-sm text-stone-500">Who holds each market (fully insured and, where states publish it, self-insured), how it&apos;s moving, and what everyone filed for next year.</p>
       </div>
 

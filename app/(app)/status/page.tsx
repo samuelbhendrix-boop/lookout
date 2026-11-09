@@ -22,6 +22,7 @@ export default async function StatusPage() {
   const session = (await getSession())!;
   if (!hasRole(session.role, "ADMIN")) redirect("/briefing");
   const stale = new Date(Date.now() - 15 * 60_000);
+  const hospitalFiles = await db.hospitalFile.findMany({ orderBy: [{ status: "asc" }, { domain: "asc" }], select: { domain: true, hospital: true, status: true, rows: true, error: true, lastUpdated: true } });
   const [jobs, stuck, failed, imports, months, events, rateFiles, lastJob] = await Promise.all([
     db.job.groupBy({ by: ["kind", "status"], _count: true }),
     db.job.findMany({ where: { status: "RUNNING", updatedAt: { lt: stale } }, orderBy: { updatedAt: "asc" }, take: 20 }),
@@ -88,6 +89,12 @@ export default async function StatusPage() {
       <div className="card space-y-2 p-4">
         <p>Rate files: {rateFiles.map((r) => `${r._count} ${r.status}`).join(" · ") || "none"}</p>
         <p>Rate history: {months.map((m) => `${m.month} (${m._count.toLocaleString()})`).join(" · ") || "none"} <span className="ml-2"><ActionButton method="POST" path="/market-data/rebuild-history" doneText="Queued">Rebuild now</ActionButton></span></p>
+        <p>Hospital price files: {hospitalFiles.length ? ["ok", "skipped", "failed"].map((st) => `${hospitalFiles.filter((f) => f.status === st).length} ${st}`).join(" · ") : "not imported yet"}</p>
+        {hospitalFiles.some((f) => f.status !== "ok") && (
+          <details className="text-xs"><summary className="cursor-pointer text-stone-500">Hospitals not read</summary>
+            <ul className="mt-1 space-y-0.5">{hospitalFiles.filter((f) => f.status !== "ok").map((f, i) => <li key={i}>{f.hospital} <span className="text-stone-400">({f.domain})</span> — {f.error}</li>)}</ul>
+          </details>
+        )}
         <p>Detected changes: {events.map((e) => `${e.kind.replace("_", " ")} ${e._count.toLocaleString()}`).join(" · ") || "none"}</p>
       </div>
 

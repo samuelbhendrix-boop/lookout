@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { DataAsOf } from "@/components/DataAsOf";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { accountsInPlay, brokerLeague } from "@/lib/marketdata/inplay";
@@ -30,6 +31,7 @@ export default async function AccountsPage({ searchParams }: { searchParams: Pro
     <div className="space-y-5">
       <div>
         <h1 className="h1">Accounts in play</h1>
+        <DataAsOf datasets={["dol_5500", "urrt", "rates"]} />
         <p className="max-w-3xl text-sm text-stone-500">
           Employer groups coming up for renewal, ranked by evidence the account can be won: what the employer&apos;s own filings show (premium per person,
           claims against premium, a new broker) and what its carrier just did (rate increases, lost hospitals). Every reason is listed — hover for the numbers.
@@ -99,7 +101,7 @@ export default async function AccountsPage({ searchParams }: { searchParams: Pro
           <NotIncluded items={[
             <>Based on Form 5500 filings, which arrive 7–10 months after a plan year ends: each row says which year it was filed for. An account may already have moved since.</>,
             <>Renewal date is the next anniversary of the policy start in the latest filing — assumed annual.</>,
-            <>{play.selfFundedSkipped.toLocaleString()} self-funded plans with no insurance contract on file (no carrier, premium or broker is reported for them) — see Employers for their administrators.</>,
+            <>{play.selfFundedSkipped.toLocaleString()} self-funded plans with no insurance contract and no claims administrator on Schedule C (Schedule C is only filed when a plan pays providers from plan assets). Self-funded plans whose administrator is named are included, marked &quot;Self-funded (ASO)&quot;, with the administration fee they paid.</>,
             <>Plans under 100 participants don&apos;t file the full form and aren&apos;t here.</>,
             <>&quot;Filed +N%&quot; is the carrier&apos;s individual/small-group filing in that state — a direction of travel, not the large-group rate. Regulator-reported large-group increases are used where a state publishes them (RI).</>,
             <>Premium-per-person changes are only shown when the same carrier covered a similar number of people both years (within 25%); bigger swings are usually census or partial-year effects and are left out.</>,
