@@ -14,35 +14,57 @@ function Chip({ children, tone = "bg-stone-100 text-stone-700", title }: { child
   return <span title={title} className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-medium ${tone}`}>{children}</span>;
 }
 
-function ProductCard({ p }: { p: MarketedProduct }) {
+const SEG_SHORT = (s: string) => (/large/i.test(s) ? "LG" : /small/i.test(s) ? "SG" : /individual|famil/i.test(s) ? "Ind" : /self|aso/i.test(s) ? "ASO" : /municipal|public/i.test(s) ? "Muni" : s);
+const FUND_SHORT = (f: string) => (/level/i.test(f) ? "Level-funded" : /self|aso/i.test(f) ? "ASO" : /fully/i.test(f) ? "Fully insured" : f);
+const uniq = <T,>(xs: T[]) => [...new Set(xs)];
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+/** Employer plans, individual plans, and features/add-ons sold on top of plans. */
+function groupOf(p: MarketedProduct): "employer" | "individual" | "addon" {
+  if (/feature|add-?on|virtual care|program|rider|service/i.test(`${p.family ?? ""} ${p.name}`)) return "addon";
+  const segs = p.segments.map(SEG_SHORT);
+  const onlyIndividual = segs.length > 0 && segs.every((x) => x === "Ind");
+  const exchangeFamily = /connector|individual & family|marketplace/i.test(p.family ?? "") && !segs.includes("LG");
+  return onlyIndividual || exchangeFamily ? "individual" : "employer";
+}
+const GROUPS = [
+  { key: "employer", label: "Employer plans" },
+  { key: "individual", label: "Individual & family" },
+  { key: "addon", label: "Features and add-ons" },
+] as const;
+
+function SourceLinks({ urls }: { urls: string[] }) {
+  if (!urls.length) return null;
+  return <span className="text-[11px] text-stone-400">{urls.slice(0, 4).map((u, i) => <a key={u} href={u} target="_blank" rel="noopener noreferrer" title={u} className="mr-2 text-sky-700 hover:underline">{/\.pdf/i.test(u) ? `PDF ${i + 1}` : host(u)}</a>)}</span>;
+}
+
+function ProductRow({ p }: { p: MarketedProduct }) {
+  const segs = uniq(p.segments.map(SEG_SHORT));
+  const funding = uniq(p.funding.map(FUND_SHORT));
+  const links = uniq([...p.docs.map((d) => d.url), ...p.sources]);
   return (
-    <div className="card space-y-2 p-3 text-sm">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <div className="font-medium">{p.name}{p.family && p.family !== p.name ? <span className="ml-1 text-xs font-normal text-stone-500">· {p.family}</span> : null}</div>
-        <div className="flex flex-wrap gap-1">
-          {p.planType && <Chip>{p.planType}</Chip>}
-          <Chip tone={NET_TONE[p.network]} title={p.networkDetail ?? undefined}>{NET_LABEL[p.network]}</Chip>
-          {p.virtualFirst && <Chip tone="bg-emerald-50 text-emerald-800" title={p.virtualDetail ?? undefined}>Virtual-first</Chip>}
-          {p.funding.map((f) => <Chip key={f} tone="bg-stone-50 text-stone-600">{f}</Chip>)}
+    <details className="group border-t border-stone-100 first:border-t-0">
+      <summary className="grid cursor-pointer list-none grid-cols-[minmax(0,1fr)_auto] items-start gap-x-4 gap-y-1 px-4 py-3 hover:bg-stone-50 md:grid-cols-[minmax(0,1fr)_120px_120px_150px_16px]">
+        <div className="min-w-0">
+          <div className="font-medium text-stone-900">{p.name}</div>
+          {p.pitch && <div className="truncate text-xs text-stone-500 group-open:whitespace-normal group-open:text-stone-700" title={p.pitch}>{p.pitch}</div>}
         </div>
+        <div className="hidden text-xs text-stone-600 md:block">{p.planType && p.planType !== "mixed" ? p.planType : "Several types"}</div>
+        <div className="hidden md:block">{p.network !== "unknown" ? <Chip tone={NET_TONE[p.network]}>{NET_LABEL[p.network]}</Chip> : <span className="text-xs text-stone-300">—</span>}{p.virtualFirst && <Chip tone="ml-1 bg-emerald-50 text-emerald-800">Virtual-first</Chip>}</div>
+        <div className="hidden text-xs text-stone-500 md:block">{segs.join(" · ")}{funding.length ? <div className="text-stone-400">{funding.join(" · ")}</div> : null}</div>
+        <span className="text-stone-400 transition-transform group-open:rotate-90">›</span>
+      </summary>
+      <div className="grid gap-x-6 gap-y-2 bg-stone-50/60 px-4 pb-4 pt-1 text-xs md:grid-cols-[120px_1fr]">
+        {p.networkDetail && <><div className="text-stone-500">Network</div><div>{p.networkDetail}</div></>}
+        {p.virtualDetail && <><div className="text-stone-500">Virtual care</div><div>{p.virtualDetail}</div></>}
+        {p.costDesign.length > 0 && <><div className="text-stone-500">Cost design</div><div>{p.costDesign.map(cap).join(" · ")}</div></>}
+        {p.targetBuyer && <><div className="text-stone-500">Aimed at</div><div>{cap(p.targetBuyer)}</div></>}
+        {p.claims.length > 0 && <><div className="text-stone-500">Claims</div><div>{p.claims.slice(0, 4).map((c) => <div key={c}>“{c}”</div>)}</div></>}
+        {p.partners.length > 0 && <><div className="text-stone-500">Partners</div><div>{p.partners.map((x) => x.name).join(" · ")}</div></>}
+        {(p.states.length > 0 || p.pcpRequired != null) && <><div className="text-stone-500">Where · PCP</div><div>{p.states.join(" ")}{p.pcpRequired != null ? ` · ${p.pcpRequired ? "PCP required" : "no PCP needed"}` : ""}</div></>}
+        {links.length > 0 && <><div className="text-stone-500">Sources</div><div><SourceLinks urls={links} /></div></>}
       </div>
-      <div className="text-xs text-stone-500">{[p.segments.join(", "), p.states.join(" ")].filter(Boolean).join(" · ") || "Segments not stated"}{p.pcpRequired != null ? ` · ${p.pcpRequired ? "PCP required" : "no PCP needed"}` : ""}</div>
-      {p.pitch && <p className="text-stone-800">{p.pitch}</p>}
-      <dl className="grid gap-x-3 gap-y-1 text-xs sm:grid-cols-[110px_1fr]">
-        {p.networkDetail && <><dt className="text-stone-500">Network</dt><dd>{p.networkDetail}</dd></>}
-        {p.virtualDetail && <><dt className="text-stone-500">Virtual care</dt><dd>{p.virtualDetail}</dd></>}
-        {p.costDesign.length > 0 && <><dt className="text-stone-500">Cost design</dt><dd>{p.costDesign.join(" · ")}</dd></>}
-        {p.targetBuyer && <><dt className="text-stone-500">Aimed at</dt><dd>{p.targetBuyer}</dd></>}
-        {p.partners.length > 0 && <><dt className="text-stone-500">Partners</dt><dd>{p.partners.map((x, i) => <span key={x.name}>{i ? " · " : ""}{x.source ? <a href={x.source} target="_blank" rel="noopener noreferrer" className="font-medium hover:underline">{x.name}</a> : <span className="font-medium">{x.name}</span>}{x.role ? <span className="text-stone-500"> ({x.role})</span> : null}</span>)}</dd></>}
-        {p.claims.length > 0 && <><dt className="text-stone-500">Claims</dt><dd><ul className="list-disc space-y-0.5 pl-4">{p.claims.slice(0, 5).map((c) => <li key={c}>{c}</li>)}</ul></dd></>}
-      </dl>
-      {(p.docs.length > 0 || p.sources.length > 0) && (
-        <div className="flex flex-wrap gap-x-3 gap-y-1 border-t border-stone-100 pt-2 text-[11px]">
-          {p.docs.slice(0, 4).map((d) => <a key={d.url} href={d.url} target="_blank" rel="noopener noreferrer" className="text-sky-700 hover:underline">📄 {d.title}</a>)}
-          {p.sources.slice(0, 3).map((u) => <a key={u} href={u} target="_blank" rel="noopener noreferrer" className="text-stone-500 hover:underline">{host(u)}{new URL(u).pathname.slice(0, 40)}</a>)}
-        </div>
-      )}
-    </div>
+    </details>
   );
 }
 
@@ -54,9 +76,9 @@ export async function CompetitorMarketing({ name }: { name: string }) {
   const m = await marketingFor(site.key, { generate: false });
   return (
     <section id="marketing" className="space-y-3">
-      <div>
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="font-semibold tracking-tight">How they market it</h2>
-        <p className="text-xs text-stone-500">Read from {site.label}&apos;s own product pages, brochures and plan summaries{m ? ` (${m.pages} pages, ${m.pdfs} documents, crawled ${day(m.crawledAt)}; read by ${m.model})` : ""}. Refreshed monthly; links go to the source.</p>
+        {m && <p className="text-xs text-stone-400">From their own site: {m.pages} pages, {m.pdfs} brochures and plan summaries · crawled {day(m.crawledAt)} · refreshed monthly</p>}
       </div>
       {!m ? <p className="card p-4 text-sm text-stone-500">Not read yet: the monthly crawl of carrier product sites runs in the background (System status).</p> : <MarketingBody m={m} />}
     </section>
@@ -64,18 +86,59 @@ export async function CompetitorMarketing({ name }: { name: string }) {
 }
 
 function MarketingBody({ m }: { m: Marketing }) {
+  const groups = GROUPS.map((g) => ({ ...g, items: m.products.filter((p) => groupOf(p) === g.key) })).filter((g) => g.items.length);
+  const partners = [...new Map(m.partners.map((x) => [x.name.toLowerCase(), x])).values()];
   return (
-    <>
-      <div className="card space-y-2 p-4 text-sm">
-        <p>{m.summary}</p>
-        {m.structure && <p className="text-stone-600"><span className="font-medium text-stone-800">How the line-up varies: </span>{m.structure}</p>}
-        {m.positioning.length > 0 && <div className="flex flex-wrap gap-1.5">{m.positioning.map((t) => <Chip key={t} tone="bg-stone-900 text-white">{t}</Chip>)}</div>}
-        {m.channels && <p className="text-xs text-stone-600"><span className="font-medium">Sells through: </span>{m.channels}</p>}
-        {m.partners.length > 0 && <div className="text-xs text-stone-600"><span className="font-medium">Vendors and partners: </span>{m.partners.map((x, i) => <span key={x.name}>{i ? " · " : ""}{x.source ? <a href={x.source} target="_blank" rel="noopener noreferrer" className="font-medium text-stone-800 hover:underline">{x.name}</a> : <span className="font-medium text-stone-800">{x.name}</span>}{x.role ? ` (${x.role})` : ""}</span>)}</div>}
-        {m.gaps && <p className="text-xs text-stone-400">Not clear from the pages: {m.gaps}</p>}
+    <div className="space-y-4">
+      {/* Overview: how the line-up is built, what they say, how they sell */}
+      <div className="card grid gap-5 p-4 text-sm lg:grid-cols-3">
+        <div className="space-y-1.5">
+          <h3 className="font-mono text-[10px] uppercase tracking-wide text-stone-500">How the line-up is built</h3>
+          <p className="leading-relaxed text-stone-800">{m.structure ?? m.summary}</p>
+          {m.structure && <details className="text-xs text-stone-500"><summary className="cursor-pointer hover:text-stone-700">Full summary</summary><p className="mt-1 leading-relaxed">{m.summary}</p></details>}
+        </div>
+        <div className="space-y-1.5">
+          <h3 className="font-mono text-[10px] uppercase tracking-wide text-stone-500">What they lead with</h3>
+          <ul className="space-y-1">{m.positioning.slice(0, 5).map((t) => <li key={t} className="flex gap-2 leading-snug"><span className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-stone-400" />{cap(t)}</li>)}</ul>
+        </div>
+        <div className="space-y-1.5">
+          <h3 className="font-mono text-[10px] uppercase tracking-wide text-stone-500">How they sell</h3>
+          <p className="line-clamp-6 leading-relaxed text-stone-700" title={m.channels ?? undefined}>{m.channels ?? "Not stated."}</p>
+        </div>
       </div>
-      <div className="grid gap-3 lg:grid-cols-2">{m.products.map((p) => <ProductCard key={p.name} p={p} />)}</div>
-    </>
+
+      {/* Products, grouped; click a row for the detail */}
+      <div className="card overflow-hidden">
+        <div className="hidden grid-cols-[minmax(0,1fr)_120px_120px_150px_16px] gap-x-4 border-b border-stone-200 px-4 py-2 font-mono text-[10px] uppercase tracking-wide text-stone-500 md:grid"><span>Product · pitch</span><span>Plan type</span><span>Network</span><span>Segments · funding</span><span /></div>
+        {groups.map((g) => (
+          <div key={g.key}>
+            <div className="border-b border-stone-100 bg-stone-50 px-4 py-1.5 text-[11px] font-medium text-stone-600">{g.label} <span className="font-normal text-stone-400">({g.items.length})</span></div>
+            {g.items.map((p) => <ProductRow key={p.name} p={p} />)}
+          </div>
+        ))}
+      </div>
+
+      {/* Vendors and partners */}
+      {partners.length > 0 && (
+        <div className="card p-4 text-sm">
+          <h3 className="mb-2 font-mono text-[10px] uppercase tracking-wide text-stone-500">Vendors and partners ({partners.length})</h3>
+          <ul className="grid gap-x-6 gap-y-1.5 md:grid-cols-2">
+            {partners.map((x) => {
+              const news = /\(news\)/i.test(x.role ?? "") || /news\.google/.test(x.source ?? "");
+              const role = (x.role ?? "").replace(/\s*\(news\)\s*/i, "");
+              return (
+                <li key={x.name} className="flex min-w-0 items-baseline gap-2">
+                  {x.source ? <a href={x.source} target="_blank" rel="noopener noreferrer" className="shrink-0 font-medium text-stone-900 hover:underline">{x.name}</a> : <span className="shrink-0 font-medium">{x.name}</span>}
+                  <span className="truncate text-xs text-stone-500" title={role}>{role}</span>
+                  {news && <span className="shrink-0 rounded bg-stone-100 px-1 text-[10px] text-stone-500">news</span>}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+      {m.gaps && <p className="text-[11px] text-stone-400">Not clear from their material: {m.gaps}</p>}
+    </div>
   );
 }
 
