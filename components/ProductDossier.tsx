@@ -46,7 +46,7 @@ export async function ProductStrategy({ comp, state, workspaceId }: { comp: { id
 
       <div className="card space-y-2 p-4 text-sm">
         <p className="font-mono text-[10px] uppercase tracking-wide text-stone-500">{narrative ? "Strategy read" : "What the filings say"}</p>
-        {narrative ? <p className="leading-relaxed">{narrative.text}</p> : d.summary.map((s) => <p key={s} className="leading-relaxed">{s}</p>)}
+        {narrative ? <Bullets text={narrative.text} /> : d.summary.map((s) => <p key={s} className="leading-relaxed">{s}</p>)}
         {narrative && <details className="text-xs text-stone-500"><summary className="cursor-pointer">Rule summary it was written from</summary>{d.summary.map((s) => <p key={s} className="mt-1">{s}</p>)}</details>}
         <p className="text-[10px] text-stone-400">{narrative ? `Written by AI (${narrative.model}) from the numbers below and recent product news; check them before acting on it.` : "Written by rules from the numbers below. Add ANTHROPIC_API_KEY on the server for an analyst-style read that also weighs the news."}</p>
       </div>
@@ -193,5 +193,19 @@ export async function ProductMatrix({ workspaceId, state }: { workspaceId: strin
         </table>
       </div>
     </section>
+  );
+}
+
+/** The AI strategy read: "- **Label:** text" lines as a tight bullet list (falls back to the paragraph for older reads). */
+function Bullets({ text }: { text: string }) {
+  const lines = text.split("\n").map((l) => l.trim()).filter((l) => /^[-•*]\s/.test(l)).map((l) => l.replace(/^[-•*]\s+/, ""));
+  if (lines.length < 2) return <p className="leading-relaxed">{text}</p>;
+  return (
+    <ul className="space-y-1">
+      {lines.map((l) => {
+        const m = l.match(/^\*\*(.+?):?\*\*:?\s*(.*)$/);
+        return <li key={l} className="flex gap-2 leading-snug"><span className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-stone-400" /><span>{m ? <><span className="font-semibold">{m[1].replace(/:$/, "")}:</span> {m[2]}</> : l.replace(/\*\*/g, "")}</span></li>;
+      })}
+    </ul>
   );
 }

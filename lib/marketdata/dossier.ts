@@ -315,14 +315,14 @@ export async function strategyNarrative(competitorId: string, name: string, d: A
     ]; })(),
     ...news.slice(0, 6).map((n) => `NEWS ${n.when.toISOString().slice(0, 10)}: ${n.title}`),
   ].join("\n");
-  const hash = createHash("sha1").update(facts).digest("hex").slice(0, 16);
+  const hash = createHash("sha1").update("bullets-v1" + facts).digest("hex").slice(0, 16);
   const id = `cache:strategy:${competitorId}`;
   const cached = await db.rateFile.findUnique({ where: { id } });
   const c = cached?.stats as { hash?: string; n?: Narrative } | null;
   if (c?.hash === hash && c.n) return c.n;
   const r = await claudeText({
-    label: "strategy read", maxTokens: 700, user: facts,
-    system: `You are a competitive-intelligence analyst at a New England health insurer. From the facts given about ${name}'s commercial (individual, small group, large group) business, write its product strategy in 3-5 plain sentences: where it is pushing for growth, where it is protecting margin or retreating, how it positions price and network, and the one thing a competitor should watch. Use only the facts given; name products and states; no hedging filler, no headers, no bullet points. Quote numbers exactly as given and never add, subtract or total them yourself (use the TOTAL lines). If the facts conflict, say so.`,
+    label: "strategy read", maxTokens: 600, user: facts,
+    system: `You are a competitive-intelligence analyst at a New England health insurer. From the facts given about ${name}'s commercial (individual, small group, large group) business, write its product strategy as 4 to 6 bullets. Each bullet: one line, at most 20 words, starting with a 1-3 word bold label then a colon (e.g. "- **Growing:** ..."). Cover where it is pushing for growth, where it is protecting margin or retreating, how it positions price and network, and end with "**Watch:**" — the one thing a competitor should watch. Be pithy and concrete: name products and states, quote numbers exactly as given, never add, subtract or total them yourself (use the TOTAL lines). No intro, no hedging filler, nothing but the bullets. If the facts conflict, say so in a bullet.`,
   });
   if (!r) return c?.n ?? null;
   const n: Narrative = { text: r.text, generatedAt: new Date().toISOString(), model: r.model };

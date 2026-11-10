@@ -4,6 +4,8 @@ import { LaunchesRead } from "@/components/reports/LaunchesRead";
 import { NotIncluded } from "@/components/NotIncluded";
 import { Empty } from "@/components/ui";
 import { fmtInt } from "@/components/charts";
+import { FilterBar } from "@/components/FilterBar";
+import { Suspense } from "react";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Product launches · Reports" };
@@ -24,8 +26,19 @@ export default async function LaunchesReport({ searchParams }: { searchParams: P
   if (!r) return <div className="space-y-4"><h1 className="h1">Product launches</h1><Empty title="No rate filings yet">CMS rate filings import in the background; check System status.</Empty></div>;
   const states = [...new Set(r.launches.map((l) => l.state))].sort();
   const st = states.includes(sp.state ?? "") ? sp.state! : null;
-  const L = r.launches.filter((l) => !st || l.state === st);
-  const M = r.moves.filter((m) => !st || m.state === st);
+  // Filters (all in the URL): carrier, segment, plan year, product kind; plus entry/exit and size for the moves table.
+  const brands = [...new Set([...r.launches.map((l) => l.brand), ...r.moves.map((m) => m.brand)])].sort((a, b) => a.localeCompare(b));
+  const carrier = brands.includes(sp.carrier ?? "") ? sp.carrier! : null;
+  const seg = sp.segment === "Individual" || sp.segment === "SG" ? sp.segment : null;
+  const segOk = (market: string) => !seg || (seg === "Individual" ? market === "Individual" : market !== "Individual");
+  const yr = r.years.includes(Number(sp.year)) ? Number(sp.year) : null;
+  const kind = THEMES.some((t) => t.id === sp.kind) ? sp.kind! : null;
+  const L = r.launches.filter((l) => (!st || l.state === st) && (!carrier || l.brand === carrier) && segOk(l.market) && (!yr || l.year === yr) && (!kind || (l.themes as string[]).includes(kind)));
+  const M = r.moves.filter((m) => (!st || m.state === st) && (!carrier || m.brand === carrier) && segOk(m.market) && (!yr || m.year === yr));
+  const move = sp.move === "entry" || sp.move === "exit" ? sp.move : null;
+  const minSize = Number(sp.min) || 0;
+  const filtered = !!(carrier || seg || yr || kind);
+  const qsKeep = (extra: Record<string, string | null>) => { const q = new URLSearchParams(Object.entries(sp).filter(([, v]) => v) as [string, string][]); for (const [k, v] of Object.entries(extra)) { if (v) q.set(k, v); else q.delete(k); } return `/reports/launches${q.size ? `?${q}` : ""}`; };
   const last = r.years.at(-1)!;
   const winners = L.filter((l) => !l.migrated && (measured(l) ?? 0) > 0).sort((a, b) => measured(b)! - measured(a)!).slice(0, st ? 20 : 25);
   const net = L.filter((l) => !l.migrated && measured(l) != null);
@@ -43,22 +56,32 @@ export default async function LaunchesReport({ searchParams }: { searchParams: P
         <h1 className="h1">New commercial products, {r.years[0]}–{last}</h1>
         <p className="max-w-3xl text-sm text-stone-500">Every new individual and small-group product filed in every state, which ones took off, what kind of product they are, and who entered or left which markets. From CMS&apos;s rate-review files for plan years {r.years.join(", ")}; rebuilt automatically when a new year&apos;s filings arrive.</p>
         <div className="mt-3 flex flex-wrap items-center gap-1 text-xs">
-          <Link href="/reports/launches" className={chip(!st)}>All states</Link>
+          <Link href={qsKeep({ state: null })} className={chip(!st)}>All states</Link>
           <span className="mx-1 text-stone-300">|</span>
-          {ne.filter((s) => states.includes(s)).map((s) => <Link key={s} href={`/reports/launches?state=${s}`} className={chip(st === s)}>{s}</Link>)}
+          {ne.filter((s) => states.includes(s)).map((s) => <Link key={s} href={qsKeep({ state: s })} className={chip(st === s)}>{s}</Link>)}
           <span className="mx-1 text-stone-300">|</span>
-          {states.filter((s) => !ne.includes(s)).map((s) => <Link key={s} href={`/reports/launches?state=${s}`} className={chip(st === s)}>{s}</Link>)}
+          {states.filter((s) => !ne.includes(s)).map((s) => <Link key={s} href={qsKeep({ state: s })} className={chip(st === s)}>{s}</Link>)}
+        </div>
+        <div className="mt-2">
+          <Suspense>
+            <FilterBar filters={[
+              { key: "carrier", label: "Carrier", options: brands.map((b) => ({ value: b, label: b })) },
+              { key: "segment", label: "Segment", options: [{ value: "Individual", label: "Individual" }, { value: "SG", label: "Small group" }] },
+              { key: "year", label: "Plan year", options: r.years.map((y) => ({ value: String(y), label: String(y) })) },
+              { key: "kind", label: "Product kind", options: THEMES.map((t) => ({ value: t.id, label: t.label })) },
+            ]} />
+          </Suspense>
         </div>
       </div>
 
-      {!st && <LaunchesRead />}
+      {!st && !filtered && <LaunchesRead />}
 
       <section className="grid gap-3 sm:grid-cols-3">
-        {r.byYear.map((y) => {
+        {r.byYear.filter((y) => !yr || y.year === yr).map((y) => {
           const ls = L.filter((l) => l.year === y.year), ms = M.filter((m) => m.year === y.year);
           return (
             <div key={y.year} className="card p-4">
-              <p className="font-mono text-[11px] uppercase tracking-wide text-stone-500">Plan year {y.year}{st ? ` · ${st}` : ""}</p>
+              <p className="font-mono text-[11px] uppercase tracking-wide text-stone-500">Plan year {y.year}{st ? ` · ${st}` : ""}{carrier ? ` · ${carrier}` : ""}{seg ? ` · ${seg === "SG" ? "small group" : "individual"}` : ""}</p>
               <p className="mt-1 text-2xl font-semibold tabular-nums">{ls.length} <span className="text-sm font-normal text-stone-500">new products</span></p>
               <p className="text-xs text-stone-500">{ls.filter((l) => !l.migrated).length} genuinely new · {ls.filter((l) => l.migrated).length} re-filed existing members · {ls.filter((l) => l.market === "Individual").length} individual, {ls.filter((l) => l.market !== "Individual").length} small group</p>
               {y.year > r.years[0] && <p className="mt-2 text-sm"><span className="text-emerald-700">{ms.filter((m) => m.kind === "entry").length} market entries</span> · <span className="text-red-600">{ms.filter((m) => m.kind === "exit").length} exits</span></p>}
@@ -93,7 +116,7 @@ export default async function LaunchesReport({ searchParams }: { searchParams: P
         ) : <p className="text-sm text-stone-500">No measurable new launches{st ? ` in ${st}` : ""} yet.</p>}
       </section>
 
-      {!st && (
+      {!st && !filtered && (
         <section className="space-y-2">
           <h2 className="text-lg font-semibold tracking-tight">What kinds of products launch, and which work</h2>
           <p className="text-xs text-stone-500">Kind is read from product and plan names, so it only catches designs carriers name (a product can be several kinds). Genuinely new launches only; &quot;reached 5K&quot; = share of measurable launches with 5,000+ members.</p>
@@ -143,27 +166,46 @@ export default async function LaunchesReport({ searchParams }: { searchParams: P
         ) : <p className="text-sm text-stone-500">No new products filed{st ? ` in ${st}` : ""} for {last}.</p>}
       </section>
 
-      <section className="space-y-2">
+      <section id="moves" className="space-y-2">
         <h2 className="text-lg font-semibold tracking-tight">Who entered and who left</h2>
-        <p className="text-xs text-stone-500">A carrier selling in a state and market it didn&apos;t the year before, or no longer selling where it did. Members = its enrollment in the filing before it left (or its first filing after entering). Renames and moves between a carrier&apos;s own legal entities are left out.</p>
-        <div className="grid gap-3 md:grid-cols-2">
-          {(["exit", "entry"] as const).map((kind) => {
-            const xs = M.filter((m) => m.kind === kind).sort((a, b) => b.year - a.year || b.enrolled - a.enrolled);
-            return (
-              <div key={kind} className="card overflow-hidden">
-                <p className={`border-b border-stone-100 px-3 py-2 text-sm font-medium ${kind === "exit" ? "text-red-700" : "text-emerald-700"}`}>{kind === "exit" ? "Exits" : "Entries"} ({xs.length})</p>
-                <div className="max-h-[420px] overflow-y-auto">
-                  <table className="w-full text-xs" data-static>
-                    <tbody className="divide-y divide-stone-100">
-                      {xs.slice(0, 200).map((m) => <tr key={`${m.year}${m.state}${m.market}${m.brand}`}><td className="px-3 py-1 tabular-nums text-stone-500">{m.year}</td><td className="px-3 py-1">{m.brand}</td><td className="whitespace-nowrap px-3 py-1">{m.state} {mk(m.market)}</td><td className="px-3 py-1 text-right tabular-nums">{m.enrolled ? fmtInt(m.enrolled) : "—"}</td></tr>)}
-                    </tbody>
-                  </table>
-                  {!xs.length && <p className="px-3 py-2 text-stone-500">None.</p>}
-                </div>
-              </div>
-            );
-          })}
+        <p className="text-xs text-stone-500">A carrier selling in a state and market it didn&apos;t the year before, or no longer selling where it did. Members = its enrollment in the filing before it left (or its first filing after entering). Renames and moves between a carrier&apos;s own legal entities are left out. Uses the filters above (state, carrier, segment, plan year), plus:</p>
+        <div className="flex flex-wrap items-center gap-1 text-xs">
+          {([[null, "Entries and exits"], ["exit", "Exits only"], ["entry", "Entries only"]] as const).map(([v, l]) => <Link key={l} href={`${qsKeep({ move: v })}#moves`} scroll={false} className={chip(move === v)}>{l}</Link>)}
+          <span className="mx-1 text-stone-300">|</span>
+          {([[0, "Any size"], [1000, "1K+ members"], [10000, "10K+"], [50000, "50K+"]] as const).map(([v, l]) => <Link key={l} href={`${qsKeep({ min: v ? String(v) : null })}#moves`} scroll={false} className={chip(minSize === v)}>{l}</Link>)}
         </div>
+        {(() => {
+          const xs = M.filter((m) => (!move || m.kind === move) && m.enrolled >= minSize).sort((a, b) => b.year - a.year || b.enrolled - a.enrolled);
+          const sum = (k: "entry" | "exit") => xs.filter((m) => m.kind === k);
+          const byYear = r.years.slice(1).map((y) => ({ y, e: sum("entry").filter((m) => m.year === y), x: sum("exit").filter((m) => m.year === y) }));
+          return (
+            <>
+              <div className="flex flex-wrap gap-4 text-sm">
+                {byYear.filter((b) => !yr || b.y === yr).map((b) => <span key={b.y}><span className="font-mono text-[11px] text-stone-500">{b.y}</span> <span className="text-emerald-700">{b.e.length} in ({fmtInt(b.e.reduce((t, m) => t + m.enrolled, 0))})</span> · <span className="text-red-600">{b.x.length} out ({fmtInt(b.x.reduce((t, m) => t + m.enrolled, 0))})</span></span>)}
+              </div>
+              <div className="card max-h-[520px] overflow-auto">
+                <table className="w-full text-xs" data-static>
+                  <thead className="sticky top-0 border-b border-stone-200 bg-white text-left font-mono text-[10px] uppercase tracking-wide text-stone-500"><tr><th className="px-3 py-2">Year</th><th className="px-3 py-2">Move</th><th className="px-3 py-2">Carrier</th><th className="px-3 py-2">State</th><th className="px-3 py-2">Segment</th><th className="px-3 py-2 text-right">Members</th><th className="px-3 py-2 text-right">Products</th></tr></thead>
+                  <tbody className="divide-y divide-stone-100">
+                    {xs.slice(0, 500).map((m) => (
+                      <tr key={`${m.year}${m.state}${m.market}${m.brand}${m.kind}`}>
+                        <td className="px-3 py-1 tabular-nums text-stone-500">{m.year}</td>
+                        <td className={`px-3 py-1 font-medium ${m.kind === "exit" ? "text-red-700" : "text-emerald-700"}`}>{m.kind === "exit" ? "Exit" : "Entry"}</td>
+                        <td className="px-3 py-1"><Link href={`${qsKeep({ carrier: m.brand })}#moves`} scroll={false} className="hover:underline">{m.brand}</Link></td>
+                        <td className="px-3 py-1"><Link href={`${qsKeep({ state: m.state })}#moves`} scroll={false} className="hover:underline">{m.state}</Link></td>
+                        <td className="px-3 py-1">{m.market === "Individual" ? "Individual" : "Small group"}</td>
+                        <td className="px-3 py-1 text-right tabular-nums">{m.enrolled ? fmtInt(m.enrolled) : "—"}</td>
+                        <td className="px-3 py-1 text-right tabular-nums">{m.products || "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {!xs.length && <p className="px-3 py-2 text-stone-500">None for these filters.</p>}
+                {xs.length > 500 && <p className="border-t border-stone-100 px-3 py-1.5 text-[11px] text-stone-500">Showing 500 of {xs.length}; narrow the filters to see the rest.</p>}
+              </div>
+            </>
+          );
+        })()}
       </section>
 
       {!st && (
