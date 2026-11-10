@@ -1,4 +1,7 @@
 import { coverageCheck } from "@/lib/marketdata/coverage";
+import { FEHB } from "@/lib/marketdata/fehb";
+
+const fehbNote = `${(FEHB.federalCovered / 1e6).toFixed(0)}M people nationally, spread by each state\u2019s share of federal civilian employees (OPM FedScope)`;
 
 const k = (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(2)}M` : `${Math.round(n / 1000)}K`);
 const pc = (v: number) => `${Math.round(v * 100)}%`;
@@ -17,7 +20,7 @@ export async function CoverageCheck({ open = false, highlight }: { open?: boolea
             <tr>
               <th className="px-3 py-2">State</th>
               <th className="px-3 py-2 text-right">Individual (ours)</th><th className="px-3 py-2 text-right">KFF non-group</th><th className="px-3 py-2 text-right">Seen</th>
-              <th className="px-3 py-2 text-right">Group fully insured</th><th className="px-3 py-2 text-right">+ Self-funded</th><th className="px-3 py-2 text-right">KFF employer</th><th className="px-3 py-2 text-right">Seen</th><th className="px-3 py-2 text-right">Not visible</th>
+              <th className="px-3 py-2 text-right">Group fully insured</th><th className="px-3 py-2 text-right">+ Self-funded</th><th className="px-3 py-2 text-right">+ Federal (est.)</th><th className="px-3 py-2 text-right">KFF employer</th><th className="px-3 py-2 text-right">Seen</th><th className="px-3 py-2 text-right">Not visible</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-stone-100">
@@ -29,6 +32,7 @@ export async function CoverageCheck({ open = false, highlight }: { open?: boolea
                 <td className={`px-3 py-1.5 text-right tabular-nums ${tone(r.individualCapture)}`}>{pc(r.individualCapture)}</td>
                 <td className="px-3 py-1.5 text-right tabular-nums">{k(r.fullyInsuredGroup)}</td>
                 <td className="px-3 py-1.5 text-right tabular-nums" title={r.selfSource ?? "Not available"}>{r.selfFunded != null ? <>{k(r.selfFunded)}{!r.residentBasis && <sup className="text-stone-400">†</sup>}</> : <span className="text-stone-400">not available</span>}</td>
+                <td className="px-3 py-1.5 text-right tabular-nums text-stone-600" title={r.state === "MA" ? "Federal employees outside the Blue Cross federal plan (BCBSMA reports its federal members to CHIA, so they're already in self-funded)" : "Federal employees, retirees and dependents, estimated from federal employment in the state"}>{r.federal ? k(r.federal) : "—"}</td>
                 <td className="px-3 py-1.5 text-right tabular-nums text-stone-500">{k(r.kffEmployer)}</td>
                 <td className={`px-3 py-1.5 text-right tabular-nums ${tone(Math.min(1, r.employerCapture))}`}>{pc(r.employerCapture)}</td>
                 <td className="px-3 py-1.5 text-right tabular-nums text-stone-600">{r.unseen > 0 ? k(r.unseen) : "—"}</td>
@@ -40,7 +44,9 @@ export async function CoverageCheck({ open = false, highlight }: { open?: boolea
       <div className="space-y-1 border-t border-stone-100 px-4 py-3 text-xs text-stone-600">
         <p><span className="font-medium">Individual</span>: the CMS loss-ratio filings ({year}) count every fully insured individual policy, on and off the exchange, grandfathered included, so they land close to KFF. The remainder is mostly survey reporting differences and non-ACA coverage (short-term plans, health-care sharing ministries).</p>
         <p><span className="font-medium">Employer</span>: fully insured group from the loss-ratio filings, plus self-funded (ASO) lives. Massachusetts uses CHIA&apos;s actual resident counts for both. <sup>†</sup>The other states use the self-funded lives carriers file with CMS (the NAIC exhibit&apos;s &quot;uninsured plans&quot;), which are counted by <span className="font-medium">the state the contract is written in</span>, not where members live, with estimates for Aetna and UnitedHealthcare, who don&apos;t file by state. That is why Connecticut can exceed 100% (Cigna, Aetna and Anthem write national accounts there) while Vermont and Maine stay well short. So outside Massachusetts, read &quot;seen&quot; as how much business is on the books in that state, not a count of covered residents.</p>
-        <p>Still not visible anywhere: plans run by independent administrators (UMR, Meritain and the like), federal employees (FEHB), level-funded and association plans, and Blue plans&apos; out-of-state national accounts. Form 5500 can&apos;t fill the gap (it reports a company&apos;s employees nationwide under its headquarters state). KFF counts people by residence and main coverage. Source: <a className="underline" href={kff.url} target="_blank" rel="noopener noreferrer">{kff.source}, {kff.year}</a>; method check on the Self-funded view.</p>
+        <p><span className="font-medium">Federal (est.)</span>: federal employees, retirees and dependents (FEHB and the postal plans), which no state or CMS count includes. Estimated as {fehbNote}; roughly half are in the Blue Cross federal plan, run by the local Blue. In Massachusetts BCBSMA reports its federal members to CHIA, so only the rest is added.</p>
+        <p><span className="font-medium">Also counted</span>: plans run by the carriers&apos; own administrators. UMR is inside UnitedHealthcare&apos;s national self-funded total, and Aetna&apos;s filing (14.9M lives) already exceeds CVS&apos;s reported self-funded book (14.2M), so Meritain adds little. Massachusetts counts Anthem&apos;s national accounts, Tufts and MGB through CHIA; outside Massachusetts, Harvard Pilgrim&apos;s self-funded book (filed under MA) is spread to NH, ME and RI by its group footprint.</p>
+        <p><span className="font-medium">Still not visible</span>: independent administrators that aren&apos;t part of a carrier (local and regional third-party administrators), level-funded and association plans, and Blue plans&apos; out-of-state national accounts. That is the &quot;Not visible&quot; column. Form 5500 can&apos;t fill it (it reports a company&apos;s employees nationwide under its headquarters state). KFF counts people by residence and main coverage. Source: <a className="underline" href={kff.url} target="_blank" rel="noopener noreferrer">{kff.source}, {kff.year}</a>; method check on the Self-funded view.</p>
       </div>
     </details>
   );

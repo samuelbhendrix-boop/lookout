@@ -10,6 +10,7 @@ import { marketLargeGroup } from "@/lib/marketdata/largegroup";
 import { MarketLargeGroup } from "@/components/LargeGroup";
 import { Legend, LineChart, OTHER, StackedShares } from "@/components/viz";
 import { chartColors } from "@/lib/us";
+import { fehbEstimate } from "@/lib/marketdata/fehb";
 import { asoMethodCheck, BASIS, selfFunded, sourceLabel, SELF_FUNDED_STATES } from "@/lib/marketdata/selffunded";
 import { crossCheck } from "@/lib/marketdata/crosscheck";
 import { CoverageCheck } from "@/components/CoverageCheck";
@@ -113,13 +114,14 @@ export default async function MarketPage({ searchParams }: { searchParams: Promi
                   </li>
                 ))}
               </ul>
+              {(() => { const fe = fehbEstimate(state); return fe ? <p className="border-t border-stone-100 pt-2 text-xs text-stone-500"><span className="font-medium text-stone-700">Federal employees, not in these shares:</span> about {Math.round(fe.total / 1000)}K federal employees, retirees and dependents in {state} (estimate), roughly {Math.round(fe.fep / 1000)}K of them in the Blue Cross federal plan, administered by {fe.localBlue}.{fe.inChia ? " BCBSMA reports its federal members to CHIA, so those are already inside its count above." : ""} Estimated from where federal civilian employees work (OPM FedScope); treat as ±30%.</p> : null; })()}
             </div>
           ) : (
             <Empty title={`No self-funded figures for ${state} yet`}>Self-funded lives come from CMS&apos;s loss-ratio filings for the six New England states; they load with the next loss-ratio import (System status).</Empty>
           )}
           {sf?.source === "cms_mlr" && (
             <p className="text-xs text-stone-600">
-              These are lives on self-funded contracts <span className="font-medium">written in {state}</span>, as carriers file them with CMS (the same figures as the NAIC Supplemental Health Care Exhibit). A national employer based here counts all its members here, wherever they live, and some carriers&apos; counts include dental- or pharmacy-only administration. <span className="rounded bg-amber-50 px-1 text-amber-800">est.</span> marks carriers that don&apos;t file by state: Aetna files its whole national book under Connecticut, and UnitedHealthcare files none (a non-insurer subsidiary administers its plans; its national total comes from its annual results). Both are spread across states by where the carrier has fully insured group members. Hover a name for the detail.
+              These are lives on self-funded contracts <span className="font-medium">written in {state}</span>, as carriers file them with CMS (the same figures as the NAIC Supplemental Health Care Exhibit). A national employer based here counts all its members here, wherever they live, and some carriers&apos; counts include dental- or pharmacy-only administration. <span className="rounded bg-amber-50 px-1 text-amber-800">est.</span> marks carriers that don&apos;t file by state: Aetna files its whole national book under Connecticut, and UnitedHealthcare files none (a non-insurer subsidiary administers its plans; its national total comes from its annual results). Both are spread across states by where the carrier has fully insured group members, and so is Harvard Pilgrim, which files its New Hampshire, Maine and Rhode Island accounts under Massachusetts (the New Hampshire Insurance Department's resident count, 48K in 2022, is a check). Hover a name for the detail.
             </p>
           )}
           {method && method.rows.length > 0 && (
@@ -135,7 +137,7 @@ export default async function MarketPage({ searchParams }: { searchParams: Promi
                   </tbody>
                 </table>
               </div>
-              <p className="border-t border-stone-100 px-4 py-2 text-xs text-stone-600">Estimates land close to CHIA where a carrier has no home-state effect (Aetna, UnitedHealthcare). Filed figures run about 3× CHIA for carriers based here or with national accounts written here (BCBSMA, Cigna), because they count members living in other states and non-medical administration. Carriers CHIA lists but the federal file doesn&apos;t (Anthem&apos;s national accounts, Tufts, MGB, Health New England) administer through entities that don&apos;t file. Expect the same pattern in other states: read filed figures as an upper bound on residents, and estimates as rough.</p>
+              <p className="border-t border-stone-100 px-4 py-2 text-xs text-stone-600">Estimates land close to CHIA where a carrier has no home-state effect (Aetna, UnitedHealthcare). Filed figures run about 3× CHIA for carriers based here or with national accounts written here (BCBSMA, Cigna), because they count members living in other states and non-medical administration. Carriers CHIA lists but the federal file doesn&apos;t (Anthem&apos;s national accounts, Tufts, MGB, Health New England) administer through entities that don&apos;t file; CHIA covers them here. Expect the same pattern in other states: read filed figures as an upper bound on residents, and estimates as rough.</p>
             </details>
           )}
         </section>

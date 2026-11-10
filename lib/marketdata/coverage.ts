@@ -1,6 +1,7 @@
 import kff from "@/data/benchmarks/kff-coverage.json";
 import { db } from "../db";
 import { NE_STATES } from "./products";
+import { fehbEstimate } from "./fehb";
 
 /**
  * How much of each state's commercial market the app's numbers capture, checked against an independent count:
@@ -8,9 +9,9 @@ import { NE_STATES } from "./products";
  *  - Individual: CMS loss-ratio filings count every fully insured individual policy, on and off exchange,
  *    grandfathered included, so they should land close to KFF's non-group count.
  *  - Employer: loss-ratio filings cover fully insured group only. Self-funded (ASO) employers are added where the
- *    state publishes them (MA CHIA, NH). The rest of KFF's employer count is what the app can't see: self-funded
- *    plans elsewhere, federal employees (FEHB), level-funded and association plans, and residents covered by policies
- *    written in another state.
+ *    state publishes them (MA CHIA) or from the CMS filings elsewhere, plus an estimate of federal employees (FEHB).
+ *    The rest of KFF's employer count is what the app can't see: independent administrators, level-funded and
+ *    association plans, and residents covered by contracts written in another state.
  * Massachusetts uses CHIA for both fully and self-insured group, because the federal filing counts some BCBSMA
  * accounts as fully insured that CHIA counts as self-insured; adding the two sources would double count them.
  */
@@ -20,7 +21,7 @@ const KFF = kff as unknown as { source: string; url: string; year: number; check
 export type CoverageRow = {
   state: string;
   individual: number; kffNonGroup: number; individualCapture: number;
-  fullyInsuredGroup: number; selfFunded: number | null; selfSource: string | null; selfEstimated: number; residentBasis: boolean; groupSeen: number; kffEmployer: number; employerCapture: number; unseen: number;
+  fullyInsuredGroup: number; selfFunded: number | null; selfSource: string | null; selfEstimated: number; residentBasis: boolean; federal: number; groupSeen: number; kffEmployer: number; employerCapture: number; unseen: number;
 };
 
 export async function coverageCheck(): Promise<{ year: number | null; kff: { source: string; url: string; year: number }; rows: CoverageRow[] }> {
@@ -54,10 +55,13 @@ export async function coverageCheck(): Promise<{ year: number | null; kff: { sou
       if (self.source === "ma_chia" && fiGroup > 0) fullyGroup = fiGroup;
     }
     const individual = lives(st, "INDIVIDUAL");
-    const groupSeen = fullyGroup + (selfFunded ?? 0);
+    // Federal employees (estimate). In MA, BCBSMA already reports its federal members to CHIA, so add only the rest.
+    const fe = fehbEstimate(st);
+    const federal = fe ? (fe.inChia ? fe.other : fe.total) : 0;
+    const groupSeen = fullyGroup + (selfFunded ?? 0) + federal;
     rows.push({
       state: st, individual, kffNonGroup: k.nonGroup, individualCapture: individual / k.nonGroup,
-      fullyInsuredGroup: fullyGroup, selfFunded, selfSource, selfEstimated, residentBasis: !!self, groupSeen, kffEmployer: k.employer, employerCapture: groupSeen / k.employer, unseen: Math.max(0, k.employer - groupSeen),
+      fullyInsuredGroup: fullyGroup, selfFunded, selfSource, selfEstimated, residentBasis: !!self, federal, groupSeen, kffEmployer: k.employer, employerCapture: groupSeen / k.employer, unseen: Math.max(0, k.employer - groupSeen),
     });
   }
   return { year, kff: KFF, rows };

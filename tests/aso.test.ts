@@ -26,4 +26,16 @@ describe("self-funded estimates", () => {
     expect(out.find((r) => r.state === "MA")).toMatchObject({ basis: "disclosed", lives: 2_088_500 });
     expect(out.filter((r) => r.basis === "reported")).toHaveLength(0);
   });
+  it("spreads a regional group's book filed under its home state", () => {
+    const g = "HP GRP";
+    const out = estimateAso(2024, [
+      row({ company: "HP Inc", group: g, state: "MA", aso: 240_000, fiGroup: 210_000, fiAll: 210_000 }),
+      row({ company: "HP Ins", group: g, state: "MA", aso: 70_000, fiGroup: 47_000, fiAll: 47_000 }),
+      row({ company: "HP NE", group: g, state: "NH", aso: 3_000, fiGroup: 40_000, fiAll: 40_000 }),
+      row({ company: "HP Inc", group: g, state: "ME", fiGroup: 38_000, fiAll: 38_000 }),
+    ]);
+    expect(out.every((r) => r.basis === "allocated" && r.company === "HP Inc")).toBe(true);
+    expect(out.find((r) => r.state === "NH")!.lives).toBe(Math.round((313_000 * 40_000) / 335_000));
+    expect(out.find((r) => r.state === "ME")).toBeTruthy();
+  });
 });

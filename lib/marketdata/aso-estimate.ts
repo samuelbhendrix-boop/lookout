@@ -33,11 +33,36 @@ export function estimateAso(year: number, rows: AsoInput[]): AsoRow[] {
   for (const r of rows) (byGroup.get(groupKey(r)) ?? byGroup.set(groupKey(r), []).get(groupKey(r))!).push(r);
   const medical = (g: AsoInput[]) => sum(g.map((r) => r.fiAll)) >= 1000; // has comprehensive medical business somewhere
 
+  // A regional group that files its whole self-funded book under its home state (Harvard Pilgrim files New Hampshire
+  // and Maine accounts under Massachusetts): at least 90% of the group's self-funded lives sit in one state, which is
+  // also its main fully insured market (50–85% of fully insured group lives), and the rest of its group business is
+  // spread over a few other states. Spread that book by fully insured group footprint, like a national roll-up.
+  const regional = new Set<string>();
+  for (const [g, grp] of byGroup) {
+    const asoBy = new Map<string, number>();
+    for (const r of grp) if (r.aso > 0) asoBy.set(r.state, (asoBy.get(r.state) ?? 0) + r.aso);
+    const asoTotal = sum([...asoBy.values()]);
+    // Blue plans are left alone: their filed counts mix home-plan national accounts with local business by design.
+    if (asoTotal < 20_000 || !medical(grp) || grp.some((r) => /blue (cross|shield)|premera|anthem|highmark|regence/i.test(r.company))) continue;
+    const [home, homeAso] = [...asoBy.entries()].sort((a, b) => b[1] - a[1])[0];
+    const foot = new Map<string, number>();
+    for (const r of grp) if (r.fiGroup > 0) foot.set(r.state, (foot.get(r.state) ?? 0) + r.fiGroup);
+    const footTotal = sum([...foot.values()]);
+    const homeShare = (foot.get(home) ?? 0) / (footTotal || 1);
+    if (homeAso / asoTotal < 0.9 || homeShare < 0.5 || homeShare > 0.85 || foot.size < 2 || foot.size > 10) continue;
+    regional.add(g);
+    const lead = grp.filter((r) => r.aso > 0).sort((a, b) => b.aso - a.aso)[0].company;
+    for (const [state, fi] of foot) {
+      out.push({ state, company: lead, groupName: grp[0].group, lives: Math.round((asoTotal * fi) / footTotal), memberMonths: null, fees: null, basis: "allocated",
+        note: `${g} files ${Math.round((homeAso / asoTotal) * 100)}% of its self-funded book (${Math.round(asoTotal).toLocaleString()} lives) under ${home}; spread by where it has fully insured group members (${Math.round((fi / footTotal) * 1000) / 10}% in ${state}).` });
+    }
+  }
+
   for (const [company, cs] of byCompany) {
     const withAso = cs.filter((r) => r.aso > 0);
     if (!withAso.length) continue;
     const grp = byGroup.get(groupKey(cs[0]))!;
-    if (!medical(grp)) continue;
+    if (!medical(grp) || regional.has(groupKey(cs[0]))) continue;
     const national = sum(withAso.map((r) => r.aso));
     // Fully insured group footprint of the whole filing group, by state.
     const foot = new Map<string, number>();

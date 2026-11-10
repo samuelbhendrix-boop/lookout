@@ -1,0 +1,15 @@
+{
+  "about": "Federal employees, retirees and dependents (FEHB, and from 2025 the Postal Service plans, PSHB). Not in CMS loss-ratio filings or state ASO counts. Estimated by state from where federal civilian employees work.",
+  "federalCovered": 8000000,
+  "federalCoveredSource": "AFGE 2026 FEHBP issue paper: the program 'covers more than eight million federal employees, retirees, and their dependents'",
+  "federalCoveredUrl": "https://www.afge.org/globalassets/documents/events/legcon/2026/issue-papers/2026-fehbp-issue-paper.pdf",
+  "fep": 3800000,
+  "fepSource": "BCBSA Blue Fact Sheet, December 2025: 3.8M members through the FEHB Program",
+  "fepUrl": "https://www.bcbs.com/media/pdf/Blue-Fact-Sheet.pdf",
+  "employeesSource": "OPM FedScope via CRS R47716: federal civilian employment by duty station (Sept 2024 for states; national total of listed states, March 2024, 1,971,401). Excludes the Postal Service.",
+  "employeesUrl": "https://www.everycrsreport.com/reports/R47716.html",
+  "employeesNational": 1971401,
+  "employees": { "MA": 25698, "CT": 7304, "RI": 8598, "NH": 5208, "ME": 12717, "VT": 3368 },
+  "localBlue": { "MA": "Blue Cross and Blue Shield of Massachusetts", "CT": "Anthem Health Plans", "RI": "Blue Cross & Blue Shield of Rhode Island", "NH": "Anthem Health Plans of New Hampshire", "ME": "Anthem Health Plans of Maine", "VT": "Blue Cross and Blue Shield of Vermont" },
+  "checked": "2026-11-10"
+}

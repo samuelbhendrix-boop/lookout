@@ -14,7 +14,7 @@ export const SELF_FUNDED_STATES = ["MA", "CT", "RI", "NH", "VT", "ME"];
 export type SelfFundedRow = { key: string; label: string; competitorId: string | null; members: number; share: number; prevMembers: number | null; basis?: string[]; feePmpm?: number | null; notes?: string[] };
 export type SelfFunded = { state: string; source: string; asOf: Date; estimated: boolean; total: number; rows: SelfFundedRow[] };
 /** How a federal-filing figure was arrived at, in plain words. */
-export const BASIS: Record<string, string> = { reported: "filed", allocated: "estimated from a national total filed under one state", disclosed: "estimated from the carrier's national disclosure" };
+export const BASIS: Record<string, string> = { reported: "filed", allocated: "estimated from a book filed under one state", disclosed: "estimated from the carrier's national disclosure" };
 
 const re = (p: string) => { try { return p ? new RegExp(p, "i") : null; } catch { return null; } };
 
@@ -41,7 +41,10 @@ export async function selfFunded(workspaceId: string, states = SELF_FUNDED_STATE
           if (r.fees && r.memberMonths) { a.fees += r.fees; a.mm += r.memberMonths; }
           agg.set(g.key, a);
         }
-        for (const r of prev) { const a = agg.get(group(r.company).key); if (a) a.prevMembers = (a.prevMembers ?? 0) + r.lives; }
+        const prevBasis = new Map<string, Set<string>>();
+        for (const r of prev) { const k = group(r.company).key; const a = agg.get(k); if (a) { a.prevMembers = (a.prevMembers ?? 0) + r.lives; (prevBasis.get(k) ?? prevBasis.set(k, new Set()).get(k)!).add(r.basis); } }
+        // A year-on-year change is only meaningful when both years were counted the same way.
+        for (const [k, a] of agg) { const pb = prevBasis.get(k); if (pb && (pb.size !== a.basis!.length || a.basis!.some((b) => !pb.has(b)))) a.prevMembers = null; }
         const total = [...agg.values()].reduce((t, a) => t + a.members, 0);
         out.push({
           state, source: "cms_mlr", asOf: new Date(Date.UTC(yr, 11, 31)), estimated: cur.some((r) => r.basis !== "reported"), total,
