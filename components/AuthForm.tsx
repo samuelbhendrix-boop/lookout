@@ -9,7 +9,7 @@ import { Brand } from "./Brand";
 export function AuthForm({ mode, inviteToken, joining, ssoLabel }: { mode: "login" | "signup"; inviteToken?: string; joining?: string; ssoLabel?: string }) {
   const router = useRouter();
   const params = useSearchParams();
-  const next = params.get("next") ?? "/briefing";
+  const next = params.get("next") ?? "/home";
   const [error, setError] = useState<string | null>(params.get("error"));
   const [busy, setBusy] = useState(false);
 
@@ -21,7 +21,7 @@ export function AuthForm({ mode, inviteToken, joining, ssoLabel }: { mode: "logi
     if (inviteToken) form.inviteToken = inviteToken;
     try {
       await api("POST", `/auth/${mode}`, form);
-      router.replace(next.startsWith("/") ? next : "/briefing");
+      router.replace(next.startsWith("/") ? next : "/home");
       router.refresh();
     } catch (err) {
       setError((err as Error).message);

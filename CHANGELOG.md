@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.17.0 — 2026-11-09
+- **Home page** (logo and first sidebar item; where sign-in lands): greeting, six KPIs (news this week vs last, major items, changes detected from data, accounts in play with covered lives, competitors tracked and quiet, source health and data age), top things that moved, top stories, 30-day activity, most active competitors, renewals in play. No more than two items per competitor in each list.
+- **Sidebar shows your name**, not your email; it opens Your account.
+- **22 recommended news sources** added to every workspace once (deleted ones stay deleted): Becker's Payer Issues, STAT, Managed Healthcare Executive, Georgetown CHIR, AHIP, CommonWealth Beacon, Boston Globe health care, Health Care For All, CT Mirror, NH Bulletin, RI Current, VTDigger, Maine Morning Star, MA DOI, RI OHIC and VT DFR pages; Fierce Healthcare, Modern Healthcare, Axios, WBUR and Boston Business Journal through Google News because their sites block automated readers. The Sources page lists any you don't have, with one-click Add.
+- Briefing and Home drop stock-chatter headlines (price targets, "stock heads into earnings", Simply Wall St, TradingView and the like).
+
 ## 0.16.0 — 2026-11-09
 - **Renamed to Payersight.** New sunrise mark and wordmark in the sidebar and sign-in pages, favicon and home-screen icon, amber brand accent (#F2A33A), page titles, export file names and the crawler's User-Agent (PayersightBot, same contact URL). The GitHub repo, Render service and database keep the name "lookout" so deploys and data are untouched.
 

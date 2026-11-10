@@ -61,3 +61,11 @@ describe("web page sources", () => {
     expect(() => diffPage(`<html><body><div id="root"></div><script>app()</script></body></html>`, base, {})).toThrow(/JavaScript/);
   });
 });
+
+import { RECOMMENDED_SOURCES } from "@/lib/recommended-sources";
+describe("recommended sources", () => {
+  it("are unique, HTTPS, and each says why it's there", () => {
+    expect(new Set(RECOMMENDED_SOURCES.map((s) => s.url)).size).toBe(RECOMMENDED_SOURCES.length);
+    for (const s of RECOMMENDED_SOURCES) { expect(s.url).toMatch(/^https:\/\//); expect(s.why.length).toBeGreaterThan(20); }
+  });
+});

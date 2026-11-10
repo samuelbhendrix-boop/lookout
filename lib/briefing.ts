@@ -57,7 +57,7 @@ export function whyItMatters(i: { kind: string | null; type: string; title: stri
 }
 
 /** Stock-quote pages and analyst rating notes get classified as pricing or financial news; they aren't competitive moves. */
-export const MARKET_NOISE = /stock price|share price|price target|buy rating|sell rating|hold rating|outperform|underperform|\b(nyse|nasdaq)\b|stock quote|quote & history|\(\w{2,5}\.us\)|shares (rise|fall|jump|slip|drop)|moomoo|marketbeat|seeking alpha/i;
+export const MARKET_NOISE = /stock price|share price|price target|buy rating|sell rating|hold rating|outperform|underperform|\b(nyse|nasdaq)\b|stock quote|quote & history|\(\w{2,5}\.us\)|shares (rise|fall|jump|slip|drop)|moomoo|marketbeat|seeking alpha|\bstocks?\b|ad-hoc-news|barron's|simply wall st|tradingview|investing\.com|yahoo finance|zacks|motley fool|fair value|earnings call transcript|call is live|stock (may|could|is)\b|(stock|shares) (tumbles|soars|climbs|sinks|plunges)/i;
 
 const KINDS = ["account-won", "account-lost", "rate-filing", "rate-change", "network-add", "network-drop"];
 
@@ -123,7 +123,7 @@ export async function briefing(workspaceId: string, days = 7) {
   const lastSeen = await db.signal.groupBy({ by: ["competitorId"], where: { workspaceId, competitorId: { in: competitors.map((c) => c.id) } }, _max: { createdAt: true } });
   const quiet = competitors.filter((c) => !byCompetitor.some((x) => x.id === c.id))
     .map((c) => ({ id: c.id, name: c.name, tier: c.tier, last: lastSeen.find((l) => l.competitorId === c.id)?._max.createdAt ?? null }));
-  return { since, days, total: items.length, major: items.filter((i) => i.importance >= 4).length, dataDetected: items.filter((i) => i.kind).length, noise, top, byCompetitor, quiet };
+  return { since, days, items, total: items.length, major: items.filter((i) => i.importance >= 4).length, dataDetected: items.filter((i) => i.kind).length, noise, top, byCompetitor, quiet };
 }
 
 

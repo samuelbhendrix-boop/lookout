@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { SourceForm } from "@/components/forms";
 import { ActionButton } from "@/components/ActionButton";
 import { Empty, timeAgo } from "@/components/ui";
+import { RECOMMENDED_SOURCES } from "@/lib/recommended-sources";
 
 export default async function SourcesPage() {
   const session = (await getSession())!;
@@ -27,6 +28,24 @@ export default async function SourcesPage() {
         </p>
       </div>
       {canEdit && <SourceForm competitors={competitors} />}
+      {canEdit && (() => {
+        const have = new Set(sources.map((s) => s.url));
+        const missing = RECOMMENDED_SOURCES.filter((r) => !have.has(r.url));
+        if (!missing.length) return null;
+        return (
+          <details className="card px-4 py-3 text-sm" open={sources.length < 5}>
+            <summary className="cursor-pointer font-medium">Recommended sources you don&apos;t have · {missing.length}</summary>
+            <ul className="mt-2 divide-y divide-stone-100">
+              {missing.map((r) => (
+                <li key={r.url} className="flex items-baseline justify-between gap-3 py-2">
+                  <span className="min-w-0"><span className="font-medium">{r.name}</span> <span className="text-xs text-stone-400">{r.group} · {r.kind === "WEBPAGE" ? "web page" : r.url.includes("news.google") ? "via Google News" : "feed"}</span><span className="block text-xs text-stone-500">{r.why}</span></span>
+                  <ActionButton method="POST" path="/sources" body={{ name: r.name, kind: r.kind, url: r.url, pollMinutes: r.kind === "WEBPAGE" ? 360 : 60 }} doneText="Added" className="btn-ghost shrink-0">Add</ActionButton>
+                </li>
+              ))}
+            </ul>
+          </details>
+        );
+      })()}
       {canEdit && sources.some((s) => s.enabled && s.lastError) && (
         <div className="card flex flex-wrap items-center justify-between gap-3 border-red-200 bg-red-50 px-4 py-3 text-sm">
           <span>

@@ -31,7 +31,8 @@ const GROUPS = [
     ],
   },
 ];
-const ALL = GROUPS.flatMap((g) => g.links);
+const HOME = { href: "/home", label: "Home" };
+const ALL = [HOME, ...GROUPS.flatMap((g) => g.links)];
 
 /** The most specific link matching the current path (so /settings/account doesn't also light up /settings). */
 function activeHref(path: string) {
@@ -54,7 +55,7 @@ export function Nav({ workspaceId, workspace, workspaceIcon, workspaces, email, 
   }
   async function switchTo(id: string) {
     await api("POST", "/auth/switch", { workspaceId: id });
-    router.replace("/briefing");
+    router.replace("/home");
     router.refresh();
   }
   async function logout() {
@@ -65,16 +66,17 @@ export function Nav({ workspaceId, workspace, workspaceIcon, workspaces, email, 
   return (
     <aside className="border-b border-stone-200 bg-white md:sticky md:top-0 md:h-screen md:w-56 md:shrink-0 md:border-b-0 md:border-r">
       <div className="flex items-center gap-2 px-4 py-4">
-        <Link href="/briefing" className="-ml-0.5"><Brand /></Link>
+        <Link href="/home" className="-ml-0.5" aria-label="Home"><Brand /></Link>
       </div>
       <div className="hidden space-y-1 px-2 pb-3 md:block">
         <Link href="/settings" title="Workspace settings" className={`flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-stone-100 ${current === "/settings" ? "bg-stone-100" : ""}`}>
           <Avatar icon={workspaceIcon} name={workspace} size={22} square />
           <span className="truncate text-sm font-medium">{workspace}</span>
         </Link>
-        <Link href="/settings/account" title="Your account" className={`flex items-center gap-2 rounded-md px-2 py-1 hover:bg-stone-100 ${current === "/settings/account" ? "bg-stone-100" : ""}`}>
-          <Avatar icon={userIcon} name={userName ?? email} size={18} />
-          <span className="truncate text-xs text-stone-500">{email} · {role.toLowerCase()}</span>
+        <Link href="/settings/account" title={`Your account · ${email}`} className={`flex items-center gap-2 rounded-md px-2 py-1 hover:bg-stone-100 ${current === "/settings/account" ? "bg-stone-100" : ""}`}>
+          <Avatar icon={userIcon} name={userName || email} size={20} />
+          <span className="truncate text-sm text-stone-600">{userName || email.split("@")[0]}</span>
+          <span className="ml-auto shrink-0 font-mono text-[10px] text-stone-400">{role.toLowerCase()}</span>
         </Link>
         {workspaces.length > 1 && (
           <select
@@ -94,6 +96,7 @@ export function Nav({ workspaceId, workspace, workspaceIcon, workspaces, email, 
         ))}
       </nav>
       <nav className="hidden max-h-[calc(100vh-11rem)] flex-col gap-3 overflow-y-auto px-2 pb-14 md:flex">
+        <Link href={HOME.href} className={`rounded-md px-3 py-1.5 text-sm font-medium ${current === HOME.href ? "bg-stone-900 text-white" : "text-stone-700 hover:bg-stone-100"}`}>Home</Link>
         {GROUPS.map((g) => {
           const holdsCurrent = g.links.some((l) => l.href === current);
           const open = holdsCurrent || !closed.includes(g.id);

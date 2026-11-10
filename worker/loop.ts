@@ -13,6 +13,7 @@ import { killImports, runImport } from "../lib/marketdata/run";
 import type { Dataset } from "../lib/marketdata/datasets";
 import { syncEventsToWorkspaces } from "../lib/marketdata/events";
 import { ensureDerivedData } from "../lib/marketdata/history";
+import { ensureRecommendedSources } from "../lib/recommended-sources";
 
 let lastEventSync = 0;
 let lastHistoryCheck = 0;
@@ -39,6 +40,7 @@ async function schedule() {
   if (Date.now() - lastHistoryCheck > 5 * 60_000) {
     lastHistoryCheck = Date.now();
     for (const r of await ensureDerivedData()) log(r);
+    for (const r of await ensureRecommendedSources()) log(r);
   }
   // Hourly: turn detected market events into signals for every workspace tracking that carrier.
   if (Date.now() - lastEventSync > 3600e3) {
