@@ -36,16 +36,14 @@ export function SerffUpload() {
     finally { setBusy(false); if (dir.current) dir.current.value = ""; if (loose.current) loose.current.value = ""; }
   };
   return (
-    <div className="card space-y-2 p-4 text-sm">
-      <div className="font-medium">Add filings</div>
-      <p className="text-xs text-stone-500">Download a filing from SERFF Filing Access (the filing PDF plus its &quot;Supporting Document Attachments&quot;), then pick its folder, or a folder holding several filing folders. Maps, formulary tools and attestations are skipped; the rest is read and summarised.</p>
-      <div className="flex flex-wrap gap-2">
-        <button disabled={busy} onClick={() => dir.current?.click()} className="rounded bg-stone-900 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50">Choose folder…</button>
-        <button disabled={busy} onClick={() => loose.current?.click()} className="rounded bg-stone-100 px-3 py-1.5 text-xs hover:bg-stone-200 disabled:opacity-50">Choose files…</button>
+    <div className="max-w-sm space-y-1.5 text-right">
+      <div className="flex justify-end gap-1.5">
+        <button disabled={busy} onClick={() => dir.current?.click()} className="rounded bg-stone-900 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50" title="Pick a filing folder downloaded from SERFF Filing Access (the filing PDF plus its Supporting Document Attachments), or a folder of several filing folders">{busy ? "Reading…" : "Add filings"}</button>
+        <button disabled={busy} onClick={() => loose.current?.click()} className="rounded bg-stone-100 px-2.5 py-1.5 text-xs text-stone-700 hover:bg-stone-200 disabled:opacity-50" title="Pick individual files instead of a folder">Files…</button>
         <input ref={dir} type="file" multiple hidden onChange={(e) => send(e.target.files)} {...({ webkitdirectory: "", directory: "" } as Record<string, string>)} />
         <input ref={loose} type="file" multiple hidden accept=".pdf,.xlsx,.xlsm,.xls,.csv" onChange={(e) => send(e.target.files)} />
       </div>
-      {msg && <pre className="whitespace-pre-wrap rounded bg-stone-50 p-2 text-xs text-stone-700">{msg}</pre>}
+      {msg && <pre className="whitespace-pre-wrap rounded bg-stone-50 p-2 text-left text-[11px] text-stone-700">{msg}</pre>}
     </div>
   );
 }
