@@ -127,3 +127,33 @@ describe("MRF extract service list", () => {
     expect(s.find((x) => x.code === "470")?.type).toBe("MS-DRG");
   });
 });
+
+import { productScore } from "@/lib/productnews";
+describe("competitor product news filter", () => {
+  const yes = [
+    "Fallon Health to discontinue offering commercial products - Mass.gov",
+    "Molina Healthcare plans more marketplace exits as ACA segment falters - Fierce Healthcare",
+    "Blue Cross Blue Shield of Massachusetts Announces Innovative, Affordable New Products for 2022",
+    "Cleveland Clinic, Aetna to Offer New Plans Designed to Reduce Employers’ Health Care Costs",
+    "Blue Cross Blue Shield of Massachusetts Launches Portfolio of Digital Health Solutions for members",
+  ];
+  const no = [
+    "UnitedHealth, Aetna, Humana roll out 2027 Medicare Advantage plans - Modern Healthcare",
+    "Neighborhood Health Plan Launches New Medicare-Medicaid Plan Services to Help RI's Most Vulnerable",
+    "Humana (HUM) Stock May Trade At A Discount On Earnings - Simply Wall St",
+    "Cigna names new chief financial officer",
+    "New Hampshire Motor Speedway Launches First NFT Collection",
+    "'Ohana Health Plan, the Centene Foundation, and Hawai'i Island Community Health Center Unveil New Mobile Clinic",
+  ];
+  it("keeps commercial product changes", () => { for (const t of yes) expect(productScore(t), t).not.toBeNull(); });
+  it("drops Medicare, Medicaid, stock, executive and off-topic stories", () => { for (const t of no) expect(productScore(t), t).toBeNull(); });
+  it("ranks exits above routine launches", () => {
+    expect(productScore(yes[0])!.theme).toBe("Exits & withdrawals");
+    expect(productScore(yes[0])!.score).toBeGreaterThan(productScore(yes[3])!.score);
+  });
+});
+describe("product news themes", () => {
+  it("files a hospital leaving a network under network, not exits", () => {
+    expect(productScore("Maine Medical Center vows to exit Anthem insurance network because of billing disputes")?.theme).toBe("Network products");
+  });
+});

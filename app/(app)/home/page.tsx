@@ -1,13 +1,11 @@
 import Link from "next/link";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { AUTO_FILTER_TAG } from "@/lib/relevance";
-import { MARKET_NOISE } from "@/lib/briefing";
 import { accountMoves, competitorsOf, rankCompetitors, exchangeTrend, filedRateChanges, networkPosition, premiumTrend } from "@/lib/homecharts";
 import { accountsInPlay } from "@/lib/marketdata/inplay";
 import { NE_STATES } from "@/lib/marketdata/products";
+import { ProductNews } from "@/components/ProductNews";
 import { colorMap, HBars, hasColor, Legend, LineChart } from "@/components/viz";
-import { timeAgo } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Home" };
@@ -44,18 +42,13 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
   const ranked = await rankCompetitors(session.workspaceId);
   const color = colorMap(ranked);
   void comps;
-  const [prem, filed, exch, sales, net, play, productNews, changes30] = await Promise.all([
+  const [prem, filed, exch, sales, net, play, changes30] = await Promise.all([
     premiumTrend(match, state, seg),
     filedRateChanges(match, state),
     exchangeTrend(match, state),
     accountMoves(match),
     networkPosition(match),
     accountsInPlay(session.workspaceId, { days: 90, state }),
-    db.signal.findMany({
-      where: { workspaceId: session.workspaceId, duplicateOfId: null, status: { not: "ARCHIVED" }, competitorId: { not: null }, type: { in: ["PRODUCT", "PRICING", "NETWORK"] },
-        tags: { none: { tag: { name: { in: ["market-data", AUTO_FILTER_TAG] } } } }, OR: [{ publishedAt: { gte: new Date(Date.now() - 60 * 864e5) } }, { publishedAt: null, createdAt: { gte: new Date(Date.now() - 60 * 864e5) } }] },
-      orderBy: [{ importance: "desc" }, { publishedAt: { sort: "desc", nulls: "last" } }], take: 60, include: { competitor: { select: { name: true } } },
-    }).then((xs) => xs.filter((s) => !MARKET_NOISE.test(s.title)).slice(0, 6)),
     db.marketEvent.count({ where: { createdAt: { gte: new Date(Date.now() - 30 * 864e5) }, importance: { gte: 3 } } }),
   ]);
   const qs = (o: Record<string, string>) => `/home?${new URLSearchParams({ state, seg, ...o })}`;
@@ -161,19 +154,8 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
         </Card>
       </div>
 
-      <h2 className="font-mono text-xs uppercase tracking-wide text-stone-500">Product, pricing and network news · competitors</h2>
-      <Card title="Latest from your competitors" sub="Product launches, pricing and network news from the last 60 days. Everything else is in Updates." href="/updates?cat=product" cta="All product news">
-        {productNews.length ? (
-          <ul className="divide-y divide-stone-100">
-            {productNews.map((s) => (
-              <li key={s.id} className="py-2">
-                <p className="text-[11px] text-stone-500">{s.type.toLowerCase()} · {s.competitor?.name} · {timeAgo(s.publishedAt ?? s.createdAt)} ago</p>
-                <Link href={`/signals/${s.id}`} className="text-sm font-medium leading-snug hover:underline">{s.title}</Link>
-              </li>
-            ))}
-          </ul>
-        ) : <p className="text-xs text-stone-500">No product, pricing or network news in the last 60 days.</p>}
-      </Card>
+      <h2 className="font-mono text-xs uppercase tracking-wide text-stone-500">Product</h2>
+      <ProductNews workspaceId={session.workspaceId} limit={6} compact />
     </div>
   );
 }

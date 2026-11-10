@@ -9,6 +9,7 @@ import { NotIncluded } from "@/components/NotIncluded";
 import { PlanNetworkTable } from "@/components/PlanNetworkTable";
 import { LargeGroupMarket } from "@/components/LargeGroupProducts";
 import { GicPlans } from "@/components/GicPlans";
+import { ProductNews } from "@/components/ProductNews";
 import { largeGroupMarket } from "@/lib/marketdata/lgbook";
 import { Empty } from "@/components/ui";
 
@@ -51,6 +52,8 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
         {market !== "LG" && <><span className="mx-2 text-stone-300">|</span>
         {years.map((y) => <Link key={y} href={qs({ year: String(y) })} className={chip(year === y)}>{y}</Link>)}</>}
       </div>
+
+      <ProductNews workspaceId={session.workspaceId} limit={8} />
 
       {lg ? (
         lg.rows.length ? <>

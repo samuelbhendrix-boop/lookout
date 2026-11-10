@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.22.0 — 2026-11-09
+
+- **Competitor product moves** panel on Products and Home: only competitors' commercial product changes (new plans and products, exits and withdrawals, benefit and coverage changes, product networks, exchange moves). Medicare, Medicaid, earnings, stock, lawsuits and executive news are filtered out.
+- Stories are ranked by kind of change, commercial and New England relevance, number of outlets, competitor tier and recency, with near-duplicate headlines collapsed.
+- With `ANTHROPIC_API_KEY` set, a short "What matters most" synthesis (2–4 points, each linked to its stories) sits on top; cached 12 hours. Without the key the list is rule-ranked.
+- Home's news card is replaced by this panel.
+
 ## 0.21.2 — 2026-11-09
 - **Rates: network filter.** Pick exactly which carrier networks count (e.g. BCBSMA HMO Blue vs MGB Commercial HMO only); each carrier's cell is the median across its selected networks. The selection carries across services, states and the CSV export.
 
