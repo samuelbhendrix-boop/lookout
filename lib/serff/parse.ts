@@ -20,7 +20,7 @@ export const KEEP = (name: string) => {
   return true;
 };
 
-const pdfText = async (data: Buffer) => {
+export const pdfText = async (data: Buffer) => {
   const { extractText, getDocumentProxy } = await import("unpdf");
   const doc = await getDocumentProxy(new Uint8Array(data), { verbosity: 0 } as never);
   return String((await extractText(doc, { mergePages: true })).text);
@@ -30,7 +30,7 @@ const pdfText = async (data: Buffer) => {
 const LABELS = ["SERFF Tracking #", "State Tracking #", "Company Tracking #", "Filing Company", "TOI/Sub-TOI", "Sub-TOI", "TOI", "Product Name", "Project Name/Number", "Plan Binder Name", "Plan Year", "Market Type", "Binder Type", "Company Name", "Company", "State", "Group Market Size", "Group Market Type", "Filing Type", "Date Submitted", "SERFF Tr Num", "SERFF Status", "State Tr Num", "State Status", "Co Tr Num", "Disposition Date", "Disposition Status", "Effective Date", "Author\\(s\\)", "Reviewer\\(s\\)", "Authors", "Reviewers"];
 const esc = (l: string) => l.replace(/[#/]/g, (c) => `\\${c}`);
 const NEXT = `(?=\\s+(?:${LABELS.map(esc).join("|")})\\s*:|\\n|$)`;
-const field = (t: string, label: string) => {
+export const field = (t: string, label: string) => {
   const m = t.match(new RegExp(`(?:^|\\n|\\s)(?<!Filing |Issuer |Tracking |Co )${esc(label)}\\s*:[ \\t]*(.*?)${NEXT}`, "i"));
   const v = m?.[1]?.trim();
   return v ? v : null;
@@ -126,15 +126,21 @@ export async function ingestFiling(files: UploadedFile[], uploadedBy: string | n
 
   // Objection letters and responses go to the AI read alongside the main text.
   const extra = texts.filter((x) => x !== main && /objection|response|correspondence|unique plan design|justification/i.test(x.f.name)).map((x) => `\n\n=== ${x.f.name.split("/").pop()}\n${x.t.slice(0, 8000)}`).join("");
-  const ai = await claudeJson({
-    label: "serff filing", tool: "record_filing", schema: SCHEMA, maxTokens: 4000,
-    system: "You read U.S. state insurance filings (SERFF exports) for a competitive-intelligence team at a New England health insurer. Extract the fields; use null when the filing doesn't say. A filing is a new product when SERFF's rate section says 'New Product', the description says a new product/plan/network is introduced, or plan IDs are new rather than renewals.",
-    user: `MAIN FILING:\n${t.slice(0, 40000)}${extra.slice(0, 30000)}`,
-  });
-  const a = (ai?.data ?? {}) as { company?: string; productName?: string; market?: string; filingType?: string; planYear?: number; disposition?: string; newProduct?: boolean; rateChange?: number | null; summary?: string; plans?: unknown[]; networks?: string[]; objections?: string | null };
-
   const access = (await Promise.all(kept.filter((f) => /access analysis/i.test(f.name) && /\.xls/i.test(f.name)).map((f) => parseAccess(f.name, f.data).catch(() => [])))).flat();
   const crosswalk = (await Promise.all(kept.filter((f) => /xwalk|crosswalk/i.test(f.name) && /\.xls/i.test(f.name)).map((f) => parseCrosswalk(f.data).catch(() => [])))).flat();
+  // The crosswalk is the carrier's own statement of which plans renew, which are mapped into others and which are new,
+  // so the read is given it rather than left to guess from plan IDs.
+  const xw = crosswalk.length ? `\n\n=== PLAN ID CROSSWALK (last year's plan -> this year's plan, carrier's reason)\n${crosswalk.slice(0, 200).map((c) => `${c.fromPlan ?? "(none)"} -> ${c.toPlan ?? "(discontinued)"}: ${c.reason ?? ""}`).join("\n")}` : "";
+  const ai = await claudeJson({
+    label: "serff filing", tool: "record_filing", schema: SCHEMA, maxTokens: 6000, timeoutMs: 300_000,
+    model: process.env.MARKETING_MODEL ?? "claude-sonnet-5-5",
+    system: "You read U.S. state insurance filings (SERFF exports) for a competitive-intelligence team at a New England health insurer. Extract the fields; use null when the filing doesn't say, and never guess. Status: use the filing's own status (Disposition Status, or SERFF Status for plan binders); an 'Objection Letter Status' is the status of one letter, not of the filing. Plan binders have no rate change. New product: true only when the rate section says 'New Product', the description says a new product/plan/network is introduced, or a plan in this filing is not the target of any crosswalk row (a new plan ID with no predecessor). When a crosswalk is given, use it for what renews, what is mapped into another plan and what is new, and say so in the summary; do not describe plans as 'appearing to be' renewals.",
+    user: `MAIN FILING:\n${t.slice(0, 40000)}${xw}${extra.slice(0, 30000)}`,
+  });
+  const a = (ai?.data ?? {}) as { company?: string; productName?: string; market?: string; filingType?: string; planYear?: number; disposition?: string; newProduct?: boolean; rateChange?: number | null; summary?: string; plans?: Array<{ id?: string | null }>; networks?: string[]; objections?: string | null };
+  const targets = new Set(crosswalk.map((c) => c.toPlan).filter(Boolean));
+  const newPlanIds = crosswalk.length ? (a.plans ?? []).map((p) => p.id).filter((id): id is string => !!id && !targets.has(id)) : [];
+
   const st = (stateName ?? "").trim();
   const STATES: Record<string, string> = { massachusetts: "MA", connecticut: "CT", "rhode island": "RI", "new hampshire": "NH", maine: "ME", vermont: "VT" };
   const data = {
@@ -146,12 +152,12 @@ export async function ingestFiling(files: UploadedFile[], uploadedBy: string | n
     productName: a.productName ?? field(t, "Product Name") ?? field(t, "Plan Binder Name"),
     planYear: a.planYear ?? (Number(field(t, "Plan Year")) || null),
     submitted: date(field(t, "Date Submitted")),
-    disposition: a.disposition ?? field(t, "Disposition Status") ?? field(t, "SERFF Status"),
+    disposition: field(t, "Disposition Status") ?? field(t, "SERFF Status") ?? a.disposition ?? null,
     dispositionAt: date(field(t, "Disposition Date")),
-    newProduct: !!a.newProduct || /New Product/.test(t),
+    newProduct: !!a.newProduct || /New Product/.test(t) || newPlanIds.length > 0,
     rateChange: typeof a.rateChange === "number" ? a.rateChange : null,
     summary: a.summary ?? null,
-    detail: JSON.parse(JSON.stringify({ plans: a.plans ?? [], networks: a.networks ?? [...new Set(access.map((x) => x.network))], objections: a.objections ?? null, description: t.match(/Filing Description:\s*([\s\S]{20,4000}?)(?=\n(?:Company and Contact|Filing Contact Information|Filing Fees|Rate Information|SERFF Tracking #)|$)/)?.[1]?.split("\n").filter((l) => !/^(SERFF Tracking #|State:|TOI\/Sub-TOI|Product Name:|Project Name\/Number|PDF Pipeline|General Information)/.test(l.trim())).join("\n").trim() ?? null, aiModel: ai?.model ?? null })),
+    detail: JSON.parse(JSON.stringify({ plans: a.plans ?? [], networks: a.networks ?? [...new Set(access.map((x) => x.network))], objections: a.objections ?? null, newPlanIds, description: t.match(/Filing Description:\s*([\s\S]{20,4000}?)(?=\n(?:Company and Contact|Filing Contact Information|Filing Fees|Rate Information|SERFF Tracking #)|$)/)?.[1]?.split("\n").filter((l) => !/^(SERFF Tracking #|State:|TOI\/Sub-TOI|Product Name:|Project Name\/Number|PDF Pipeline|General Information)/.test(l.trim())).join("\n").trim() ?? null, aiModel: ai?.model ?? null })),
     files: JSON.parse(JSON.stringify(files.map((f) => ({ name: f.name.split("/").pop(), kept: KEEP(f.name), bytes: f.data.length })))),
     uploadedBy,
   };
