@@ -54,9 +54,16 @@ export async function maybeRefreshAiNews(log: (m: string) => void = () => {}, fo
   if (added || judged) log(`[ai watch] ${added} new stories, ${judged} judged`);
 }
 
-type J = { n: number; relevant: boolean; category: string; impact: number; why: string; companies: string[]; story?: string };
+type J = { n: number; aboutAI?: boolean; relevant: boolean; category: string; impact: number; why: string; companies: string[]; story?: string };
+const JUDGE_VERSION = "2";
 async function judgeAiNews(): Promise<number> {
-  const todo = await db.aiNews.findMany({ where: { judged: false }, orderBy: { publishedAt: "desc" }, take: 240 });
+  const v = await db.rateFile.findUnique({ where: { id: "cache:ai-judge" } });
+  if ((v?.stats as { version?: string } | null)?.version !== JUDGE_VERSION) {
+    await db.aiNews.updateMany({ data: { judged: false } });
+    const data = { carrier: "_cache", carrierName: "_cache", network: "ai-judge", url: "", status: "cache", stats: { version: JUDGE_VERSION }, processedAt: new Date() };
+    await db.rateFile.upsert({ where: { id: "cache:ai-judge" }, create: { id: "cache:ai-judge", ...data }, update: data });
+  }
+  const todo = await db.aiNews.findMany({ where: { judged: false }, orderBy: { publishedAt: "desc" }, take: 600 });
   let done = 0;
   const recent = async () => [...new Set((await db.aiNews.findMany({ where: { relevant: true, story: { not: null }, createdAt: { gte: new Date(Date.now() - 10 * 864e5) } }, select: { story: true }, orderBy: { createdAt: "desc" }, take: 150 })).map((x) => x.story!))];
   for (let i = 0; i < todo.length; i += 30) {
@@ -64,14 +71,14 @@ async function judgeAiNews(): Promise<number> {
     const batch = todo.slice(i, i + 30);
     const r = await claudeJson({
       label: "ai watch", tool: "record_judgements", maxTokens: 6000,
-      schema: { type: "object", required: ["items"], properties: { items: { type: "array", items: { type: "object", required: ["n", "relevant", "category", "impact", "why", "companies", "story"], properties: {
-        n: { type: "integer" }, relevant: { type: "boolean" }, category: { type: "string", enum: [...AI_CATEGORIES] },
+      schema: { type: "object", required: ["items"], properties: { items: { type: "array", items: { type: "object", required: ["n", "aboutAI", "relevant", "category", "impact", "why", "companies", "story"], properties: {
+        n: { type: "integer" }, aboutAI: { type: "boolean", description: "the story is substantially about AI, machine learning, algorithms or automation (not just a company that also uses AI)" }, relevant: { type: "boolean" }, category: { type: "string", enum: [...AI_CATEGORIES] },
         impact: { type: "integer", enum: [1, 2, 3], description: "3 = changes a US health insurer's costs, operations, compliance or competition now or soon; 2 = notable development to know; 1 = background" },
         why: { type: "string", description: "why a health insurer should care, under 20 words, specific; empty if not relevant" },
         story: { type: "string", description: "3-7 word label for the underlying event, worded the same way for every headline about that event (e.g. 'Google launches Gemini for Healthcare')" },
         companies: { type: "array", items: { type: "string" }, description: "insurers, providers, vendors or labs named" },
       } } } } },
-      system: "You screen news for a US regional health insurer's strategy team tracking the AI industry. A story is relevant when it is about AI (machine learning, generative AI, agents, algorithms) AND it bears on health insurance: insurers' or PBMs' use of AI; AI in prior authorization, utilization management, claims, coding, payment integrity, or appeals (and lawsuits or rules about it); regulation of AI in insurance or healthcare; provider or vendor AI that shifts costs, coding intensity or denials between providers and payers; AI products from frontier labs or big tech aimed at healthcare or insurers; funding, M&A and partnerships of AI companies selling to payers. Not relevant: AI with no health or insurance angle, stock tips, general hype, opinion pieces with no news, life/auto/P&C insurance only, duplicates of the same wire story. Judge from the headline and snippet; don't invent details.",
+      system: "You screen news for a US regional health insurer's strategy team tracking the AI industry. A story is relevant only when it is about AI (machine learning, generative AI, agents, algorithms) AND it bears on health insurance: insurers' or PBMs' use of AI; AI in prior authorization, utilization management, claims, coding, payment integrity, or appeals (and lawsuits or rules about it); regulation of AI in insurance or healthcare; provider or vendor AI that shifts costs, coding intensity or denials between providers and payers; AI products from frontier labs or big tech aimed at healthcare or insurers; funding, M&A and partnerships of AI companies selling to payers. Not relevant: insurer or healthcare business news where AI is not the subject (mergers, earnings, break-ups, pilots of non-AI policy), AI with no health or insurance angle, stock tips, general hype, opinion pieces with no news, life/auto/P&C insurance only, duplicates of the same wire story. Judge from the headline and snippet; don't invent details.",
       user: (known.length ? `Story labels already in use (reuse one exactly when a headline is about the same event):\n${known.map((x) => `- ${x}`).join("\n")}\n\nHeadlines:\n` : "") + batch.map((n, k) => `${k + 1}. ${n.title}${n.outlet ? ` (${n.outlet})` : ""}${n.summary ? ` — ${n.summary.slice(0, 300)}` : ""}`).join("\n"),
     });
     if (!r) break;
@@ -79,6 +86,9 @@ async function judgeAiNews(): Promise<number> {
     for (const g of got) {
       const n = batch[g.n - 1];
       if (!n) continue;
+      // The model doesn't always keep to the enum (case, wording) or to "about AI"; enforce both here.
+      g.category = AI_CATEGORIES.find((c) => c.toLowerCase() === String(g.category ?? "").toLowerCase()) ?? AI_CATEGORIES.find((c) => c.split(" ")[0].toLowerCase() === String(g.category ?? "").split(" ")[0].toLowerCase()) ?? "Vendors & deals";
+      g.relevant = !!g.relevant && g.aboutAI !== false;
       await db.aiNews.update({ where: { id: n.id }, data: { judged: true, relevant: !!g.relevant, category: g.relevant ? g.category : null, impact: g.relevant ? Math.min(3, Math.max(1, g.impact)) : null, why: g.relevant ? g.why || null : null, story: g.story?.trim() || null, companies: (g.companies ?? []).slice(0, 8) } });
       done++;
     }
