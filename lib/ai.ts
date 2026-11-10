@@ -41,6 +41,7 @@ export async function claudeText(opts: { system: string; user: string; maxTokens
  * always well-formed JSON (no stray quotes or prose). Returns the tool input, or null on failure.
  */
 const thinkingOff = new Map<string, Record<string, unknown>>();
+const noForce = new Set<string>(); // models that refuse a forced tool_choice
 export async function claudeJson(opts: { system: string; user: string; schema: Record<string, unknown>; tool: string; maxTokens?: number; label: string; model?: string; timeoutMs?: number }): Promise<{ data: unknown; model: string } | null> {
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) return null;
@@ -53,17 +54,18 @@ export async function claudeJson(opts: { system: string; user: string; schema: R
     method: "POST", signal: AbortSignal.timeout(opts.timeoutMs ?? 120_000),
     headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
     body: JSON.stringify({
-      model, max_tokens: opts.maxTokens ?? 4000, system: opts.system, messages: [{ role: "user", content: opts.user }],
+      model, max_tokens: opts.maxTokens ?? 4000, system: forced ? opts.system : `${opts.system}\n\nAnswer only by calling the ${opts.tool} tool.`, messages: [{ role: "user", content: opts.user }],
       tools: [{ name: opts.tool, description: "Record the result.", input_schema: opts.schema }],
       ...(forced ? { tool_choice: { type: "tool", name: opts.tool }, thinking: off } : { tool_choice: { type: "auto" } }),
     }),
   });
   try {
-    let res = await call();
+    let res = await call(!noForce.has(model));
     let raw = await res.text();
     const named = res.status === 400 ? /send \\?"thinking\\?":\s*\{\s*\\?"type\\?":\s*\\?"([a-z_]+)\\?"/.exec(raw)?.[1] : undefined;
     if (named && named !== off.type) { off = { type: named }; thinkingOff.set(model, off); res = await call(); raw = await res.text(); }
-    if (res.status === 400 && /thinking|tool_choice/i.test(raw)) { console.error(`[ai] ${opts.label}: ${raw.slice(0, 200)}; retrying without forcing the tool`); res = await call(false); raw = await res.text(); }
+    if (res.status === 400 && /thinking|tool_choice/i.test(raw)) {
+      if (/tool_choice/i.test(raw)) noForce.add(model); console.error(`[ai] ${opts.label}: ${raw.slice(0, 200)}; retrying without forcing the tool`); res = await call(false); raw = await res.text(); }
     if (opts.model && (res.status === 404 || (res.status === 400 && /model/i.test(raw)))) { console.error(`[ai] ${opts.label}: ${model} refused (HTTP ${res.status} ${raw.slice(0, 300)}); falling back`); model = process.env.CLASSIFIER_MODEL ?? "claude-haiku-5-5"; res = await call(); raw = await res.text(); }
     if (!res.ok) { console.error(`[ai] ${opts.label}: HTTP ${res.status} ${raw.slice(0, 300)}`); return null; }
     const body = JSON.parse(raw) as { content?: Array<{ type?: string; input?: unknown }>; stop_reason?: string };
