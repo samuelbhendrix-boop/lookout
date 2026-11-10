@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.24.0 — 2026-11-09
+
+- **Networks & Pricing** is its own sidebar section: Leverage (the summary), Prices, Networks.
+- **Rates and Rate explorer merged into Prices**, with two views: *Compare hospitals* (the benchmark services, hospital by hospital vs Medicare) and *Explore a code* (any of the 2,567 extracted services, every carrier's spread). The state carries between views, and a selected benchmark service links to its full spread. Old URLs still work.
+
 ## 0.23.1 — 2026-11-09
 
 - **Competitors: "Where they compete".** One row per competitor, one column per state: for each segment (individual, small group, large group) its share of that state-segment market (bar), fully insured members and loss ratio, plus whether it sells on the state's exchange. A New England total column shows members, share, year-over-year change and overall loss ratio. Segment chips narrow the grid to one segment and re-rank by it.

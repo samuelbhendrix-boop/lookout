@@ -14,9 +14,12 @@ const GROUPS = [
       { href: "/competitors", label: "Competitors" },
       { href: "/products", label: "Products" },
       { href: "/market", label: "Market" },
-      { href: "/rates", label: "Rates" },
-      { href: "/rates/explore", label: "Rate explorer" },
+    ],
+  },
+  {
+    id: "pricing", label: "Networks & Pricing", links: [
       { href: "/leverage", label: "Leverage" },
+      { href: "/rates", label: "Prices" },
       { href: "/networks", label: "Networks" },
     ],
   },

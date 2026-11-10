@@ -4,9 +4,10 @@ import { extractInfo, services } from "@/lib/marketdata/mrfx";
 import { NE_STATES } from "@/lib/marketdata/products";
 import { NotIncluded } from "@/components/NotIncluded";
 import { Empty } from "@/components/ui";
+import { PricingTabs } from "@/components/PricingTabs";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Rate explorer" };
+export const metadata = { title: "Prices · explore a code" };
 
 const SETTINGS = {
   pro: { label: "Physician services", codeType: "CPT", billingClass: "professional", note: "What the carrier pays physician groups and other professionals (CPT/HCPCS, no modifier)." },
@@ -51,9 +52,8 @@ export default async function RateExplorer({ searchParams }: { searchParams: Pro
 
   return (
     <div className="space-y-6">
+      <PricingTabs view="explore" state={state} />
       <div>
-        <Link href="/rates" className="text-sm text-stone-500 hover:text-stone-900">← Rates</Link>
-        <h1 className="h1 mt-2">Rate explorer</h1>
         <p className="max-w-3xl text-sm text-stone-500">
           What each carrier pays New England providers for {services().length.toLocaleString()} services (the top physician services by Medicare spend and
           every DRG), from every carrier rate file we can reach, extracted monthly.{" "}

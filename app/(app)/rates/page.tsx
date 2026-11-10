@@ -6,6 +6,7 @@ import { MEDICARE_SOURCES } from "@/lib/marketdata/mrf/medicare";
 import { db } from "@/lib/db";
 import { fmtInt, fmtUsd } from "@/components/charts";
 import { Empty } from "@/components/ui";
+import { PricingTabs } from "@/components/PricingTabs";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +25,7 @@ export default async function RatesPage({ searchParams }: { searchParams: Promis
   if (!files.some((f) => f.status === "ok")) {
     return (
       <div className="space-y-5">
-        <h1 className="h1">Negotiated rates</h1>
+        <PricingTabs view="compare" />
         <DataAsOf datasets={["rates"]} />
         <Empty title="Rate files are loading">Regional carriers&apos; rate files are reduced in the background after deploy (Settings → Market data).</Empty>
       </div>
@@ -50,16 +51,15 @@ export default async function RatesPage({ searchParams }: { searchParams: Promis
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="h1">Negotiated rates</h1>
-        <DataAsOf datasets={["rates"]} />
-          <p className="max-w-3xl text-sm text-stone-500">
-            What each carrier actually pays each hospital and provider group, from their federally required rate files.{" "}
-            <span className="text-stone-700">{gb(c.compressed)} downloaded → {gb(c.scanned)} scanned in {Math.round(c.seconds)}s → {fmtInt(c.kept)} provider rates kept.</span>
-          </p>
-        </div>
+      <PricingTabs view="compare" state={state}>
         <a className="btn-ghost" href={`/api/v1/rates?code=${encodeURIComponent(selKey)}&class=${billingClass}&state=${state}&format=csv${netQs}`}>Export CSV</a>
+      </PricingTabs>
+      <div>
+        <DataAsOf datasets={["rates"]} />
+        <p className="max-w-3xl text-sm text-stone-500">
+          A benchmark set of services, hospital by hospital, carrier by carrier, against Medicare.{" "}
+          <span className="text-stone-700">{gb(c.compressed)} downloaded → {gb(c.scanned)} scanned in {Math.round(c.seconds)}s → {fmtInt(c.kept)} provider rates kept.</span>
+        </p>
       </div>
 
       {index.length > 0 && (
@@ -112,6 +112,7 @@ export default async function RatesPage({ searchParams }: { searchParams: Promis
           <div>
             <h2 className="text-lg font-semibold tracking-tight">{selected.label}</h2>
             <p className="text-xs text-stone-500">
+              {selected.type === "CPT" || selected.type === "MS-DRG" ? <Link className="float-right ml-3 underline" href={`/rates/explore?state=${state === "all" ? "MA" : state}&s=${inpatient ? "ip" : billingClass === "institutional" ? "op" : "pro"}&q=${selected.code}&code=${selected.code}`}>Every carrier&apos;s spread for this code →</Link> : null}
               {selected.type} {selected.code}
               {inpatient ? " · per admission, median across severity levels 1–4" : ` · ${CLASS_LABEL[billingClass]} rate, no modifiers`}
             </p>
