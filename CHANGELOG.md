@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.23.1 — 2026-11-09
+
+- **Competitors: "Where they compete".** One row per competitor, one column per state: for each segment (individual, small group, large group) its share of that state-segment market (bar), fully insured members and loss ratio, plus whether it sells on the state's exchange. A New England total column shows members, share, year-over-year change and overall loss ratio. Segment chips narrow the grid to one segment and re-rank by it.
+
 ## 0.23.0 — 2026-11-09
 
 - **Product strategy dossier** on every competitor's products page: each individual and small-group product it files (on and off exchange), with members and year-over-year change, share, renewal rate change vs the market, price index vs the same-metal market median, PMPM, filed loss ratio, line-up changes (new / cut plans, metals), design (deductibles, HSA, tiered, out-of-network, service area) and networks.

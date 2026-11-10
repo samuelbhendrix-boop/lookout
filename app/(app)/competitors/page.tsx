@@ -7,9 +7,13 @@ import { Empty } from "@/components/ui";
 import { StarterPacks } from "@/components/StarterPacks";
 import { packsWithStatus } from "@/lib/starter-packs";
 import { untrackedCarriers } from "@/lib/briefing";
+import { Footprint } from "@/components/Footprint";
 
-export default async function CompetitorsPage() {
+export const dynamic = "force-dynamic";
+
+export default async function CompetitorsPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const session = (await getSession())!;
+  const sp = await searchParams;
   const since = new Date(Date.now() - 30 * 864e5);
   const [competitors, recent, untracked] = await Promise.all([
     db.competitor.findMany({
@@ -33,8 +37,9 @@ export default async function CompetitorsPage() {
     <div className="space-y-5">
       <div>
         <h1 className="h1">Competitors</h1>
-        <p className="text-sm text-stone-500">Aliases drive auto-attribution for general market sources. Be generous with them.</p>
+        <p className="text-sm text-stone-500">Where each competitor sells and how big it is, then the list you manage below. Aliases drive auto-attribution for general market sources; be generous with them.</p>
       </div>
+      {competitors.length > 0 && <Footprint workspaceId={session.workspaceId} seg={sp.seg} />}
       {hasRole(session.role, "ANALYST") && (
         <>
           <CompetitorForm />
