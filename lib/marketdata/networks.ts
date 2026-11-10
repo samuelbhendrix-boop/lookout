@@ -67,3 +67,42 @@ export async function networkMatrix(state: string) {
     singleCarrier: general.filter((h) => pricedBy(h) === 1).map((h) => ({ name: h.name, carrier: carrierNames.get(Object.keys(h.carriers)[0]) })),
   };
 }
+
+// ── Health systems and carrier network detail ──────────────────────────────────────────────────────────────
+import systemsData from "../../data/networks/health-systems.json";
+const SYSTEMS = (systemsData as { systems: Array<{ name: string; match: string }> }).systems.map((s) => ({ name: s.name, re: new RegExp(s.match, "i") }));
+export const SYSTEMS_AS_OF = (systemsData as { asOf: string }).asOf;
+/** The health system a hospital belongs to (by name), or null for independents. */
+export const systemOf = (hospitalName: string) => SYSTEMS.find((s) => s.re.test(hospitalName))?.name ?? null;
+
+type Matrix = Awaited<ReturnType<typeof networkMatrix>>;
+
+/** Health system × carrier: how many of each system's general hospitals each carrier prices. */
+export function systemCoverage(m: Matrix) {
+  const gen = m.hospitals.filter((h) => GENERAL.has(h.type));
+  const by = new Map<string, typeof gen>();
+  for (const h of gen) { const s = systemOf(h.name); if (s) (by.get(s) ?? by.set(s, []).get(s)!).push(h); }
+  return [...by.entries()].map(([name, hs]) => {
+    const matched = hs.filter((h) => h.matched);
+    return {
+      name, hospitals: hs.length, matched: matched.length, states: [...new Set(hs.map((h) => h.state))],
+      byCarrier: Object.fromEntries(m.carriers.map((c) => [c.carrier, matched.filter((h) => h.carriers[c.carrier]).length])),
+    };
+  }).sort((a, b) => b.hospitals - a.hospitals);
+}
+
+/** The networks each carrier publishes (and which were reduced), from the rate-file registry. */
+export async function carrierNetworks() {
+  const files = await db.rateFile.findMany({ where: { status: { in: ["ok", "duplicate", "skipped"] } }, select: { carrier: true, carrierName: true, network: true, status: true, reportingEntity: true, lastUpdated: true, stats: true } });
+  const out = new Map<string, { carrier: string; carrierName: string; networks: Array<{ name: string; providers: number | null; lastUpdated: string | null; duplicate: boolean }>; skipped: string[]; entity: string | null; lastUpdated: string | null }>();
+  for (const f of files) {
+    const e = out.get(f.carrier) ?? out.set(f.carrier, { carrier: f.carrier, carrierName: f.carrierName, networks: [], skipped: [], entity: null, lastUpdated: null }).get(f.carrier)!;
+    const st = (f.stats ?? {}) as { providers?: number; skipped?: Array<{ files: number; reason: string }> };
+    if (f.status === "skipped") { for (const s of st.skipped ?? []) e.skipped.push(`${s.files} file${s.files === 1 ? "" : "s"}: ${s.reason}`); continue; }
+    e.networks.push({ name: f.network, providers: st.providers ?? null, lastUpdated: f.lastUpdated, duplicate: f.status === "duplicate" });
+    e.entity ??= f.reportingEntity;
+    if (f.lastUpdated && (!e.lastUpdated || f.lastUpdated > e.lastUpdated)) e.lastUpdated = f.lastUpdated;
+  }
+  for (const e of out.values()) e.networks.sort((a, b) => (b.providers ?? 0) - (a.providers ?? 0));
+  return out;
+}

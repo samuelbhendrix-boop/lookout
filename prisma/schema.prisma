@@ -875,3 +875,12 @@ model ProductPage {
 
   @@index([site])
 }
+
+/// A company's site icon (for competitor logos), fetched from its own website.
+model SiteLogo {
+  domain      String   @id
+  contentType String
+  data        Bytes
+  source      String
+  fetchedAt   DateTime @default(now())
+}

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { CompanyLogo } from "@/components/CompanyLogo";
 import { DataAsOf } from "@/components/DataAsOf";
 import { notFound } from "next/navigation";
 import { getSession } from "@/lib/auth";
@@ -73,7 +74,7 @@ export default async function CompetitorProductsPage({ params, searchParams }: {
     <div className="space-y-8">
       <div>
         <Link href={`/competitors/${comp.id}${state ? `?state=${state}` : ""}`} className="text-sm text-stone-500 hover:text-stone-900">← {comp.name}</Link>
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight">{comp.name} · commercial products</h1>
+        <h1 className="mt-2 flex items-center gap-2.5 text-2xl font-semibold tracking-tight"><CompanyLogo id={comp.id} name={comp.name} size={32} />{comp.name} · commercial products</h1>
         <DataAsOf datasets={["qhp", "urrt", "dol_5500", "tic"]} />
         <p className="max-w-3xl text-sm text-stone-500">
           Every individual and small-group plan this carrier files, from CMS&apos;s Exchange plan files (benefit design, cost sharing, network, premiums by

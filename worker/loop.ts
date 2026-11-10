@@ -16,6 +16,7 @@ import { ensureDerivedData } from "../lib/marketdata/history";
 import { ensureRecommendedSources } from "../lib/recommended-sources";
 import { maybeDiscover } from "../lib/marketdata/discover";
 import { maybeRefreshMarketing } from "../lib/marketing/run";
+import { ensureLogos } from "../lib/logos";
 import { applyNewsScope } from "../lib/signals";
 let newsScopeApplied = false;
 
@@ -51,6 +52,7 @@ async function schedule() {
     try { const r = await maybeDiscover(); if (r) log(r); } catch (e) { log(`release check failed: ${(e as Error).message}`); }
     // Monthly: carriers' product marketing (crawl + AI read), in the background so polling isn't held up.
     void maybeRefreshMarketing(log).catch((e) => log(`marketing refresh failed: ${(e as Error).message}`));
+    void ensureLogos(log).catch((e) => log(`logo fetch failed: ${(e as Error).message}`));
   }
   // Hourly: turn detected market events into signals for every workspace tracking that carrier.
   if (Date.now() - lastEventSync > 3600e3) {

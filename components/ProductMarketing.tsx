@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { CompanyLogo } from "@/components/CompanyLogo";
 import { ARCHETYPES, marketingFor, type Marketing, type MarketedProduct } from "@/lib/marketing/extract";
 import { siteFor, SITES } from "@/lib/marketing/sites";
 import { db } from "@/lib/db";
@@ -108,7 +109,7 @@ export async function MarketingMatrix({ workspaceId }: { workspaceId: string }) 
             <tbody className="divide-y divide-stone-100">
               {rows.map((r) => (
                 <tr key={r.id} className={`align-top ${r.isUs ? "bg-stone-50" : ""}`}>
-                  <td className="max-w-[170px] px-3 py-2"><Link href={`/competitors/${r.id}/products#marketing`} className="font-medium hover:underline">{r.name}</Link>{r.isUs && <span className="ml-1.5 rounded bg-stone-900 px-1 text-[10px] font-medium text-white">Us</span>}</td>
+                  <td className="max-w-[190px] px-3 py-2"><CompanyLogo id={r.id} name={r.name} size={16} className="mr-1.5 align-middle" /><Link href={`/competitors/${r.id}/products#marketing`} className="font-medium hover:underline">{r.name}</Link>{r.isUs && <span className="ml-1.5 rounded bg-stone-900 px-1 text-[10px] font-medium text-white">Us</span>}</td>
                   {r.m ? ARCHETYPES.map((a) => {
                     const ps = has(r.m, a.key);
                     const gap = !r.isUs && mine && ps.length > 0 && has(mine, a.key).length === 0;

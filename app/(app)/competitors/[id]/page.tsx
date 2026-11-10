@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { CompanyLogo } from "@/components/CompanyLogo";
 import { ActionButton } from "@/components/ActionButton";
 import { NotIncluded } from "@/components/NotIncluded";
 import { notFound } from "next/navigation";
@@ -72,7 +73,7 @@ export default async function CompetitorProfilePage({
         <Link href="/competitors" className="text-sm text-stone-500 hover:text-stone-900">← Competitors</Link>
         <div className="mt-2 flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight">{comp.name}</h1>
+            <h1 className="flex items-center gap-2.5 text-2xl font-semibold tracking-tight"><CompanyLogo id={comp.id} name={comp.name} size={32} />{comp.name}</h1>
             <p className="text-sm text-stone-500">
               Tier {comp.tier}
               {comp.website && <> · <a className="underline" href={comp.website} target="_blank" rel="noopener noreferrer">website</a></>}

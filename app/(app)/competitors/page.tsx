@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { CompanyLogo } from "@/components/CompanyLogo";
 import { getSession, hasRole } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { CompetitorForm } from "@/components/forms";
@@ -72,7 +73,7 @@ export default async function CompetitorsPage({ searchParams }: { searchParams: 
               {competitors.map((c) => (
                 <tr key={c.id}>
                   <td className="px-4 py-2.5">
-                    <Link href={`/competitors/${c.id}`} className="font-medium hover:underline">{c.name}</Link>
+                    <CompanyLogo id={c.id} name={c.name} size={18} className="mr-2 align-middle" /><Link href={`/competitors/${c.id}`} className="font-medium hover:underline">{c.name}</Link>
                     {c.id === usId && <span className="ml-2 rounded bg-stone-900 px-1.5 py-0.5 text-[10px] font-medium text-white">Us</span>}
                     {c.website && <a href={c.website} target="_blank" rel="noopener noreferrer" className="ml-2 text-xs text-stone-400 hover:text-stone-700">↗</a>}
                   </td>

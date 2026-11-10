@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { CompanyLogo } from "@/components/CompanyLogo";
 import { footprint, SEGMENTS, type Cell, type Seg } from "@/lib/marketdata/footprint";
 import { NE_STATES } from "@/lib/marketdata/products";
 import { chartColors } from "@/lib/us";
@@ -79,6 +80,7 @@ export async function Footprint({ workspaceId, seg }: { workspaceId: string; seg
                 <tr key={r.id} className={`align-top ${isUs ? "bg-stone-50" : ""}`}>
                   <td className="max-w-[150px] px-2 py-2">
                     <span className="mr-1.5 inline-block h-2.5 w-2.5 rounded-sm align-middle" style={{ background: c === OTHER ? "#d6d3d1" : c }} />
+                    <CompanyLogo id={r.id} name={r.name} size={16} className="mr-1.5 align-middle" />
                     <Link href={`/competitors/${r.id}`} className="font-medium text-stone-900 hover:underline">{r.name}</Link>
                     {isUs && <span className="ml-1.5 rounded bg-stone-900 px-1 text-[10px] font-medium text-white">Us</span>}
                     <div className="pl-4 text-[10px] text-stone-400">T{r.tier} · {r.states} state{r.states === 1 ? "" : "s"}</div>

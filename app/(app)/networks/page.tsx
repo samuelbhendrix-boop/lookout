@@ -1,7 +1,13 @@
 import Link from "next/link";
 import { DataAsOf } from "@/components/DataAsOf";
-import { GENERAL, networkMatrix, DIRECTORY_DATE } from "@/lib/marketdata/networks";
-import { NetworkMap, type MapDot } from "@/components/NetworkMap";
+import { GENERAL, networkMatrix, DIRECTORY_DATE, systemOf, systemCoverage, carrierNetworks, SYSTEMS_AS_OF } from "@/lib/marketdata/networks";
+import { NetworkMapInteractive, type MapHospital } from "@/components/NetworkMapInteractive";
+import { neProjection, MAP_W, MAP_H } from "@/lib/marketdata/mapgeo";
+import { CompanyLogo } from "@/components/CompanyLogo";
+import { db } from "@/lib/db";
+import { issuerPatternFor } from "@/lib/marketdata/queries";
+import { marketingFor } from "@/lib/marketing/extract";
+import { siteFor } from "@/lib/marketing/sites";
 import { NotIncluded } from "@/components/NotIncluded";
 import { Empty } from "@/components/ui";
 import { ActionButton } from "@/components/ActionButton";
@@ -41,15 +47,32 @@ export default async function NetworksPage({ searchParams }: { searchParams: Pro
   const cmpA = m.carriers.find((c) => c.carrier === sp.a)?.carrier;
   const cmpB = m.carriers.find((c) => c.carrier === sp.b)?.carrier;
   const shown = m.hospitals.filter((h) => all || GENERAL.has(h.type));
-  const max = Math.max(1, ...shown.map((h) => Object.keys(h.carriers).length));
-  const dots: MapDot[] = shown.filter((h) => h.lat != null && h.lon != null).map((h) => {
-    const n = Object.keys(h.carriers).length;
-    const p = carrier ? h.carriers[carrier] : undefined;
-    const status: MapDot["status"] = !h.matched ? "unknown" : carrier ? (p?.inpatient ? "in" : p?.outpatient ? "outpatient" : "out") : "count";
-    const label = `${h.name} (${h.city}) — ${h.type}${h.approx ? " · location approximate" : ""}\n${!h.matched ? "No rate-file TIN matched: network status unknown" : carrier ? (p ? `In ${short(m.carriers.find((c) => c.carrier === carrier)!.carrierName)}'s files${p.inpatient ? "" : " (outpatient only)"}` : "Not priced in this carrier's files") : `Priced by ${n} carrier${n === 1 ? "" : "s"}`}`;
-    return { key: h.ccn, lat: h.lat!, lon: h.lon!, label, status, count: n, max };
+  const session = (await getSession())!;
+  const [comps, nets] = await Promise.all([
+    db.competitor.findMany({ where: { workspaceId: session.workspaceId }, select: { id: true, name: true, aliases: true, issuerPattern: true } }),
+    carrierNetworks(),
+  ]);
+  const compOf = (carrierName: string) => comps.find((c) => { try { return new RegExp(issuerPatternFor(c), "i").test(carrierName); } catch { return false; } }) ?? null;
+  const { project, outlines } = neProjection();
+  const mapHospitals: MapHospital[] = shown.filter((h) => h.lat != null && h.lon != null).flatMap((h) => {
+    const p = project(h.lon!, h.lat!);
+    if (!p) return [];
+    return [{ key: h.ccn, name: h.name, city: h.city, state: h.state, type: h.type, stars: h.stars, system: systemOf(h.name), x: p[0], y: p[1], matched: h.matched, approx: h.approx,
+      carriers: Object.fromEntries(Object.entries(h.carriers).map(([k, v]) => [k, v.inpatient ? 2 : 1])) as Record<string, 1 | 2> }];
   });
+  const mapCarriers = m.carriers.map((c) => { const comp = compOf(c.carrierName); return { id: c.carrier, name: c.carrierName, short: short(c.carrierName), logo: comp ? `/api/logo/${comp.id}` : null }; });
+  const systems = systemCoverage(m);
+  const gen = m.hospitals.filter((h) => h.matched && GENERAL.has(h.type));
+  // What each carrier markets about its networks (tiered, limited, health-system products), from the product-marketing read.
+  const marketedNets = new Map<string, Array<{ name: string; network: string; detail: string | null }>>();
+  for (const c of m.carriers) {
+    const comp = compOf(c.carrierName);
+    const site = comp ? siteFor(comp.name) : null;
+    const mk = site && !site.skip ? await marketingFor(site.key, { generate: false }) : null;
+    if (mk) marketedNets.set(c.carrier, mk.products.filter((p) => ["tiered", "limited", "system-anchored"].includes(p.network)).map((p) => ({ name: p.name, network: p.network, detail: p.networkDetail ?? null })));
+  }
   const href = (o: Record<string, string | undefined>) => `/networks?${new URLSearchParams(Object.entries({ state, carrier, types: all ? "all" : undefined, ...o }).filter(([, v]) => v) as [string, string][])}`;
+  const where = state === "all" ? "New England" : state;
 
   return (
     <div className="space-y-5">
@@ -67,31 +90,75 @@ export default async function NetworksPage({ searchParams }: { searchParams: Pro
         <Link href={href({ types: all ? undefined : "all" })} className={`rounded px-2 py-1 ${all ? "bg-stone-900 text-white" : "bg-stone-100 hover:bg-stone-200"}`}>Include psychiatric & VA</Link>
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="card overflow-hidden">
-          <NetworkMap state={state} dots={dots} />
-          <div className="flex flex-wrap gap-x-4 gap-y-1 border-t border-stone-100 px-4 py-2 text-[11px] text-stone-500">
-            {carrier ? (
-              <>
-                <span><span className="mr-1 inline-block h-2.5 w-2.5 rounded-full bg-emerald-700 align-middle" />In network (inpatient priced)</span>
-                <span><span className="mr-1 inline-block h-2.5 w-2.5 rounded-full bg-amber-600 align-middle" />Outpatient only</span>
-                <span><span className="mr-1 inline-block h-2.5 w-2.5 rounded-full bg-stone-300 align-middle" />Not priced</span>
-              </>
-            ) : <span>Dot size = number of carriers pricing the hospital. Pick a carrier to see its network.</span>}
-            <span><span className="mr-1 inline-block h-2.5 w-2.5 rounded-full border border-dashed border-stone-500 align-middle" />Unknown (no TIN match)</span>
-          </div>
-        </div>
-        <div className="card divide-y divide-stone-100 text-sm">
-          <p className="px-4 py-2 font-mono text-[10px] uppercase tracking-wide text-stone-500">Network breadth · {state === "all" ? "New England" : state}</p>
-          {m.carriers.map((c) => (
-            <Link key={c.carrier} href={href({ carrier: c.carrier === carrier ? undefined : c.carrier })} className={`block px-4 py-2 hover:bg-stone-50 ${c.carrier === carrier ? "bg-stone-100" : ""}`}>
-              <div className="flex justify-between"><span className="truncate">{short(c.carrierName)}{c.breadth < 0.5 && <span className="ml-1.5 rounded bg-amber-50 px-1 text-[10px] text-amber-800" title="Prices under half the state's general hospitals across all its reduced networks">narrow</span>}</span><span className="tabular-nums font-medium">{Math.round(c.breadth * 100)}%</span></div>
-              <div className="mt-1 h-1.5 rounded bg-stone-100"><div className="h-1.5 rounded bg-emerald-700" style={{ width: `${Math.round(c.breadth * 100)}%` }} /></div>
-              <p className="mt-0.5 text-[11px] text-stone-500">{c.hospitals} of {m.general} hospitals · {c.inpatient} with inpatient prices</p>
-            </Link>
-          ))}
-        </div>
+      <div className="card overflow-hidden">
+        <NetworkMapInteractive width={MAP_W} height={MAP_H} states={outlines} focus={state} hospitals={mapHospitals} carriers={mapCarriers} initial={{ carrier, a: cmpA, b: cmpB }} />
       </div>
+
+      {/* ── Carrier networks ── */}
+      <section className="space-y-2">
+        <h2 className="text-lg font-semibold tracking-tight">Carrier networks · {where}</h2>
+        <p className="max-w-3xl text-xs text-stone-500">Each carrier&apos;s hospital breadth here, how many health systems it has fully in network, hospitals only it prices, the networks it publishes rate files for (with provider counts as filed), and the network-based products it markets (tiered, limited, health-system).</p>
+        <div className="card overflow-x-auto">
+          <table className="w-full text-xs" data-static>
+            <thead className="border-b border-stone-200 text-left font-mono text-[10px] uppercase tracking-wide text-stone-500">
+              <tr><th className="px-3 py-2">Carrier</th><th className="px-3 py-2 text-right">Breadth</th><th className="px-3 py-2 text-right">Hospitals</th><th className="px-3 py-2 text-right">Systems all-in</th><th className="px-3 py-2">Only this carrier</th><th className="px-3 py-2">Published networks</th><th className="px-3 py-2">Marketed network products</th></tr>
+            </thead>
+            <tbody className="divide-y divide-stone-100">
+              {m.carriers.map((c) => {
+                const comp = compOf(c.carrierName);
+                const net = nets.get(c.carrier);
+                const fullSystems = systems.filter((sy) => sy.matched > 0 && c.carrier in sy.byCarrier && sy.byCarrier[c.carrier] === sy.matched).length;
+                const partial = systems.filter((sy) => sy.matched > 0 && sy.byCarrier[c.carrier] > 0 && sy.byCarrier[c.carrier] < sy.matched).length;
+                const only = gen.filter((h) => h.carriers[c.carrier] && Object.keys(h.carriers).length === 1);
+                const mk = marketedNets.get(c.carrier) ?? [];
+                return (
+                  <tr key={c.carrier} className="align-top">
+                    <td className="max-w-[200px] px-3 py-2">
+                      <div className="flex items-center gap-1.5">{comp ? <CompanyLogo id={comp.id} name={comp.name} size={16} /> : null}<Link href={href({ carrier: c.carrier })} className="font-medium hover:underline">{short(c.carrierName)}</Link></div>
+                      {net?.lastUpdated && <div className="pl-[22px] text-[10px] text-stone-400">files dated {net.lastUpdated}</div>}
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums"><span className="font-medium">{Math.round(c.breadth * 100)}%</span>{c.breadth < 0.5 && <div className="text-[10px] text-amber-700">narrow</div>}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{c.hospitals}<div className="text-[10px] text-stone-400">{c.inpatient} inpatient</div></td>
+                    <td className="px-3 py-2 text-right tabular-nums" title={`${partial} more systems partly in network`}>{fullSystems} of {systems.filter((sy) => sy.matched > 0).length}{partial ? <div className="text-[10px] text-stone-400">+{partial} partial</div> : null}</td>
+                    <td className="max-w-[200px] px-3 py-2 text-stone-600">{only.length ? only.slice(0, 4).map((h) => h.name.toLowerCase().replace(/\b\w/g, (x) => x.toUpperCase()).replace(/'S\b/g, "'s")).join(", ") + (only.length > 4 ? ` +${only.length - 4}` : "") : <span className="text-stone-300">—</span>}</td>
+                    <td className="max-w-[260px] px-3 py-2">{net ? net.networks.filter((n) => !n.duplicate).slice(0, 6).map((n) => <div key={n.name} className="leading-snug">{n.name}{n.providers ? <span className="text-stone-400"> · {n.providers.toLocaleString()} providers</span> : null}</div>) : <span className="text-stone-300">—</span>}{net && net.networks.length > 6 ? <div className="text-stone-400">+{net.networks.length - 6} more</div> : null}</td>
+                    <td className="max-w-[260px] px-3 py-2">{mk.length ? mk.slice(0, 4).map((p) => <div key={p.name} className="leading-snug" title={p.detail ?? undefined}><span className={`mr-1 rounded px-1 text-[10px] ${p.network === "limited" ? "bg-amber-50 text-amber-800" : p.network === "tiered" ? "bg-sky-50 text-sky-800" : "bg-violet-50 text-violet-800"}`}>{p.network === "system-anchored" ? "system" : p.network}</span>{p.name}</div>) : <span className="text-stone-300">—</span>}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {/* ── Health systems ── */}
+      {systems.length > 0 && (
+        <section className="space-y-2">
+          <h2 className="text-lg font-semibold tracking-tight">Health systems × carrier · {where}</h2>
+          <p className="max-w-3xl text-xs text-stone-500">How many of each health system&apos;s hospitals each carrier prices. A system a carrier has only partly in network is a likely tiering, limited-network or contract-dispute story. Systems by hospital ownership as of {SYSTEMS_AS_OF}.</p>
+          <div className="card overflow-x-auto">
+            <table className="w-full text-xs" data-static>
+              <thead className="border-b border-stone-200 text-left font-mono text-[10px] uppercase tracking-wide text-stone-500">
+                <tr><th className="px-3 py-2">System</th><th className="px-2 py-2 text-right">Hosp.</th>{m.carriers.map((c) => <th key={c.carrier} className="px-1.5 py-2 text-center normal-case tracking-normal" title={c.carrierName}><span className="inline-block max-w-[5.5rem] truncate">{short(c.carrierName)}</span></th>)}</tr>
+              </thead>
+              <tbody className="divide-y divide-stone-100">
+                {systems.map((sy) => (
+                  <tr key={sy.name}>
+                    <td className="px-3 py-1.5 font-medium">{sy.name}<span className="ml-1.5 text-[10px] font-normal text-stone-400">{sy.states.join(" ")}</span></td>
+                    <td className="px-2 py-1.5 text-right tabular-nums">{sy.hospitals}{sy.matched < sy.hospitals ? <span className="text-[10px] text-stone-400"> ({sy.hospitals - sy.matched}?)</span> : null}</td>
+                    {m.carriers.map((c) => {
+                      const n = sy.byCarrier[c.carrier] ?? 0;
+                      const full = sy.matched > 0 && n === sy.matched;
+                      return <td key={c.carrier} className={`px-1.5 py-1.5 text-center tabular-nums ${full ? "bg-emerald-50 font-medium text-emerald-800" : n > 0 ? "bg-amber-50 text-amber-800" : "text-stone-300"}`} title={`${short(c.carrierName)} prices ${n} of ${sy.matched} matched ${sy.name} hospitals`}>{sy.matched ? (n ? `${n}/${sy.matched}` : "—") : "?"}</td>;
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="text-[10px] text-stone-400">Green: every matched hospital in the system priced. Amber: some. ? = hospitals whose rate-file tax ID couldn&apos;t be matched.</p>
+        </section>
+      )}
 
       {/* ── Head to head ── */}
       <section className="space-y-2">
@@ -147,7 +214,7 @@ export default async function NetworksPage({ searchParams }: { searchParams: Pro
             <thead className="border-b border-stone-200 text-left font-mono text-[10px] uppercase tracking-wide text-stone-500">
               <tr>
                 <th className="px-3 py-2">Hospital</th>
-                {m.carriers.map((c) => <th key={c.carrier} className="px-1.5 py-2 text-center normal-case tracking-normal" title={c.carrierName}><span className="inline-block max-w-[5.5rem] truncate">{short(c.carrierName)}</span></th>)}
+                {m.carriers.map((c) => { const comp = compOf(c.carrierName); return <th key={c.carrier} className="px-1.5 py-2 text-center normal-case tracking-normal" title={c.carrierName}>{comp ? <CompanyLogo id={comp.id} name={comp.name} size={14} className="mx-auto mb-0.5 block" /> : null}<span className="inline-block max-w-[5.5rem] truncate">{short(c.carrierName)}</span></th>; })}
                 <th className="px-3 py-2 text-right">Carriers</th>
               </tr>
             </thead>
@@ -158,7 +225,7 @@ export default async function NetworksPage({ searchParams }: { searchParams: Pro
                   <tr key={h.ccn} className={h.matched ? "" : "text-stone-400"}>
                     <td className="px-3 py-1.5">
                       <span className="font-medium">{h.name}</span>
-                      <span className="ml-2 text-[10px] text-stone-400">{h.city}, {h.state} · {h.type.replace(" Hospitals", "")}{h.stars ? ` · ${h.stars}★` : ""}</span>
+                      <span className="ml-2 text-[10px] text-stone-400">{h.city}, {h.state} · {h.type.replace(" Hospitals", "")}{h.stars ? ` · ${h.stars}★` : ""}{systemOf(h.name) ? ` · ${systemOf(h.name)}` : ""}</span>
                     </td>
                     {m.carriers.map((c) => {
                       const p = h.carriers[c.carrier];

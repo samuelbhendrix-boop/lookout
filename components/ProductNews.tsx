@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { CompanyLogo } from "@/components/CompanyLogo";
 import { productBrief, productNews } from "@/lib/productnews";
 const when = (d: Date) => { const days = (Date.now() - d.getTime()) / 864e5; return days < 1 ? "today" : days < 30 ? `${Math.floor(days)}d ago` : d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }); };
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
@@ -54,7 +55,7 @@ export async function ProductNews({ workspaceId, limit = 8, compact = false, com
             <li key={i.id} className={compact ? "py-1.5" : "py-2"}>
               <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-stone-500">
                 <span className={`rounded px-1.5 py-0.5 font-medium ${THEME_TONE[i.theme] ?? "bg-stone-100"}`}>{i.theme}</span>
-                <Link href={`/competitors/${i.competitorId}/products`} className="font-medium text-stone-700 hover:underline">{i.competitor}</Link>
+                <CompanyLogo id={i.competitorId} name={i.competitor} size={14} className="mr-1 align-[-2px]" /><Link href={`/competitors/${i.competitorId}/products`} className="font-medium text-stone-700 hover:underline">{i.competitor}</Link>
                 <span>{when(i.when)}</span>
                 {i.outlets > 1 && <span>· {i.outlets} outlets</span>}
                 {i.regional && <span>· New England</span>}
