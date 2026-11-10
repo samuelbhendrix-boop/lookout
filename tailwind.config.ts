@@ -9,7 +9,8 @@ export default {
         sans: ["ui-sans-serif", "system-ui", "-apple-system", "Segoe UI", "Roboto", "Helvetica Neue", "Arial", "sans-serif"],
         mono: ["ui-monospace", "SFMono-Regular", "Menlo", "Consolas", "monospace"],
       },
-      colors: { accent: { DEFAULT: "#d97706", soft: "#fef3c7" } },
+      // Payersight brand: amber sun #F2A33A, ink #161826.
+      colors: { accent: { DEFAULT: "#F2A33A", soft: "#FDF1DF" }, ink: "#161826" },
     },
   },
   plugins: [],

@@ -21,6 +21,6 @@ export const GET = route("OWNER", async ({ session }) => {
   const body = JSON.stringify({ exportedAt: new Date().toISOString(), version: 1, workspace, members, competitors, sources, signals, tags, alertRules });
   const slug = (workspace?.name ?? "workspace").toLowerCase().replace(/[^a-z0-9]+/g, "-");
   return new NextResponse(body, {
-    headers: { "content-type": "application/json", "content-disposition": `attachment; filename="lookout-${slug}-${new Date().toISOString().slice(0, 10)}.json"` },
+    headers: { "content-type": "application/json", "content-disposition": `attachment; filename="payersight-${slug}-${new Date().toISOString().slice(0, 10)}.json"` },
   });
 });

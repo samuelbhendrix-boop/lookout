@@ -108,7 +108,7 @@ export default async function BriefingPage({ searchParams }: { searchParams: Pro
       {untracked.length > 0 && (
         <section>
           <h2 className="mb-1 font-mono text-xs uppercase tracking-wide text-stone-500">Carriers in your states you don&apos;t track</h2>
-          <p className="mb-2 text-xs text-stone-500">Fully insured covered lives in New England from CMS loss-ratio filings ({untracked[0].year}). Add one to pull its filings, products, rates and news into Lookout.</p>
+          <p className="mb-2 text-xs text-stone-500">Fully insured covered lives in New England from CMS loss-ratio filings ({untracked[0].year}). Add one to pull its filings, products, rates and news into Payersight.</p>
           <ul className="card divide-y divide-stone-100 text-sm">
             {untracked.map((u) => (
               <li key={u.name} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2">

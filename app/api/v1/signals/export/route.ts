@@ -23,14 +23,14 @@ export const GET = route("VIEWER", async ({ session, req }) => {
   } while (cursor && rows.length < MAX_ROWS);
 
   const csv = toCsv(
-    ["date", "competitor", "type", "importance", "status", "title", "url", "source", "tags", "other_outlets", "summary", "lookout_link"],
+    ["date", "competitor", "type", "importance", "status", "title", "url", "source", "tags", "other_outlets", "summary", "payersight_link"],
     rows.slice(0, MAX_ROWS),
   );
   const stamp = new Date().toISOString().slice(0, 10);
   return new Response(csv, {
     headers: {
       "content-type": "text/csv; charset=utf-8",
-      "content-disposition": `attachment; filename="lookout-signals-${stamp}.csv"`,
+      "content-disposition": `attachment; filename="payersight-signals-${stamp}.csv"`,
     },
   });
 });

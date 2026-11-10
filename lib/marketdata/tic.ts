@@ -18,7 +18,7 @@ import { db } from "../db";
  * TPA to post, monthly: in-network negotiated rates, out-of-network allowed amounts, and a table of
  * contents (TOC/index) listing every plan covered — including self-funded employer plans by EIN.
  *
- * What Lookout does with them:
+ * What Payersight does with them:
  *  - Reads each carrier's TOC/indexes and keeps the plans whose employer EIN matches a New England
  *    Form 5500 filer (all plans for New England-only carriers). That names the administrator of
  *    self-funded plans, which Form 5500 usually doesn't.
@@ -45,7 +45,7 @@ export const MRF_REGISTRY: Registry[] = [
   { id: "uhc", carrier: "UnitedHealthcare", adapter: "uhc", url: "https://transparency-in-coverage.uhc.com/", method: "Blob listing API: one index per employer plan (~69K), rates per network" },
   { id: "harvard_pilgrim", carrier: "Harvard Pilgrim Health Care", adapter: "harvard_pilgrim", regional: true, url: "https://eusprdtransparencymrfp32.z13.web.core.windows.net/hphc", method: "Plan list page linking one index per employer (ASO) plus HPHC/HPIC/HPHCNE" },
   { id: "mgb", carrier: "Mass General Brigham Health Plan", adapter: "toc_json", regional: true, tocUrl: "https://massgeneralbrighamhealthplan.org/pricetransparency/MRF/Base", url: "https://massgeneralbrighamhealthplan.org/meet-us/transparency-regulations", method: "Single JSON table of contents; rate files 18–78 MB each" },
-  { id: "bcbsma", carrier: "Blue Cross and Blue Shield of Massachusetts", regional: true, url: "https://transparency-in-coverage.bluecrossma.com/", method: "Dedicated transparency site", note: "Not reachable from Lookout's build environment; check from a browser." },
+  { id: "bcbsma", carrier: "Blue Cross and Blue Shield of Massachusetts", regional: true, url: "https://transparency-in-coverage.bluecrossma.com/", method: "Dedicated transparency site", note: "Not reachable from Payersight's build environment; check from a browser." },
   { id: "aetna", carrier: "Aetna", url: "https://health1.aetna.com/app/public/#/one/insurerCode=AETNACVS_I&brandCode=ALICSI/machine-readable-transparency-in-coverage", method: "HealthSparq portal (JavaScript app)", note: "Files are behind a JS portal; no stable listing URL." },
   { id: "anthem", carrier: "Elevance Health (Anthem)", url: "https://www.anthem.com/machine-readable-file/search/", method: "Monthly national index (multi-GB gzip) + search page", note: "National index is too large for a small server; search by employer on the page." },
   { id: "tufts", carrier: "Tufts Health Plan", regional: true, url: "https://tuftshealthplan.com/", method: "Point32Health transparency pages", note: "Point32Health moved the Tufts transparency page and the new file location hasn't been found (the Harvard Pilgrim side of Point32 is automated)" },
@@ -68,7 +68,7 @@ export function nameKey(s: string): string {
   return s.toUpperCase().replace(/&/g, " AND ").replace(/[^A-Z0-9 ]/g, " ").replace(SUFFIX, " ").replace(/\s+/g, " ").trim();
 }
 
-const UA = { "User-Agent": "Mozilla/5.0 (compatible; LookoutBot/0.5; +https://github.com/samuelbhendrix-boop/lookout)" };
+const UA = { "User-Agent": "Mozilla/5.0 (compatible; PayersightBot/0.5; +https://github.com/samuelbhendrix-boop/lookout)" };
 
 async function fetchJson<T>(url: string): Promise<T> {
   const res = await fetch(url, { headers: UA, signal: AbortSignal.timeout(120_000) });

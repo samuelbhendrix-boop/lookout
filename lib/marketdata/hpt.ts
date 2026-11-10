@@ -23,7 +23,7 @@ import tinMap from "../../data/medicare/hospital-tins.json";
  * Only the benchmark basket is kept, facility charges only, commercial plans only.
  */
 
-const UA = { "User-Agent": "Mozilla/5.0 (compatible; LookoutBot; +https://github.com/samuelbhendrix-boop/lookout)" };
+const UA = { "User-Agent": "Mozilla/5.0 (compatible; PayersightBot; +https://github.com/samuelbhendrix-boop/lookout)" };
 const MAX_BYTES = 2e9;
 
 /** Hospital (system) websites to read cms-hpt.txt from. A system's file usually lists all of its hospitals. */

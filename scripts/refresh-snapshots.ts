@@ -5,7 +5,7 @@
  *
  *   npx tsx scripts/refresh-snapshots.ts [--only cigna,aetna,uhc,blue] [--blue-toc <path or URL>] [--dry-run]
  *
- * Discovery, per carrier (all fetched with the honest LookoutBot user agent):
+ * Discovery, per carrier (all fetched with the honest PayersightBot user agent):
  *   Cigna  www.cigna.com/static/mrf/latest.json → TOC zip → the Cigna Health & Life index → network file by slug
  *   Aetna  HealthSparq latest_metadata.json for the same entity folder → file by network code (pl-sk, pl-wg, …)
  *   UHC    transparency-in-coverage.uhc.com blob listing → newest file with the same name after the date
@@ -23,7 +23,7 @@ import { reduceSources } from "../lib/marketdata/mrf/source";
 import type { Snapshot } from "../lib/marketdata/mrf/files";
 import tinMap from "../data/medicare/hospital-tins.json";
 
-const UA = { "User-Agent": "Mozilla/5.0 (compatible; LookoutBot; +https://github.com/samuelbhendrix-boop/lookout)" };
+const UA = { "User-Agent": "Mozilla/5.0 (compatible; PayersightBot; +https://github.com/samuelbhendrix-boop/lookout)" };
 const DIR = "data/rates";
 const arg = (k: string) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : undefined; };
 const ONLY = arg("--only")?.split(",");

@@ -17,7 +17,7 @@ type Found = { carrier: string; carrierName: string; network: string; urls: stri
 type Discovered = { files: Found[]; skipped: Array<{ carrier: string; carrierName: string; url: string; reason: string }> };
 type RateSource = { id: string; label: string; discover(): Promise<Discovered> };
 
-const UA = { "User-Agent": "Mozilla/5.0 (compatible; LookoutBot; +https://github.com/samuelbhendrix-boop/lookout)" };
+const UA = { "User-Agent": "Mozilla/5.0 (compatible; PayersightBot; +https://github.com/samuelbhendrix-boop/lookout)" };
 async function json<T>(url: string): Promise<T> {
   const res = await fetch(url, { headers: UA, redirect: "follow", signal: AbortSignal.timeout(120_000) });
   if (!res.ok) throw new Error(`HTTP ${res.status} for ${url.slice(0, 120)}`);

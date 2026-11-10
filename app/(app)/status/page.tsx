@@ -45,7 +45,7 @@ export default async function StatusPage() {
     <div className="space-y-5 text-sm">
       <div>
         <h1 className="h1">System status</h1>
-        <p className="text-stone-500">Lookout {pkg.version} · web process {Math.round(mem.rss / 1e6)} MB{box.limit ? <> · server memory <span className={box.used && box.used / box.limit > 0.85 ? "font-medium text-red-700" : ""}>{box.used ? `${Math.round(box.used / 1e6)} of ` : ""}{Math.round(box.limit / 1e6)} MB</span>{box.limit < 1e9 ? " (512 MB plan: imports may not fit next to the web server)" : ""}</> : null} · snapshots {snapshotVersion().split("#")[1]} · {new Date().toISOString().slice(0, 16).replace("T", " ")} UTC</p>
+        <p className="text-stone-500">Payersight {pkg.version} · web process {Math.round(mem.rss / 1e6)} MB{box.limit ? <> · server memory <span className={box.used && box.used / box.limit > 0.85 ? "font-medium text-red-700" : ""}>{box.used ? `${Math.round(box.used / 1e6)} of ` : ""}{Math.round(box.limit / 1e6)} MB</span>{box.limit < 1e9 ? " (512 MB plan: imports may not fit next to the web server)" : ""}</> : null} · snapshots {snapshotVersion().split("#")[1]} · {new Date().toISOString().slice(0, 16).replace("T", " ")} UTC</p>
       </div>
       <div className="grid gap-3 sm:grid-cols-4">
         {[

@@ -19,7 +19,7 @@ async function main() {
   const out: Array<Record<string, unknown>> = [];
   for (const st of STATES) {
     const url = `https://data.cms.gov/provider-data/api/1/datastore/query/xubh-q36u/0?limit=500&conditions%5B0%5D%5Bproperty%5D=state&conditions%5B0%5D%5Bvalue%5D=${st}`;
-    const res = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0 (compatible; LookoutBot; +https://github.com/samuelbhendrix-boop/lookout)" }, signal: AbortSignal.timeout(60_000) });
+    const res = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0 (compatible; PayersightBot; +https://github.com/samuelbhendrix-boop/lookout)" }, signal: AbortSignal.timeout(60_000) });
     const j = (await res.json()) as { results: Row[] };
     for (const r of j.results) {
       const z = r.zip_code.slice(0, 5);

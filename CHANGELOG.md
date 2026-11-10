@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.16.0 — 2026-11-09
+- **Renamed to Payersight.** New sunrise mark and wordmark in the sidebar and sign-in pages, favicon and home-screen icon, amber brand accent (#F2A33A), page titles, export file names and the crawler's User-Agent (PayersightBot, same contact URL). The GitHub repo, Render service and database keep the name "lookout" so deploys and data are untouched.
+
 ## 0.15.0 — 2026-11-09
 - **Web pages as sources:** add any newsroom, press-release list, regulator notice page or product/policy page. Lookout uses the feed the page advertises if it has one; otherwise it reports headlines that weren't there on the last check; on a page that isn't a list, it reports what text was added or removed. The first check records a baseline. Pages built entirely by JavaScript, or that refuse automated visits, are reported as unreadable rather than worked around.
 - **Sidebar regrouped:** Market Review (Briefing, Feed, Competitors, Products, Market, Rates, Leverage, Networks, Changes), Sales (In play, Employers), Settings (Workspace, Your account, Sources, Alerts). Groups collapse and remember it.

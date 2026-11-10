@@ -1,4 +1,6 @@
-# Lookout
+# Payersight
+
+_Formerly Lookout. The repo, Render service and database keep the old name so deploys and data are untouched._
 
 Competitive-intelligence signal tracker. Feeds in → attributed, classified, deduped signals, grouped into stories → team triage → Slack alerts and weekly digests.
 

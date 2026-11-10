@@ -8,7 +8,7 @@ import type { Prisma } from "@prisma/client";
 
 const parser = new Parser();
 const UA = {
-  "User-Agent": "Mozilla/5.0 (compatible; LookoutBot/0.3; +https://github.com/samuelbhendrix-boop/lookout)",
+  "User-Agent": "Mozilla/5.0 (compatible; PayersightBot/0.3; +https://github.com/samuelbhendrix-boop/lookout)",
   accept: "application/rss+xml, application/atom+xml, application/xml, text/xml;q=0.9, */*;q=0.5",
 };
 
@@ -178,7 +178,7 @@ async function pollWebpage(source: { id: string; workspaceId: string; competitor
   const url = source.url!;
   const prev = (source.state ?? {}) as PageState;
   const res = await politely(url, () => safeFetch(url, { headers: PAGE_UA }));
-  if (res.status === 403 || res.status === 401) throw new Error(`The site refuses automated visits (HTTP ${res.status}); Lookout doesn't get around that. Try its RSS feed or a Google News query instead.`);
+  if (res.status === 403 || res.status === 401) throw new Error(`The site refuses automated visits (HTTP ${res.status}); Payersight doesn't get around that. Try its RSS feed or a Google News query instead.`);
   if (isTransient(res.status)) throw new TransientFeedError(`Site is busy (HTTP ${res.status}) — retrying automatically`);
   if (!res.ok) throw new Error(`Page returned HTTP ${res.status}`);
 

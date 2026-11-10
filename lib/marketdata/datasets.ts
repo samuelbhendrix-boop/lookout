@@ -1,5 +1,5 @@
 /**
- * Public CMS datasets Lookout imports. Both are free, published by CMS, and cover all states.
+ * Public CMS datasets Payersight imports. Both are free, published by CMS, and cover all states.
  *  - URRT (Unified Rate Review) PUF: every ACA individual & small-group rate filing, with
  *    product/plan detail and SERFF tracking numbers.
  *    https://www.cms.gov/marketplace/resources/data/rate-review-data

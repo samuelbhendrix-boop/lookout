@@ -22,7 +22,7 @@ export default async function SourcesPage() {
         <h1 className="h1">Sources</h1>
         <p className="text-sm text-stone-500">
           Feeds and web pages checked on a schedule. For a web page (a newsroom, press-release list, regulator notices, a product or policy
-          page), Lookout reports new headlines since the last check, or what changed on a page that isn&apos;t a list. The first check only records what&apos;s
+          page), Payersight reports new headlines since the last check, or what changed on a page that isn&apos;t a list. The first check only records what&apos;s
           already there. Pages that build themselves with JavaScript or refuse automated visits can&apos;t be read; use their RSS feed or a Google News query.
         </p>
       </div>

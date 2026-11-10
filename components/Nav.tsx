@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/client";
 import { Avatar } from "./Avatar";
+import { Brand } from "./Brand";
 
 const GROUPS = [
   {
@@ -64,8 +65,7 @@ export function Nav({ workspaceId, workspace, workspaceIcon, workspaces, email, 
   return (
     <aside className="border-b border-stone-200 bg-white md:sticky md:top-0 md:h-screen md:w-56 md:shrink-0 md:border-b-0 md:border-r">
       <div className="flex items-center gap-2 px-4 py-4">
-        <span className="h-2.5 w-2.5 rounded-full bg-accent" />
-        <span className="font-mono text-xs font-medium tracking-widest">LOOKOUT</span>
+        <Link href="/briefing" className="-ml-0.5"><Brand /></Link>
       </div>
       <div className="hidden space-y-1 px-2 pb-3 md:block">
         <Link href="/settings" title="Workspace settings" className={`flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-stone-100 ${current === "/settings" ? "bg-stone-100" : ""}`}>

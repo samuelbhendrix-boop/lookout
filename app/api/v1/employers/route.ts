@@ -20,5 +20,5 @@ export const GET = route("VIEWER", async ({ session, req }) => {
       [...new Set(r.carriers.flatMap((c) => c.brokers))].join("; "), r.stopLoss.join("; "),
     ]),
   );
-  return new Response(csv, { headers: { "content-type": "text/csv; charset=utf-8", "content-disposition": `attachment; filename="lookout-employers.csv"` } });
+  return new Response(csv, { headers: { "content-type": "text/csv; charset=utf-8", "content-disposition": `attachment; filename="payersight-employers.csv"` } });
 });

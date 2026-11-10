@@ -16,7 +16,7 @@ import { db } from "../db";
  * drugs. In New England these exist for the federal-platform state (NH) plus Anthem's CT and ME directories.
  */
 
-const UA = { "User-Agent": "Mozilla/5.0 (compatible; LookoutBot; +https://github.com/samuelbhendrix-boop/lookout)" };
+const UA = { "User-Agent": "Mozilla/5.0 (compatible; PayersightBot; +https://github.com/samuelbhendrix-boop/lookout)" };
 const NE = new Set(["MA", "CT", "RI", "NH", "VT", "ME"]);
 
 /** From CMS's Exchange MR-PUF (New England rows) — issuer → index. WellSense's index is on port 8443, which our network can't reach. */

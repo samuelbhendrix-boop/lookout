@@ -7,7 +7,7 @@ import { pipeline } from "node:stream/promises";
 import yauzl from "yauzl";
 import { RateReducer, type ReduceOpts, type ReduceResult } from "./reduce";
 
-const UA = { "User-Agent": "Mozilla/5.0 (compatible; LookoutBot; +https://github.com/samuelbhendrix-boop/lookout)" };
+const UA = { "User-Agent": "Mozilla/5.0 (compatible; PayersightBot; +https://github.com/samuelbhendrix-boop/lookout)" };
 
 /**
  * Open one or more rate-file parts — URLs or local paths; .json, .json.gz or .zip — and reduce them together.

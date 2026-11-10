@@ -37,7 +37,7 @@ export const cleanName = (s: string) => s.replace(/\\"/g, '"').replace(/^"+|"+$/
 export async function download(url: string, dir: string, name = "data.zip"): Promise<string> {
   const u = new URL(url);
   if (!ALLOWED_DATA_HOSTS.has(u.hostname)) throw new Error(`Refusing to download from ${u.hostname}`);
-  const res = await fetch(url, { signal: AbortSignal.timeout(10 * 60_000), headers: { "User-Agent": "LookoutBot/0.4" } });
+  const res = await fetch(url, { signal: AbortSignal.timeout(10 * 60_000), headers: { "User-Agent": "PayersightBot/0.4" } });
   if (!res.ok || !res.body) throw new Error(`Download failed: HTTP ${res.status} for ${url}`);
   const file = join(dir, name);
   await pipeline(Readable.fromWeb(res.body as never), createWriteStream(file));

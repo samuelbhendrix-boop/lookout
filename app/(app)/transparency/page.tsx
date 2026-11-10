@@ -22,7 +22,7 @@ export default async function TransparencyPage() {
         <h1 className="h1 mt-2">Transparency in Coverage files</h1>
         <p className="max-w-3xl text-sm text-stone-500">
           Federal rules require every insurer and administrator to publish, monthly, machine-readable files of negotiated in-network rates, out-of-network
-          allowed amounts, and a table of contents listing every plan they insure or administer — including self-funded employers, by EIN. Lookout reads each
+          allowed amounts, and a table of contents listing every plan they insure or administer — including self-funded employers, by EIN. Payersight reads each
           carrier&apos;s table of contents and matches EINs to New England Form 5500 filers, which names the administrator of self-funded plans. Rate files
           are measured here; regional carriers&apos; rate files are reduced to a benchmark on the <Link className="underline" href="/rates">Rates</Link> page.
         </p>
