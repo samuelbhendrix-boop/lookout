@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.18.0 — 2026-11-09
+- **Large group in Products.** New "Large group" market on /products for each state: fully insured lives, share and change, self-insured members (MA, NH), premium and claims PMPM and loss ratio (CMS MLR); what employers pay per covered person by group size, renewal increase for employers staying with the same carrier, broker pay and HMO share (Form 5500 Schedule A); product mix by HMO/PPO/POS/EPO (CHIA); RI OHIC requested vs approved rates with trend and retention; Maine admin and underwriting margin.
+- **Each competitor's large group** on its products page: the same measures by state, and its **product line-up** read from the plan names in its transparency index (e.g. MGB: Complete HMO, Complete PPO Plus, Choice Easy Tier HMO, Allies HMO, with deductible ranges, HSA, tiered and limited networks).
+
 ## 0.17.0 — 2026-11-09
 - Plan directories: dropped issuer 72953, which the CMS list files under NH but is Renaissance, a dental-only carrier; physician counts now include only clinicians with a New England practice address.
 - **Home page** (logo and first sidebar item; where sign-in lands): greeting, six KPIs (news this week vs last, major items, changes detected from data, accounts in play with covered lives, competitors tracked and quiet, source health and data age), top things that moved, top stories, 30-day activity, most active competitors, renewals in play. No more than two items per competitor in each list.

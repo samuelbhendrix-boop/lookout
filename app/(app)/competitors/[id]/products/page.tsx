@@ -11,6 +11,9 @@ import { fmtInt, fmtSignedPct, fmtUsd } from "@/components/charts";
 import { NotIncluded } from "@/components/NotIncluded";
 import { Empty } from "@/components/ui";
 import { PlanNetworkTable } from "@/components/PlanNetworkTable";
+import { LargeGroupCompetitor } from "@/components/LargeGroupProducts";
+import { groupProductLines, largeGroupMarket } from "@/lib/marketdata/lgbook";
+import { NE_STATES } from "@/lib/marketdata/products";
 import { directoryErrors } from "@/lib/marketdata/directory";
 
 export const dynamic = "force-dynamic";
@@ -47,6 +50,11 @@ export default async function CompetitorProductsPage({ params, searchParams }: {
   if (!comp) notFound();
   const state = sp.state && /^[A-Z]{2}$/.test(sp.state) ? sp.state : undefined;
   const [r, catalog, asoAll, asoBench, dirErr] = await Promise.all([competitorProducts(comp, { state }), transparencyPlanCatalog(comp), asoAccounts(), asoBenchmarks(state), directoryErrors()]);
+  const [lgStates, lgLines] = await Promise.all([
+    Promise.all((state ? [state] : NE_STATES).map((s) => largeGroupMarket(session.workspaceId, s))),
+    groupProductLines(issuerPatternFor(comp)),
+  ]);
+  const lgPerState = lgStates.map((data) => ({ data, row: data.rows.find((x) => x.competitorId === comp.id) })).filter((x): x is { data: typeof x.data; row: NonNullable<typeof x.row> } => !!x.row);
   const compRe = (() => { try { return new RegExp(issuerPatternFor(comp), "i"); } catch { return null; } })();
   const isMine = (admin: string) => !!compRe?.test(admin) || admin === comp.name;
   const aso = asoAll.filter((a) => isMine(a.admin) && (!state || a.state === state)).sort((a, b) => (b.participants ?? 0) - (a.participants ?? 0));
@@ -64,7 +72,8 @@ export default async function CompetitorProductsPage({ params, searchParams }: {
         <p className="max-w-3xl text-sm text-stone-500">
           Every individual and small-group plan this carrier files, from CMS&apos;s Exchange plan files (benefit design, cost sharing, network, premiums by
           age) and its rate filings (enrollment, rate changes, off-exchange plans). Compared against every other carrier in the same state, market and metal tier.{" "}
-          <Link className="underline" href={`/products${state ? `?state=${state}` : ""}`}>Compare all carriers →</Link>
+          <Link className="underline" href={`/products${state ? `?state=${state}` : ""}`}>Compare all carriers →</Link>{" "}
+          {(lgPerState.length > 0 || lgLines.lines.length > 0) && <a className="font-medium underline" href="#large-group">Large group ↓</a>}
         </p>
         <nav className="mt-4 flex flex-wrap gap-1 text-sm">
           <Link href={`/competitors/${comp.id}/products`} className={`rounded px-2.5 py-1 ${!state ? "bg-stone-900 text-white" : "bg-stone-100 hover:bg-stone-200"}`}>All states</Link>
@@ -331,9 +340,11 @@ export default async function CompetitorProductsPage({ params, searchParams }: {
       )}
 
       {/* ── Group / ASO catalog ── */}
+      {(lgPerState.length > 0 || lgLines.lines.length > 0) && <LargeGroupCompetitor perState={lgPerState} lines={lgLines.lines} totalPlans={lgLines.total} />}
+
       {groupPlans.length > 0 && (
         <section className="space-y-2 border-t border-stone-200 pt-6">
-          <h2 className="text-lg font-semibold tracking-tight">Large-group and self-funded plans · {groupPlans.length}</h2>
+          <h2 className="text-lg font-semibold tracking-tight">All group plan names · {groupPlans.length}</h2>
           <p className="text-xs text-stone-500">Large-group and self-funded plan designs aren&apos;t publicly filed. This is the list of plan names the carrier publishes in its Transparency in Coverage index, with the employer that sponsors each where given.</p>
           <details className="card">
             <summary className="cursor-pointer px-4 py-2 text-sm">Show all {groupPlans.length}</summary>

@@ -7,6 +7,8 @@ import { issuerPatternFor } from "@/lib/marketdata/queries";
 import { fmtInt } from "@/components/charts";
 import { NotIncluded } from "@/components/NotIncluded";
 import { PlanNetworkTable } from "@/components/PlanNetworkTable";
+import { LargeGroupMarket } from "@/components/LargeGroupProducts";
+import { largeGroupMarket } from "@/lib/marketdata/lgbook";
 import { Empty } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -19,13 +21,14 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
   const session = (await getSession())!;
   const sp = await searchParams;
   const state = NE_STATES.includes(sp.state ?? "") ? sp.state! : "MA";
-  const market = sp.market === "SHOP" ? "SHOP" : "Individual";
+  const market = sp.market === "SHOP" ? "SHOP" : sp.market === "LG" ? "LG" : "Individual";
   const { rows } = await qhpYears();
   const years = rows.filter((r) => r.state === state).map((r) => r.year).sort();
   const year = years.includes(Number(sp.year)) ? Number(sp.year) : years.at(-1);
-  const [mk, competitors] = await Promise.all([
-    year ? marketProducts(state, market, year) : null,
+  const [mk, competitors, lg] = await Promise.all([
+    year && market !== "LG" ? marketProducts(state, market, year) : null,
     db.competitor.findMany({ where: { workspaceId: session.workspaceId }, select: { id: true, name: true, aliases: true, issuerPattern: true } }),
+    market === "LG" ? largeGroupMarket(session.workspaceId, state) : null,
   ]);
   const compFor = (issuer: string) => competitors.find((c) => { try { return new RegExp(issuerPatternFor(c), "i").test(issuer); } catch { return false; } });
   const qs = (o: Record<string, string | undefined>) => `/products?${new URLSearchParams(Object.entries({ state, market, year: year ? String(year) : undefined, ...o }).filter(([, v]) => v) as [string, string][])}`;
@@ -37,18 +40,27 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
     <div className="space-y-6">
       <div>
         <h1 className="h1">Commercial products</h1>
-        <DataAsOf datasets={["qhp", "urrt"]} />
-        <p className="max-w-3xl text-sm text-stone-500">Every carrier&apos;s exchange plans side by side: price at each metal tier, deductibles, networks, HSA options and the benefits that set them apart. From CMS&apos;s Exchange plan files, joined to rate filings for enrollment. Open a carrier for its full line-up and what changed this year.</p>
+        <DataAsOf datasets={market === "LG" ? ["mlr", "ma_chia", "dol_5500", "tic"] : ["qhp", "urrt"]} />
+        {market === "LG" ? <p className="max-w-3xl text-sm text-stone-500">Each carrier&apos;s large-group book: fully and self-insured members, premium and claims per member, what employers actually pay per covered person by group size, renewal increases, broker pay, product mix, and regulator rate reviews where published. Open a carrier for its large-group product line-up.</p> : <p className="max-w-3xl text-sm text-stone-500">Every carrier&apos;s exchange plans side by side: price at each metal tier, deductibles, networks, HSA options and the benefits that set them apart. From CMS&apos;s Exchange plan files, joined to rate filings for enrollment. Open a carrier for its full line-up and what changed this year.</p>}
       </div>
       <div className="flex flex-wrap items-center gap-1.5 text-xs">
         {NE_STATES.map((s) => <Link key={s} href={qs({ state: s, year: undefined })} className={chip(state === s)}>{s}</Link>)}
         <span className="mx-2 text-stone-300">|</span>
-        {["Individual", "SHOP"].map((m) => <Link key={m} href={qs({ market: m })} className={chip(market === m)}>{m === "SHOP" ? "Small group" : m}</Link>)}
-        <span className="mx-2 text-stone-300">|</span>
-        {years.map((y) => <Link key={y} href={qs({ year: String(y) })} className={chip(year === y)}>{y}</Link>)}
+        {["Individual", "SHOP", "LG"].map((m) => <Link key={m} href={qs({ market: m })} className={chip(market === m)}>{m === "SHOP" ? "Small group" : m === "LG" ? "Large group" : m}</Link>)}
+        {market !== "LG" && <><span className="mx-2 text-stone-300">|</span>
+        {years.map((y) => <Link key={y} href={qs({ year: String(y) })} className={chip(year === y)}>{y}</Link>)}</>}
       </div>
 
-      {!mk || !mk.grid.length ? <Empty title="No exchange plans on file for this state and market">The plan files import in the background after deploy; check System status.</Empty> : (
+      {lg ? (
+        lg.rows.length ? <>
+          <LargeGroupMarket data={lg} />
+          <NotIncluded items={[
+            <>Carriers don&apos;t file large-group rates or benefit designs with CMS, and only Rhode Island publishes a large-group rate review, so there is no plan-by-plan comparison like the exchange view. Open a carrier for its product line-up from its transparency index.</>,
+            <>Form 5500 covers employers with 100+ participants that buy insurance through an ERISA plan; governments, churches and most 51–99 groups don&apos;t file. Premium per covered person mixes single and family coverage, so compare carriers on the same size band.</>,
+            <>Self-insured membership is published only where the state collects it (MA CHIA, NH); other states show fully insured only.</>,
+          ]} />
+        </> : <Empty title={`No large-group data for ${state} yet`}>Loss-ratio filings and Form 5500 import in the background; check System status.</Empty>
+      ) : !mk || !mk.grid.length ? <Empty title="No exchange plans on file for this state and market">The plan files import in the background after deploy; check System status.</Empty> : (
         <>
           <section className="space-y-2">
             <h2 className="font-semibold tracking-tight">Cheapest plan by metal · age 40, monthly{mk.communityRated ? " (community-rated)" : ""}</h2>

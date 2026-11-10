@@ -69,3 +69,20 @@ describe("recommended sources", () => {
     for (const s of RECOMMENDED_SOURCES) { expect(s.url).toMatch(/^https:\/\//); expect(s.why.length).toBeGreaterThan(20); }
   });
 });
+
+import { deductibleOf, familyCandidates, productLines } from "@/lib/marketdata/lgbook";
+describe("large-group product lines", () => {
+  it("reads the product family out of employer plan names", () => {
+    const names = [
+      "AERODYNE RESEARCH INC COMPLETE HMO HSA 5000 10% ENHANCED FLEXRX", "COMPLETE HMO HSA 4200 ENHANCED FLEXRX", "BOSTON CHILDREN'S MUSEUM COMPLETE HMO HSA 3000",
+      "L. S. STARRETT CHOICE EASY TIER HMO 5000 WITH CARE COMPLEMENT", "CHOICE EASY TIER HMO 2000", "ACME CHOICE EASY TIER HMO 3000",
+      "WELLESLEY COLLEGE   Best Buy PPO HSA",
+    ];
+    const lines = productLines(names);
+    expect(lines.find((l) => l.family === "COMPLETE HMO HSA")?.plans).toBe(3);
+    expect(lines.find((l) => l.family === "CHOICE EASY TIER HMO")?.features).toContain("Tiered network");
+    expect(familyCandidates("BENTLEY UNIVERSITY HMO")).toEqual(["HMO"]);
+    expect(deductibleOf("COMPLETE PPO PLUS 2500 25/40/500")).toBe(2500);
+    expect(deductibleOf("HMO 25/40")).toBeNull();
+  });
+});
