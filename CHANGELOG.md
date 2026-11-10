@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.26.2 — 2026-11-09
+
+- Production database moved to 1 GB of memory. Imports that failed out of memory before the move (hospital price files, offline rate snapshots) get one immediate retry.
+
 ## 0.26.1 — 2026-11-09
 
 - Imports that keep dying mid-run (out of memory) now wait a week before retrying instead of 6 hours. In production the hospital-price and offline-snapshot imports were crashing the 256 MB database on every retry, taking the app down with them.

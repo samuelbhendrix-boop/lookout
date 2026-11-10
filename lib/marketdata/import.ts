@@ -317,6 +317,9 @@ export async function scheduleNextImport(enqueue: (payload: { dataset: Dataset; 
   return next;
 }
 
+/** When the production database moved from 256 MB to 1 GB of memory (2026-11-10); bump if it's resized again. */
+const DB_RESIZED_AT = Date.parse("2026-11-10T04:34:00Z");
+
 /** Datasets never imported, failed, or older than REFRESH_DAYS. Queued/running ones are skipped unless stuck >1h. */
 export async function dueImports() {
   const existing = await db.dataImport.findMany();
@@ -331,7 +334,12 @@ export async function dueImports() {
     if (e.status === "running" || e.status === "queued") return true;
     // An import that kept dying mid-run (out of memory) takes the database down with it each time; retrying every 6
     // hours turned that into a crash loop. Those wait a week (or a manual "re-import all" from System status).
-    if (e.status === "failed") return Date.now() - (e.finishedAt?.getTime() ?? 0) > (/interrupted \d+ times/.test(e.error ?? "") ? 7 * 864e5 : 6 * 3600e3);
+    if (e.status === "failed") {
+      const at = e.finishedAt?.getTime() ?? 0;
+      // Out-of-memory failures from before the database grew (see DB_RESIZED_AT) get one fresh try right away.
+      if (/interrupted \d+ times/.test(e.error ?? "")) return at < DB_RESIZED_AT || Date.now() - at > 7 * 864e5;
+      return Date.now() - at > 6 * 3600e3;
+    }
     if (e.status === "partial") return true; // resume right away in a fresh process
     if (isSnapshots(d) && e.url !== version) return true; // refreshed snapshots arrived with this deploy
     if (d.dataset === "mrfx" && Date.now() - (e.finishedAt?.getTime() ?? 0) > 864e5) return true; // daily: is there a newer monthly extract?
