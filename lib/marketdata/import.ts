@@ -329,7 +329,9 @@ export async function dueImports() {
     if (/^https?:/.test(d.url) && e.url !== d.url && e.status !== "failed") return true;
     // Marked running/queued but no live job holds it (checked by the caller): its server died; run it again.
     if (e.status === "running" || e.status === "queued") return true;
-    if (e.status === "failed") return Date.now() - (e.finishedAt?.getTime() ?? 0) > 6 * 3600e3;
+    // An import that kept dying mid-run (out of memory) takes the database down with it each time; retrying every 6
+    // hours turned that into a crash loop. Those wait a week (or a manual "re-import all" from System status).
+    if (e.status === "failed") return Date.now() - (e.finishedAt?.getTime() ?? 0) > (/interrupted \d+ times/.test(e.error ?? "") ? 7 * 864e5 : 6 * 3600e3);
     if (e.status === "partial") return true; // resume right away in a fresh process
     if (isSnapshots(d) && e.url !== version) return true; // refreshed snapshots arrived with this deploy
     if (d.dataset === "mrfx" && Date.now() - (e.finishedAt?.getTime() ?? 0) > 864e5) return true; // daily: is there a newer monthly extract?

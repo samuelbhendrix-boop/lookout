@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.26.1 — 2026-11-09
+
+- Imports that keep dying mid-run (out of memory) now wait a week before retrying instead of 6 hours. In production the hospital-price and offline-snapshot imports were crashing the 256 MB database on every retry, taking the app down with them.
+
 ## 0.26.0 — 2026-11-09
 
 - **Reports** section, first report: **New commercial products, 2025–2027**. Every new individual and small-group product in every state's rate filings: which took off (members in the following filings, share, price vs market), what kind of product each is (condition-specific, $0 primary care, virtual-first, bundled dental/vision, narrow network, HSA, public option, provider-owned, Medicaid plans going commercial …), the 2027 pipeline, carrier entries and exits, and launches that only re-filed existing members. Filter to any state. Rebuilds itself when a new filing year arrives.
