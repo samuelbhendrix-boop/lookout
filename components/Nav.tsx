@@ -23,7 +23,7 @@ const GROUPS = [
       { href: "/networks", label: "Networks" },
     ],
   },
-  { id: "reports", label: "Reports", links: [{ href: "/reports/launches", label: "Product launches" }] },
+  { id: "reports", label: "Reports", links: [{ href: "/reports/launches", label: "Product launches" }, { href: "/reports/filings", label: "State filings (SERFF)" }] },
   { id: "sales", label: "Sales", links: [{ href: "/accounts", label: "In play" }, { href: "/employers", label: "Employers" }] },
   {
     id: "settings", label: "Settings", links: [

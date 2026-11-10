@@ -53,7 +53,7 @@ export async function recordSightings(): Promise<{ marketed: number; networks: n
 const NOT = /medicare|medicaid|masshealth|dual|snp\b|part d|dental only|retiree/i;
 
 export type LgLaunch = {
-  kind: "marketed" | "network" | "announced";
+  kind: "marketed" | "network" | "announced" | "filed";
   when: Date; competitorId: string | null; competitor: string; name: string;
   detail: string | null; network?: string | null; url?: string | null; evidence?: string[];
 };
@@ -87,6 +87,11 @@ export async function largeGroupLaunches(workspaceId: string): Promise<{ launche
       const j = judged[n.id];
       out.push({ kind: "announced", when: n.publishedAt ?? n.createdAt, competitorId: c?.id ?? null, competitor: c?.name ?? "", name: j.product ? `${j.product}: ${n.title}` : n.title, detail: `${j.what}${j.segment ? ` (${j.segment})` : ""}`, url: n.url });
     }
+  }
+  // Filed: new group products in SERFF filings users have added.
+  for (const f of await db.serffFiling.findMany({ where: { newProduct: true, OR: [{ market: { in: ["Large Group", "Group"] } }, { subToi: { contains: "Large Group" } }] } })) {
+    const c = comps.find((x) => { try { return new RegExp(issuerPatternFor(x), "i").test(f.company ?? ""); } catch { return false; } });
+    out.push({ kind: "filed", when: f.submitted ?? f.createdAt, competitorId: c?.id ?? null, competitor: c?.name ?? f.company ?? "", name: `${f.productName ?? f.tracking} (${f.state})`, detail: f.summary ?? `${f.subToi ?? f.toi ?? ""} · ${f.disposition ?? ""}`, url: `/reports/filings/${f.id}` });
   }
   out.sort((a, b) => b.when.getTime() - a.when.getTime());
 

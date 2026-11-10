@@ -5,6 +5,7 @@ import { CompanyLogo } from "@/components/CompanyLogo";
 const KIND: Record<string, { label: string; tone: string; about: string }> = {
   announced: { label: "Announced", tone: "bg-stone-900 text-white", about: "Launch announcement in the news feed" },
   marketed: { label: "New on their site", tone: "bg-emerald-50 text-emerald-800", about: "Product appeared on the carrier's own pages or brochures for the first time" },
+  filed: { label: "Filed (SERFF)", tone: "bg-violet-50 text-violet-800", about: "New product in a state filing you added" },
   network: { label: "New network", tone: "bg-sky-50 text-sky-800", about: "Network appeared in the carrier's price-transparency files for the first time" },
 };
 const NET: Record<string, string> = { limited: "Limited", tiered: "Tiered", "system-anchored": "Health-system", broad: "Broad", national: "National", regional: "Regional", unknown: "" };
@@ -33,7 +34,7 @@ export async function LargeGroupLaunches({ workspaceId, carrier }: { workspaceId
                   <td className="px-3 py-1.5"><span title={KIND[l.kind].about} className={`whitespace-nowrap rounded px-1.5 py-0.5 text-[10px] font-medium ${KIND[l.kind].tone}`}>{KIND[l.kind].label}</span></td>
                   <td className="max-w-[180px] px-3 py-1.5 text-xs">{l.competitorId ? <span className="flex items-center gap-1.5"><CompanyLogo id={l.competitorId} name={l.competitor} size={14} /><Link href={`/competitors/${l.competitorId}/products#marketing`} className="hover:underline">{l.competitor}</Link></span> : l.competitor}</td>
                   <td className="px-3 py-1.5">
-                    {l.url ? <a href={l.url} target="_blank" rel="noopener noreferrer" className="font-medium hover:underline">{l.name}</a> : <span className="font-medium">{l.name}</span>}
+                    {l.url ? <a href={l.url} {...(l.url.startsWith("/") ? {} : { target: "_blank", rel: "noopener noreferrer" })} className="font-medium hover:underline">{l.name}</a> : <span className="font-medium">{l.name}</span>}
                     {l.network && NET[l.network] ? <span className="ml-1.5 rounded bg-stone-100 px-1 text-[10px] text-stone-600">{NET[l.network]} network</span> : null}
                     {l.detail && <div className="text-xs text-stone-500">{l.detail}</div>}
                     {l.evidence?.length ? <div className="text-[11px]">{l.evidence.map((u) => <a key={u} href={u} target="_blank" rel="noopener noreferrer" className="mr-2 text-sky-700 hover:underline">source</a>)}</div> : null}

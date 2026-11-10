@@ -902,3 +902,63 @@ model LaunchSighting {
   @@unique([kind, site, key])
   @@index([kind, firstSeen])
 }
+
+/// A state insurance filing from SERFF (uploaded by a user: SERFF Filing Access blocks automated download). Holds the
+/// filing's header, plans, rate change, and an AI read of its description and any regulator objections.
+model SerffFiling {
+  id             String   @id @default(cuid())
+  tracking       String   @unique
+  state          String?
+  company        String?
+  toi            String?
+  subToi         String?
+  market         String? // Individual | Small Group | Large Group | Group
+  filingType     String? // Form | Rate | Form/Rate | Plan Binder …
+  productName    String?
+  planYear       Int?
+  submitted      DateTime?
+  disposition    String?
+  dispositionAt  DateTime?
+  newProduct     Boolean  @default(false)
+  rateChange     Float?
+  summary        String?
+  detail         Json?
+  files          Json?
+  uploadedBy     String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  access         SerffNetworkAccess[]
+  crosswalk      SerffCrosswalk[]
+
+  @@index([state, company])
+}
+
+/// Network adequacy (geo-access) rows from a filing: members, and the share within reach of each provider type, by county.
+model SerffNetworkAccess {
+  id        String      @id @default(cuid())
+  filingId  String
+  filing    SerffFiling @relation(fields: [filingId], references: [id], onDelete: Cascade)
+  network   String
+  state     String?
+  county    String
+  specialty String
+  members   Int?
+  withAccess Int?
+  pct       Float?
+
+  @@index([filingId])
+  @@index([network, county])
+}
+
+/// Plan crosswalk rows: where each plan's members go next year (renewed, mapped to another plan, discontinued).
+model SerffCrosswalk {
+  id        String      @id @default(cuid())
+  filingId  String
+  filing    SerffFiling @relation(fields: [filingId], references: [id], onDelete: Cascade)
+  fromPlan  String
+  toPlan    String?
+  reason    String?
+  level     String?
+
+  @@index([filingId])
+}
