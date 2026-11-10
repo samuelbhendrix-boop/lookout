@@ -324,6 +324,9 @@ export async function importDataset(dataset: Dataset, year: number) {
  * instance is small). Called every scheduler tick; cheap when nothing is due.
  */
 /** Rough cost of each import, for ordering (minutes on the server). */
+/** Imports that failed before a fix to their parser: retried once the fix is deployed. */
+const FAILED_FIX_AT: Record<string, number> = { mrfx: Date.parse("2026-11-10T11:00:00Z") };
+
 const IMPORT_COST: Record<string, number> = { state_snapshots: 0, qhp: 1, urrt: 1, mlr: 1, ma_chia: 1, tic: 5, dol_5500: 5, rates: 15, directory: 60, mrfx: 3, hpt: 120 };
 
 export async function scheduleNextImport(enqueue: (payload: { dataset: Dataset; year: number }) => Promise<unknown>) {
@@ -371,6 +374,8 @@ export async function dueImports() {
       const at = e.finishedAt?.getTime() ?? 0;
       // Out-of-memory failures from before the database grew (see DB_RESIZED_AT) get one fresh try right away.
       if (/interrupted \d+ times/.test(e.error ?? "")) return at < DB_RESIZED_AT || Date.now() - at > 7 * 864e5;
+      // A failure from before its parser was fixed retries right away.
+      if (at < (FAILED_FIX_AT[d.dataset] ?? 0)) return true;
       return Date.now() - at > 6 * 3600e3;
     }
     if (e.status === "partial") return true; // resume right away in a fresh process

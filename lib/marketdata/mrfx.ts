@@ -1,4 +1,4 @@
-import { createGunzip } from "node:zlib";
+import { gunzipSync } from "node:zlib";
 import { Readable } from "node:stream";
 import { createInterface } from "node:readline";
 import { readFileSync } from "node:fs";
@@ -34,15 +34,24 @@ export async function importMrfExtract(): Promise<number> {
   const names = new Map(manifest.sources.map((s) => [s.carrier, s.carrierName]));
   const res = await fetch(asset("summary-code-rates.csv.gz"), { headers: UA, signal: AbortSignal.timeout(20 * 60_000) });
   if (!res.ok || !res.body) throw new Error(`summary download: HTTP ${res.status}`);
-  const lines = createInterface({ input: Readable.fromWeb(res.body as never).pipe(createGunzip()) });
+  // The summary is small (a few MB): read it whole and gunzip as many times as it is gzipped. Some downloads arrive
+  // already decompressed (the CDN can apply Content-Encoding), some gzipped once; checking the magic bytes handles both.
+  let buf: Buffer = Buffer.from(await res.arrayBuffer());
+  while (buf.length > 2 && buf[0] === 0x1f && buf[1] === 0x8b) buf = gunzipSync(buf);
+  const lines = createInterface({ input: Readable.from([buf]) });
   let header: string[] | null = null;
   let batch: Prisma.MarketCodeRateCreateManyInput[] = [];
   let n = 0;
   await db.marketCodeRate.deleteMany({ where: { month } });
   for await (const line of lines) {
     const v = line.split(",");
-    if (!header) { header = v; continue; }
+    if (!header) {
+      header = v.map((h) => h.replace(/^\uFEFF/, "").replace(/^"|"$/g, "").trim());
+      if (!["carrier", "code", "median"].every((k) => header!.includes(k))) throw new Error(`summary has unexpected columns: ${line.slice(0, 200)}`);
+      continue;
+    }
     const r = Object.fromEntries(header.map((h, i) => [h, v[i]]));
+    if (!r.carrier || !r.code || !Number.isFinite(Number(r.median))) continue;
     batch.push({ month, carrier: r.carrier, carrierName: names.get(r.carrier) ?? r.carrier, state: r.state, codeType: r.code_type, code: r.code, billingClass: r.billing_class, providers: Number(r.providers), p25: Number(r.p25), median: Number(r.median), p75: Number(r.p75) });
     if (batch.length === 5000) { await db.marketCodeRate.createMany({ data: batch }); n += batch.length; batch = []; }
   }
