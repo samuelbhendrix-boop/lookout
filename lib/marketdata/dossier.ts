@@ -305,15 +305,16 @@ export async function strategyNarrative(competitorId: string, name: string, d: A
       method: "POST", signal: AbortSignal.timeout(40_000),
       headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
       body: JSON.stringify({
-        model, max_tokens: 600,
+        model, max_tokens: 1500,
         system: `You are a competitive-intelligence analyst at a New England health insurer. From the facts given about ${name}'s commercial (individual, small group, large group) business, write its product strategy in 3-5 plain sentences: where it is pushing for growth, where it is protecting margin or retreating, how it positions price and network, and the one thing a competitor should watch. Use only the facts given; name products and states; no hedging filler, no headers, no bullet points. If the facts conflict, say so.`,
         messages: [{ role: "user", content: facts }],
       }),
     });
     if (!res.ok) { console.error(`[ai] strategy read: HTTP ${res.status} ${(await res.text().catch(() => "")).slice(0, 300)}`); return c?.n ?? null; }
-    const body = (await res.json()) as { content?: Array<{ text?: string }> };
-    const text = body.content?.[0]?.text?.trim();
-    if (!text) return c?.n ?? null;
+    const body = (await res.json()) as { content?: Array<{ type?: string; text?: string }>; stop_reason?: string };
+    // Newer models can put a thinking block first: read every text block, wherever it is.
+    const text = (body.content ?? []).filter((b) => b.type === "text" && b.text).map((b) => b.text!.trim()).join("\n\n").trim();
+    if (!text) { console.error(`[ai] strategy read: empty reply (stop: ${body.stop_reason}; blocks: ${(body.content ?? []).map((b) => b.type).join(",")})`); return c?.n ?? null; }
     const n: Narrative = { text, generatedAt: new Date().toISOString(), model };
     const data = { carrier: "_cache", carrierName: "_cache", network: "strategy", url: "", status: "cache", stats: JSON.parse(JSON.stringify({ hash, n })), processedAt: new Date() };
     await db.rateFile.upsert({ where: { id }, create: { id, ...data }, update: data });

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.27.3 — 2026-11-10
+
+- AI write-ups read the reply's text block wherever it sits (newer models can lead with a thinking block, which left the write-up silently empty), with more token headroom, and log when a reply has no text.
+
 ## 0.27.2 — 2026-11-10
 
 - Product news (Products, Home, competitor pages) now also draws on stories the feed filter archived automatically, mostly ones already over 30 days old when first fetched, so the 90-day view and the AI brief have material on a new install. They still have to pass the product test, name the carrier and, for national carriers, touch New England. Stories a person archived stay out.
