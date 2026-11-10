@@ -24,7 +24,7 @@ export const DIRECTORY_SOURCES: Array<{ carrier: string; issuers: string[]; inde
   { carrier: "Anthem Blue Cross and Blue Shield", issuers: ["96751", "57601"], index: "https://www22.elevancehealth.com/cms-data-index-json/Elevance-Health-Data-Index.json", providerFilter: /PROVIDERS_(NH|ME|CT)(_|\.)/ },
   { carrier: "Harvard Pilgrim Health Care", issuers: ["59025"], index: "https://www.harvardpilgrim.org/cmsjson/rest/index.json" },
   { carrier: "Ambetter (Centene)", issuers: ["75841"], index: "https://api.centene.com/ambetter/reference/cms-data-index.json", providerFilter: /provider_facility_/, formularyFilter: /-NH\.json/ },
-  { carrier: "Matthew Thornton Health Plan", issuers: ["72953"], index: "https://cmsdata.providers4you.com/cms-data-index.json" },
+  // Not 72953 (cmsdata.providers4you.com): that is Renaissance, a stand-alone dental issuer.
   { carrier: "WellSense Health Plan", issuers: ["13219"], index: "https://connect.wellsense.org:8443/NHACA_MRF/data/cms-data-index.json" },
 ];
 
@@ -106,6 +106,11 @@ export async function importDirectories(): Promise<{ rows: number; errors: strin
   let rows = 0;
   const minYear = new Date().getUTCFullYear();
   try {
+    // Carriers dropped from the source list don't keep stale rows.
+    const keep = DIRECTORY_SOURCES.map((s) => s.carrier);
+    await db.planNetworkStat.deleteMany({ where: { carrier: { notIn: keep } } });
+    await db.planHospital.deleteMany({ where: { carrier: { notIn: keep } } });
+    await db.planDrug.deleteMany({ where: { carrier: { notIn: keep } } });
     for (const src of DIRECTORY_SOURCES) {
       let index: { provider_urls?: string[]; formulary_urls?: string[] };
       try {
@@ -134,7 +139,10 @@ export async function importDirectories(): Promise<{ rows: number; errors: strin
           for await (const r of records(file)) {
             const py = planYears(r.plans as Plan[]);
             if (!py.length) continue;
-            const addr = ((r.addresses as Array<{ city?: string; state?: string }>) ?? [])[0] ?? {};
+            // Count providers practicing in New England only (national networks list every state).
+            const addrs = (r.addresses as Array<{ city?: string; state?: string }>) ?? [];
+            const addr = addrs.find((a) => a.state && NE.has(a.state)) ?? addrs[0] ?? {};
+            const inNE = addrs.some((a) => a.state && NE.has(a.state));
             if (r.type === "FACILITY") {
               const types = ((r.facility_type as string[]) ?? []).join(" ");
               const isHosp = /hospital/i.test(types);
@@ -148,6 +156,7 @@ export async function importDirectories(): Promise<{ rows: number; errors: strin
               const spec = ((r.specialty as string[]) ?? []).join(" ");
               const pcp = PCP.test(spec);
               const accepting = /^accepting/i.test(String(r.accepting ?? ""));
+              if (!inNE) continue;
               for (const x of py) {
                 const s = S(x.planId, x.year);
                 s.individuals++;

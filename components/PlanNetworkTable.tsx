@@ -39,7 +39,7 @@ export async function PlanNetworkTable({ plans, title = "Network and formulary" 
         <h3 className="font-semibold tracking-tight">{title}</h3>
         <p className="text-xs text-stone-500">
           From the insurer&apos;s own provider directory and formulary files (CMS requires these for federal-platform exchange plans). Hospitals = in-network
-          hospitals in New England. Physicians and PCPs are individual clinicians listed for the plan; accepting = listed as accepting new patients.
+          hospitals in New England. Physicians and PCPs are individual clinicians listed for the plan with a New England practice address; accepting = listed as accepting new patients.
           Plan year {[...new Set(rows.map((r) => r.d.year))].join("/")}.
         </p>
       </div>

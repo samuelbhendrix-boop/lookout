@@ -350,7 +350,7 @@ export default async function CompetitorProductsPage({ params, searchParams }: {
         <>Per-service copays are published only for federal-platform states (NH). Elsewhere, compare with the SBC cost examples (baby, diabetes, fracture), which every plan must calculate the same way.</>,
         <>Premiums are list rates before subsidies, non-tobacco. Massachusetts ConnectorCare and other state subsidy programs are not shown.</>,
         <>Large-group and self-funded benefit designs are not filed publicly; only plan names are available.</>,
-        <>Provider networks and formularies come from insurers&apos; machine-readable files, which CMS requires only on the federal platform: in New England that is New Hampshire&apos;s exchange plans (Anthem, Harvard Pilgrim, Ambetter, Matthew Thornton; Ambetter publishes facilities only, Matthew Thornton no formulary). State-exchange plans in MA, CT, RI, VT and ME have no such files.{dirErr?.errors.length ? ` Last run couldn't read: ${dirErr.errors.join("; ")}.` : ""}</>,
+        <>Provider networks and formularies come from insurers&apos; machine-readable files, which CMS requires only on the federal platform: in New England that is New Hampshire&apos;s exchange plans (Anthem, Harvard Pilgrim and Ambetter; Ambetter publishes facilities only). State-exchange plans in MA, CT, RI, VT and ME have no such files.{dirErr?.errors.length ? ` Last run couldn't read: ${dirErr.errors.join("; ")}.` : ""}</>,
       ]} />
     </div>
   );
