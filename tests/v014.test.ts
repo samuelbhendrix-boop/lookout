@@ -86,3 +86,33 @@ describe("large-group product lines", () => {
     expect(deductibleOf("HMO 25/40")).toBeNull();
   });
 });
+
+import { GIC_YEARS, gicByCarrier, gicDesignChanges } from "@/lib/marketdata/gic";
+import { parseRates } from "../scripts/build-gic";
+describe("GIC plan designs", () => {
+  it("has every plan with premiums and the core design, and years chain", () => {
+    for (const y of GIC_YEARS) {
+      expect(y.plans).toHaveLength(8);
+      for (const p of y.plans) {
+        expect(p.premium.individual.current).toBeGreaterThan(500);
+        expect(p.premium.family.current!).toBeGreaterThan(p.premium.individual.current!);
+        for (const k of ["deductible", "oopInd", "pcp", "specialist", "er", "rx"]) expect(p.design[k]).toBeTruthy();
+      }
+    }
+    const [a, b] = GIC_YEARS;
+    for (const p of b.plans) expect(p.premium.individual.prior).toBe(a.plans.find((q) => q.id === p.id)!.premium.individual.current);
+    expect(gicDesignChanges(b)?.changes).toEqual([]);
+    expect(gicByCarrier(b).slice(0, 2).map((c) => c.carrier).sort()).toEqual(["Harvard Pilgrim Health Care", "Wellpoint (Elevance)"]);
+  });
+  it("reads premium rows whose plan name wraps onto the next line", () => {
+    const t = `Fiscal Year 2027 full Cost Premiums: Non-Medicare
+                         Individual    $857.22      6,322       $899.98       5.0%
+          Regional    Health New England
+                         Family     $2,056.02     6,029      $2,164.75      5.3%
+          Harvard Pilgrim Access     Individual   $1,435.03     1,743      $1,507.55      5.1%
+                 America               Family     $3,200.78      952       $3,365.26      5.1%`;
+    const r = parseRates(t);
+    expect(r.hne.family.current).toBe(2164.75);
+    expect(r["hp-access-america"].individual).toEqual({ prior: 1435.03, enrollment: 1743, current: 1507.55, change: 0.051 });
+  });
+});

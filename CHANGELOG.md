@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.19.0 — 2026-11-09
+- **GIC large-group benchmark.** The MA Group Insurance Commission's eight non-Medicare plans (Harvard Pilgrim, Wellpoint/Elevance, MGB Health Plan, Health New England), FY2026 and FY2027: full monthly cost per subscriber (individual and family), increase, projected subscribers, network tier, and the complete in-network benefit design side by side (deductible, out-of-pocket max, PCP/specialist/ER/inpatient/surgery/imaging copays with tiers, Rx). By-carrier share and enrollment-weighted increase; design changes year over year. On Products → Large group (MA) and on each matching competitor's products page.
+- `scripts/build-gic.ts` rebuilds `data/gic/gic-fyYYYY.json` from GIC's benefit guide and rate-vote slides each spring (fails loudly if the layout changes).
+
 ## 0.18.0 — 2026-11-09
 - **Large group in Products.** New "Large group" market on /products for each state: fully insured lives, share and change, self-insured members (MA, NH), premium and claims PMPM and loss ratio (CMS MLR); what employers pay per covered person by group size, renewal increase for employers staying with the same carrier, broker pay and HMO share (Form 5500 Schedule A); product mix by HMO/PPO/POS/EPO (CHIA); RI OHIC requested vs approved rates with trend and retention; Maine admin and underwriting margin.
 - **Each competitor's large group** on its products page: the same measures by state, and its **product line-up** read from the plan names in its transparency index (e.g. MGB: Complete HMO, Complete PPO Plus, Choice Easy Tier HMO, Allies HMO, with deductible ranges, HSA, tiered and limited networks).

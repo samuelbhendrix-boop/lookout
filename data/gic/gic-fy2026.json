@@ -1,0 +1,356 @@
+{
+  "fiscalYear": 2026,
+  "effective": "2025-07-01",
+  "nonMedicareAvgIncrease": 0.127,
+  "note": "Full monthly cost per subscriber (employer + employee share), state plans; municipal full cost adds a 0.25% administrative fee. Enrollment is GIC's projection for open enrollment, in subscribers.",
+  "sources": [
+    {
+      "label": "GIC 2025–2026 state employees' benefit guide",
+      "url": "https://www.mass.gov/doc/2025-2026-state-employees-retirees-survivors-benefits-guide/download"
+    },
+    {
+      "label": "GIC commission meeting, FY2026 rate vote",
+      "url": "https://www.mass.gov/doc/february-2025-commission-meeting-presentation/download"
+    }
+  ],
+  "labels": {
+    "type": "Plan type",
+    "pcpRequired": "PCP required",
+    "referral": "Referral to specialists",
+    "oopInd": "Out-of-pocket max (individual)",
+    "oopFam": "Out-of-pocket max (family)",
+    "deductible": "Deductible (individual / family)",
+    "pcp": "Primary care visit",
+    "specialist": "Specialist visit (tier 1/2/3)",
+    "urgent": "Urgent care / retail clinic",
+    "behavioral": "Outpatient behavioral health",
+    "er": "Emergency room",
+    "inpatient": "Inpatient admission (tier 1/2/3)",
+    "surgery": "Outpatient surgery (hospital)",
+    "imaging": "High-tech imaging",
+    "rx": "Retail Rx (tier 1/2/3, 30 days)",
+    "mail": "Mail-order Rx (90 days)"
+  },
+  "plans": [
+    {
+      "id": "hp-access-america",
+      "name": "Harvard Pilgrim Access America",
+      "product": "Harvard Pilgrim Access America",
+      "carrier": "Harvard Pilgrim Health Care",
+      "network": "National",
+      "type": "PPO",
+      "design": {
+        "type": "PPO",
+        "pcpRequired": "No",
+        "referral": "No",
+        "oopInd": "$5,000",
+        "oopFam": "$10,000",
+        "deductible": "$500 / $1,000",
+        "pcp": "$20",
+        "specialist": "$45",
+        "urgent": "$20",
+        "behavioral": "$20",
+        "er": "$100 (waived if admitted)",
+        "inpatient": "$275 / admission",
+        "surgery": "$250",
+        "imaging": "$100 / scan",
+        "rx": "$10 / $30 / $65",
+        "mail": "$25 / $75 / $165"
+      },
+      "premium": {
+        "individual": {
+          "prior": 1255.62,
+          "enrollment": 1788,
+          "current": 1435.03,
+          "change": 0.14300000000000002
+        },
+        "family": {
+          "prior": 2800.86,
+          "enrollment": 955,
+          "current": 3200.78,
+          "change": 0.14300000000000002
+        }
+      }
+    },
+    {
+      "id": "wp-total-choice",
+      "name": "Wellpoint Total Choice",
+      "product": "Wellpoint Total Choice",
+      "carrier": "Wellpoint (Elevance)",
+      "network": "Broad",
+      "type": "INDEMNITY",
+      "design": {
+        "type": "INDEMNITY",
+        "pcpRequired": "No",
+        "referral": "No",
+        "oopInd": "$5,000",
+        "oopFam": "$10,000",
+        "deductible": "$500 / $1,000",
+        "pcp": "$20",
+        "specialist": "$45",
+        "urgent": "$20",
+        "behavioral": "$20",
+        "er": "$100 (waived if admitted)",
+        "inpatient": "$275 / admission",
+        "surgery": "$250",
+        "imaging": "$100 / scan",
+        "rx": "$10 / $30 / $65",
+        "mail": "$25 / $75 / $165"
+      },
+      "premium": {
+        "individual": {
+          "prior": 1496.86,
+          "enrollment": 6891,
+          "current": 1750.22,
+          "change": 0.16899999999999998
+        },
+        "family": {
+          "prior": 3321.75,
+          "enrollment": 4607,
+          "current": 3890.1,
+          "change": 0.171
+        }
+      }
+    },
+    {
+      "id": "wp-plus",
+      "name": "Wellpoint PLUS",
+      "product": "Wellpoint PLUS",
+      "carrier": "Wellpoint (Elevance)",
+      "network": "Broad",
+      "type": "PPO-TYPE",
+      "design": {
+        "type": "PPO-TYPE",
+        "pcpRequired": "No",
+        "referral": "No",
+        "oopInd": "$5,000",
+        "oopFam": "$10,000",
+        "deductible": "$500 / $1,000",
+        "pcp": "Tier 1: $10 Tier 2: $20 Tier 3: $40",
+        "specialist": "$30 / $60 / $75",
+        "urgent": "$20",
+        "behavioral": "$10",
+        "er": "$100 (waived if admitted)",
+        "inpatient": "$275 / $500 / $1,500 / admission",
+        "surgery": "$250",
+        "imaging": "$100 / scan",
+        "rx": "$10 / $30 / $65",
+        "mail": "$25 / $75 / $165"
+      },
+      "premium": {
+        "individual": {
+          "prior": 955.75,
+          "enrollment": null,
+          "current": 1089.31,
+          "change": 0.14
+        },
+        "family": {
+          "prior": 2277.22,
+          "enrollment": 15335,
+          "current": 2599.53,
+          "change": 0.142
+        }
+      }
+    },
+    {
+      "id": "hp-explorer",
+      "name": "Harvard Pilgrim Explorer",
+      "product": "Harvard Pilgrim Explorer",
+      "carrier": "Harvard Pilgrim Health Care",
+      "network": "Broad",
+      "type": "POS",
+      "design": {
+        "type": "POS",
+        "pcpRequired": "Yes",
+        "referral": "Yes",
+        "oopInd": "$5,000",
+        "oopFam": "$10,000",
+        "deductible": "$500 / $1,000",
+        "pcp": "Tier 1: $10 Tier 2: $20 Tier 3: $40",
+        "specialist": "$30 / $60 / $75",
+        "urgent": "$20",
+        "behavioral": "$10",
+        "er": "$100 (waived if admitted)",
+        "inpatient": "$275 / $500 / $1,500 / admission",
+        "surgery": "$250",
+        "imaging": "$100 / scan",
+        "rx": "$10 / $30 / $65",
+        "mail": "$25 / $75 / $165"
+      },
+      "premium": {
+        "individual": {
+          "prior": 1064.68,
+          "enrollment": 18238,
+          "current": 1185.01,
+          "change": 0.113
+        },
+        "family": {
+          "prior": 2637.99,
+          "enrollment": 22380,
+          "current": 2933.73,
+          "change": 0.11199999999999999
+        }
+      }
+    },
+    {
+      "id": "mgb-complete",
+      "name": "MGB Health Plan Complete HMO",
+      "product": "MGB Health Plan Complete HMO",
+      "carrier": "Mass General Brigham Health Plan",
+      "network": "Broad",
+      "type": "HMO",
+      "design": {
+        "type": "HMO",
+        "pcpRequired": "Yes",
+        "referral": "Yes",
+        "oopInd": "$5,000",
+        "oopFam": "$10,000",
+        "deductible": "$500 / $1,000",
+        "pcp": "Tier 1: $10 Tier 2: $20 Tier 3: $40",
+        "specialist": "$30 / $60 / $75",
+        "urgent": "$20",
+        "behavioral": "$10",
+        "er": "$100 (waived if admitted)",
+        "inpatient": "$275 / $500 / $1,500 / admission",
+        "surgery": "$250",
+        "imaging": "$100 / scan",
+        "rx": "$10 / $30 / $65",
+        "mail": "$25 / $75 / $165"
+      },
+      "premium": {
+        "individual": {
+          "prior": 974.74,
+          "enrollment": 5578,
+          "current": 1088.74,
+          "change": 0.11699999999999999
+        },
+        "family": {
+          "prior": 2577.69,
+          "enrollment": 4962,
+          "current": 2877.39,
+          "change": 0.11599999999999999
+        }
+      }
+    },
+    {
+      "id": "hp-quality",
+      "name": "Harvard Pilgrim Quality",
+      "product": "Harvard Pilgrim Quality",
+      "carrier": "Harvard Pilgrim Health Care",
+      "network": "Limited",
+      "type": "HMO",
+      "design": {
+        "type": "HMO",
+        "pcpRequired": "Yes",
+        "referral": "Yes",
+        "oopInd": "$5,000",
+        "oopFam": "$10,000",
+        "deductible": "$400 / $800",
+        "pcp": "$20",
+        "specialist": "$30 / $60 (no Tier 3)",
+        "urgent": "$20",
+        "behavioral": "$20",
+        "er": "$100 (waived if admitted)",
+        "inpatient": "$275 / $500 / admission (no Tier 3)",
+        "surgery": "$250",
+        "imaging": "$100 / scan",
+        "rx": "$10 / $30 / $65",
+        "mail": "$25 / $75 / $165"
+      },
+      "premium": {
+        "individual": {
+          "prior": 785.68,
+          "enrollment": 9325,
+          "current": 883.42,
+          "change": 0.124
+        },
+        "family": {
+          "prior": 1999.81,
+          "enrollment": 6775,
+          "current": 2246.89,
+          "change": 0.124
+        }
+      }
+    },
+    {
+      "id": "wp-community-choice",
+      "name": "Wellpoint Community Choice",
+      "product": "Wellpoint Community Choice",
+      "carrier": "Wellpoint (Elevance)",
+      "network": "Limited",
+      "type": "PPO-TYPE",
+      "design": {
+        "type": "PPO-TYPE",
+        "pcpRequired": "No",
+        "referral": "No",
+        "oopInd": "$5,000",
+        "oopFam": "$10,000",
+        "deductible": "$400 / $800",
+        "pcp": "$20",
+        "specialist": "$30 / $60 / $75",
+        "urgent": "$20",
+        "behavioral": "$20",
+        "er": "$100 (waived if admitted)",
+        "inpatient": "$275 / admission",
+        "surgery": "$250",
+        "imaging": "$100 / scan",
+        "rx": "$10 / $30 / $65",
+        "mail": "$25 / $75 / $165"
+      },
+      "premium": {
+        "individual": {
+          "prior": 742.74,
+          "enrollment": 10290,
+          "current": 835.29,
+          "change": 0.125
+        },
+        "family": {
+          "prior": 1843.56,
+          "enrollment": 11288,
+          "current": 2076.1,
+          "change": 0.126
+        }
+      }
+    },
+    {
+      "id": "hne",
+      "name": "Health New England HMO",
+      "product": "Health New England HMO",
+      "carrier": "Health New England",
+      "network": "Regional",
+      "type": "HMO",
+      "design": {
+        "type": "HMO",
+        "pcpRequired": "Yes",
+        "referral": "No",
+        "oopInd": "$5,000",
+        "oopFam": "$10,000",
+        "deductible": "$400 / $800",
+        "pcp": "$20",
+        "specialist": "$30 / $60 (no Tier 3)",
+        "urgent": "$20",
+        "behavioral": "$20",
+        "er": "$100 (waived if admitted)",
+        "inpatient": "$275 / admission",
+        "surgery": "$250",
+        "imaging": "$100 / scan",
+        "rx": "$10 / $30 / $65",
+        "mail": "$25 / $75 / $165"
+      },
+      "premium": {
+        "individual": {
+          "prior": 775.92,
+          "enrollment": 6136,
+          "current": 857.22,
+          "change": 0.105
+        },
+        "family": {
+          "prior": 1861.38,
+          "enrollment": 5982,
+          "current": 2056.02,
+          "change": 0.105
+        }
+      }
+    }
+  ]
+}

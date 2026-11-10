@@ -8,6 +8,7 @@ import { fmtInt } from "@/components/charts";
 import { NotIncluded } from "@/components/NotIncluded";
 import { PlanNetworkTable } from "@/components/PlanNetworkTable";
 import { LargeGroupMarket } from "@/components/LargeGroupProducts";
+import { GicPlans } from "@/components/GicPlans";
 import { largeGroupMarket } from "@/lib/marketdata/lgbook";
 import { Empty } from "@/components/ui";
 
@@ -53,6 +54,7 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
 
       {lg ? (
         lg.rows.length ? <>
+          {state === "MA" && <GicPlans match={(carrier) => !!compFor(carrier)} />}
           <LargeGroupMarket data={lg} />
           <NotIncluded items={[
             <>Carriers don&apos;t file large-group rates or benefit designs with CMS, and only Rhode Island publishes a large-group rate review, so there is no plan-by-plan comparison like the exchange view. Open a carrier for its product line-up from its transparency index.</>,

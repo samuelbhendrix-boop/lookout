@@ -12,6 +12,8 @@ import { NotIncluded } from "@/components/NotIncluded";
 import { Empty } from "@/components/ui";
 import { PlanNetworkTable } from "@/components/PlanNetworkTable";
 import { LargeGroupCompetitor } from "@/components/LargeGroupProducts";
+import { GicPlans } from "@/components/GicPlans";
+import { gicLatest } from "@/lib/marketdata/gic";
 import { groupProductLines, largeGroupMarket } from "@/lib/marketdata/lgbook";
 import { NE_STATES } from "@/lib/marketdata/products";
 import { directoryErrors } from "@/lib/marketdata/directory";
@@ -341,6 +343,7 @@ export default async function CompetitorProductsPage({ params, searchParams }: {
 
       {/* ── Group / ASO catalog ── */}
       {(lgPerState.length > 0 || lgLines.lines.length > 0) && <LargeGroupCompetitor perState={lgPerState} lines={lgLines.lines} totalPlans={lgLines.total} />}
+      {(!state || state === "MA") && compRe && gicLatest().plans.some((p) => compRe.test(p.carrier)) && <GicPlans match={(c) => compRe.test(c)} only />}
 
       {groupPlans.length > 0 && (
         <section className="space-y-2 border-t border-stone-200 pt-6">
