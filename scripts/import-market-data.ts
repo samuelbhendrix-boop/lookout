@@ -34,6 +34,10 @@ import { db } from "../lib/db";
     await db.$disconnect();
     return;
   }
+  // If the event loop drains mid-import (a promise that can never settle), Node exits 0 silently and the import stays
+  // "running" forever; make that a loud failure instead.
+  let finished = false;
+  process.on("beforeExit", () => { if (!finished) { console.error(`import ${ds ?? "due"} ${yr ?? ""} stalled: the process ran out of work before finishing`); process.exit(1); } });
   const list = ds ? (await allDatasets()).filter((d) => d.dataset === ds && (!yr || d.year === Number(yr))) : await dueImports();
   for (const d of list) {
     const t = Date.now();
@@ -41,5 +45,6 @@ import { db } from "../lib/db";
     const mem = Math.round(process.memoryUsage().rss / 1e6);
     console.log(`${d.dataset} ${d.year}: ${rows} rows in ${Math.round((Date.now() - t) / 1000)}s (rss ${mem} MB)`);
   }
+  finished = true;
   await db.$disconnect();
 })().catch((e) => { console.error(e); process.exit(1); });

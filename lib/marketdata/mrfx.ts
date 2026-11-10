@@ -1,6 +1,4 @@
 import { gunzipSync } from "node:zlib";
-import { Readable } from "node:stream";
-import { createInterface } from "node:readline";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Prisma } from "@prisma/client";
@@ -34,12 +32,13 @@ export async function importMrfExtract(): Promise<number> {
   // already decompressed (the CDN can apply Content-Encoding), some gzipped once; checking the magic bytes handles both.
   let buf: Buffer = Buffer.from(await res.arrayBuffer());
   while (buf.length > 2 && buf[0] === 0x1f && buf[1] === 0x8b) buf = gunzipSync(buf);
-  const lines = createInterface({ input: Readable.from([buf]) });
+  // Split in memory (a readline over an already-finished stream can miss its end and stall the process).
+  const lines = buf.toString("utf8").split(/\r?\n/).filter((l) => l.length);
   let header: string[] | null = null;
   let batch: Prisma.MarketCodeRateCreateManyInput[] = [];
   let n = 0;
   await db.marketCodeRate.deleteMany({ where: { month } });
-  for await (const line of lines) {
+  for (const line of lines) {
     const v = line.split(",");
     if (!header) {
       header = v.map((h) => h.replace(/^\uFEFF/, "").replace(/^"|"$/g, "").trim());
