@@ -17,6 +17,9 @@ import { gicLatest } from "@/lib/marketdata/gic";
 import { groupProductLines, largeGroupMarket } from "@/lib/marketdata/lgbook";
 import { NE_STATES } from "@/lib/marketdata/products";
 import { directoryErrors } from "@/lib/marketdata/directory";
+import { ProductStrategy } from "@/components/ProductDossier";
+import { ProductNews } from "@/components/ProductNews";
+import { RatingAreaMap } from "@/components/RatingAreaMap";
 
 export const dynamic = "force-dynamic";
 
@@ -82,6 +85,9 @@ export default async function CompetitorProductsPage({ params, searchParams }: {
           {allStates.map((s) => <Link key={s} href={`/competitors/${comp.id}/products?state=${s}`} className={`rounded px-2.5 py-1 ${state === s ? "bg-stone-900 text-white" : "bg-stone-100 hover:bg-stone-200"}`}>{s}</Link>)}
         </nav>
       </div>
+
+      <ProductStrategy comp={comp} state={state} workspaceId={session.workspaceId} />
+      <ProductNews workspaceId={session.workspaceId} competitorId={comp.id} days={365} limit={6} />
 
       {!r.markets.length && !r.lineup.length && (
         <Empty title="No individual or small-group filings matched">
@@ -154,6 +160,12 @@ export default async function CompetitorProductsPage({ params, searchParams }: {
 
           {m.bench.length > 0 && (
             <Section title="Subsidy benchmark (second-lowest silver), by rating area" note="The benchmark silver plan sets every subsidized enrollee's tax credit; the cheapest silver and bronze plans are where price-shoppers land. Age 40.">
+              <div className="card p-4">
+                <RatingAreaMap state={m.state} scale="div" fmt={(v) => `${v > 0 ? "+" : ""}${Math.round(v * 100)}%`} valueLabel="Cheapest silver vs benchmark"
+                  values={Object.fromEntries(m.bench.map((b) => { const xs = m.plans.filter((p) => p.metal === "Silver" && p.areaPrem40).map((p) => (p.areaPrem40 as Record<string, number>)[b.area]).filter((x): x is number => x != null); return [b.area, xs.length && b.benchmark ? Math.min(...xs) / b.benchmark.price - 1 : null]; }))}
+                  mark={m.bench.filter((b) => b.benchmark && m.plans.some((p) => p.issuerId === b.benchmark!.issuerId)).map((b) => b.area)} markLabel="This carrier holds the benchmark"
+                  caption="Green = its cheapest silver is under the benchmark (cheapest after subsidy); red = above." />
+              </div>
               <div className="card overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="border-b border-stone-200 text-left font-mono text-[10px] uppercase tracking-wide text-stone-500"><tr><th className="px-3 py-2">Rating area</th><th className="px-3 py-2">Lowest silver</th><th className="px-3 py-2">Benchmark (2nd lowest)</th><th className="px-3 py-2 text-right">This carrier&apos;s cheapest silver</th><th className="px-3 py-2 text-right">vs benchmark</th></tr></thead>

@@ -43,11 +43,11 @@ export function productScore(title: string, summary = ""): { score: number; them
   return { score, theme, regional };
 }
 
-export async function productNews(workspaceId: string, days = 90, limit = 12): Promise<ProductItem[]> {
+export async function productNews(workspaceId: string, days = 90, limit = 12, competitorId?: string): Promise<ProductItem[]> {
   const since = new Date(Date.now() - days * 864e5);
   const rows = await db.signal.findMany({
     where: {
-      workspaceId, duplicateOfId: null, status: { not: "ARCHIVED" }, competitorId: { not: null },
+      workspaceId, duplicateOfId: null, status: { not: "ARCHIVED" }, competitorId: competitorId ?? { not: null },
       tags: { none: { tag: { name: { in: ["market-data", AUTO_FILTER_TAG] } } } },
       OR: [{ publishedAt: { gte: since } }, { publishedAt: null, createdAt: { gte: since } }],
     },

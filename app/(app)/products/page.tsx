@@ -10,6 +10,8 @@ import { PlanNetworkTable } from "@/components/PlanNetworkTable";
 import { LargeGroupMarket } from "@/components/LargeGroupProducts";
 import { GicPlans } from "@/components/GicPlans";
 import { ProductNews } from "@/components/ProductNews";
+import { ProductMatrix } from "@/components/ProductDossier";
+import { RatingAreaMap } from "@/components/RatingAreaMap";
 import { largeGroupMarket } from "@/lib/marketdata/lgbook";
 import { Empty } from "@/components/ui";
 
@@ -55,6 +57,8 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
 
       <ProductNews workspaceId={session.workspaceId} limit={8} />
 
+      {market !== "LG" && <ProductMatrix workspaceId={session.workspaceId} state={state} />}
+
       {lg ? (
         lg.rows.length ? <>
           {state === "MA" && <GicPlans match={(carrier) => !!compFor(carrier)} />}
@@ -97,16 +101,23 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
             </div>
           </section>
 
-          {mk.bench.length > 0 && (
+          {mk.bench.length > 0 ? (
             <section className="space-y-2">
               <h2 className="font-semibold tracking-tight">Who sets the subsidy benchmark</h2>
               <p className="text-xs text-stone-500">Second-lowest-cost silver plan in each rating area, age 40. It fixes every subsidized enrollee&apos;s tax credit, so whoever prices under it is cheapest after subsidy.</p>
+              <div className="card p-4"><RatingAreaMap state={state} values={Object.fromEntries(mk.bench.map((b) => [b.area, b.benchmark?.price ?? null]))} fmt={(v) => usd(v)} valueLabel="Benchmark silver" caption="Darker = higher benchmark premium (age 40, monthly)." /></div>
               <div className="card overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="border-b border-stone-200 text-left font-mono text-[10px] uppercase tracking-wide text-stone-500"><tr><th className="px-3 py-2">Rating area</th><th className="px-3 py-2">Lowest silver</th><th className="px-3 py-2">Benchmark silver</th><th className="px-3 py-2 text-right">Silver plans</th></tr></thead>
-                  <tbody className="divide-y divide-stone-100">{mk.bench.map((b) => <tr key={b.area}><td className="px-3 py-1.5">{b.area}</td><td className="px-3 py-1.5">{usd(b.lowest.price)} <span className="text-xs text-stone-500">{short(b.lowest.issuer)} · {b.lowest.name}</span></td><td className="px-3 py-1.5">{b.benchmark ? <>{usd(b.benchmark.price)} <span className="text-xs text-stone-500">{short(b.benchmark.issuer)} · {b.benchmark.name}</span></> : "—"}</td><td className="px-3 py-1.5 text-right tabular-nums">{b.silverPlans}</td></tr>)}</tbody>
+                  <tbody className="divide-y divide-stone-100">{mk.bench.map((b) => <tr key={b.area} id={`area-${b.area.replace(/\D/g, "")}`}><td className="px-3 py-1.5">{b.area}</td><td className="px-3 py-1.5">{usd(b.lowest.price)} <span className="text-xs text-stone-500">{short(b.lowest.issuer)} · {b.lowest.name}</span></td><td className="px-3 py-1.5">{b.benchmark ? <>{usd(b.benchmark.price)} <span className="text-xs text-stone-500">{short(b.benchmark.issuer)} · {b.benchmark.name}</span></> : "—"}</td><td className="px-3 py-1.5 text-right tabular-nums">{b.silverPlans}</td></tr>)}</tbody>
                 </table>
               </div>
+            </section>
+          ) : (
+            <section className="space-y-2">
+              <h2 className="font-semibold tracking-tight">Rating areas</h2>
+              <p className="text-xs text-stone-500">Carriers can price differently in each rating area; plan premiums on this page are the median across them.</p>
+              <div className="card p-4"><RatingAreaMap state={state} compact /></div>
             </section>
           )}
 

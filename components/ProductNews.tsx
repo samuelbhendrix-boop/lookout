@@ -14,19 +14,21 @@ const THEME_TONE: Record<string, string> = {
  * Competitors' commercial product changes only: ranked news (exits, launches, benefit and network-product changes,
  * exchange moves) with an AI synthesis of what matters most when ANTHROPIC_API_KEY is set.
  */
-export async function ProductNews({ workspaceId, limit = 8, compact = false }: { workspaceId: string; limit?: number; compact?: boolean }) {
-  const items = await productNews(workspaceId, 90, Math.max(limit, 15));
-  const brief = await productBrief(workspaceId, items);
+export async function ProductNews({ workspaceId, limit = 8, compact = false, competitorId, days = 90 }: { workspaceId: string; limit?: number; compact?: boolean; competitorId?: string; days?: number }) {
+  const items = await productNews(workspaceId, days, Math.max(limit, 15), competitorId);
+  // The synthesis is for the cross-competitor view; one carrier's page gets its own strategy read instead.
+  const brief = competitorId ? null : await productBrief(workspaceId, items);
   const shown = items.slice(0, limit);
+  if (competitorId && !shown.length) return null;
   const byId = new Map(items.map((i) => [i.id, i]));
   return (
     <section className="card p-4">
       <div className="mb-2 flex items-start justify-between gap-3">
         <div>
-          <h2 className="text-sm font-semibold tracking-tight">Competitor product moves · 90 days</h2>
+          <h2 className="text-sm font-semibold tracking-tight">{competitorId ? "Product news" : "Competitor product moves"} · {days} days</h2>
           <p className="text-[11px] text-stone-500">New, changed and withdrawn commercial products only (employer, small group, individual). Medicare, Medicaid, earnings, stock and executive news are left out.</p>
         </div>
-        <Link href="/updates?cat=product&days=90" className="shrink-0 text-xs text-stone-500 hover:text-stone-900">All product news →</Link>
+        <Link href={`/updates?cat=product&days=${days}${competitorId ? `&competitorId=${competitorId}` : ""}`} className="shrink-0 text-xs text-stone-500 hover:text-stone-900">All product news →</Link>
       </div>
 
       {brief && brief.points.length > 0 && (
@@ -45,7 +47,7 @@ export async function ProductNews({ workspaceId, limit = 8, compact = false }: {
       )}
 
       {shown.length === 0 ? (
-        <p className="text-sm text-stone-500">No competitor product changes in the news in the last 90 days.</p>
+        <p className="text-sm text-stone-500">No {competitorId ? "" : "competitor "}product changes in the news in the last {days} days.</p>
       ) : (
         <ol className="divide-y divide-stone-100">
           {shown.map((i) => (

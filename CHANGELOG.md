@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.23.0 — 2026-11-09
+
+- **Product strategy dossier** on every competitor's products page: each individual and small-group product it files (on and off exchange), with members and year-over-year change, share, renewal rate change vs the market, price index vs the same-metal market median, PMPM, filed loss ratio, line-up changes (new / cut plans, metals), design (deductibles, HSA, tiered, out-of-network, service area) and networks.
+- Each product gets a strategy read (Share grab, Margin repair, Harvest, Wind-down, Launch, Exit, Value network play, Defend the core, …) with the evidence behind it, plus discontinued products. The carrier's book by segment (MLR: members, premium and loss ratio vs market) sits on top, with a written summary; with `ANTHROPIC_API_KEY` set it becomes an analyst-style read that also weighs the carrier's product news.
+- **Products tab: "Who is doing what"** — one row per carrier in the state with its main moves, growth, pricing vs market and largest product.
+- **Rating-area maps** for all six states (CMS definitions: MA by 3-digit ZIP, CT and ME by county, NH/RI/VT statewide). Products shows benchmark silver by area; competitor pages shade its cheapest silver vs the benchmark and outline areas it holds. Built by `scripts/build-rating-areas.ts`.
+- Competitor products pages show that carrier's product news (12 months).
+
 ## 0.22.0 — 2026-11-09
 
 - **Competitor product moves** panel on Products and Home: only competitors' commercial product changes (new plans and products, exits and withdrawals, benefit and coverage changes, product networks, exchange moves). Medicare, Medicaid, earnings, stock, lawsuits and executive news are filtered out.
