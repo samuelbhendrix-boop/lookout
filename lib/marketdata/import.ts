@@ -326,7 +326,7 @@ export async function importDataset(dataset: Dataset, year: number) {
  */
 /** Rough cost of each import, for ordering (minutes on the server). */
 /** Imports that failed before a fix to their parser: retried once the fix is deployed. */
-const FAILED_FIX_AT: Record<string, number> = { mrfx: Date.parse("2026-11-10T11:00:00Z") };
+const FAILED_FIX_AT: Record<string, number> = { mrfx: Date.parse("2026-11-10T11:00:00Z"), hptx: Date.parse("2026-11-10T11:40:00Z") };
 
 const IMPORT_COST: Record<string, number> = { state_snapshots: 0, qhp: 1, urrt: 1, mlr: 1, ma_chia: 1, tic: 5, dol_5500: 5, rates: 15, directory: 60, mrfx: 3, hptx: 2, hpt: 120 };
 
