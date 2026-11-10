@@ -9,7 +9,7 @@
  * When CMS posts a new year, add its URL here (one line) and push; the worker imports it.
  */
 
-export type Dataset = "urrt" | "mlr" | "ma_chia" | "state_snapshots" | "dol_5500" | "tic" | "rates" | "qhp" | "hpt" | "directory";
+export type Dataset = "urrt" | "mlr" | "ma_chia" | "state_snapshots" | "dol_5500" | "tic" | "rates" | "qhp" | "hpt" | "directory" | "mrfx";
 
 export const DATASETS: Array<{ dataset: Dataset; year: number; url: string }> = [
   { dataset: "urrt", year: 2025, url: "https://www.cms.gov/files/zip/py2025puf20241024.zip" },
@@ -50,6 +50,8 @@ export const DATASETS: Array<{ dataset: Dataset; year: number; url: string }> = 
   { dataset: "hpt", year: 1, url: "registry:lib/marketdata/hpt.ts" },
   // Exchange insurers' provider directories and formularies (CMS MR-PUF index URLs listed in lib/marketdata/directory.ts).
   { dataset: "directory", year: 1, url: "registry:lib/marketdata/directory.ts" },
+  // Monthly MRF extract built in GitHub Actions (.github/workflows/mrf-extract.yml), published as release mrf-YYYY-MM.
+  { dataset: "mrfx", year: 1, url: "registry:lib/marketdata/mrfx.ts" },
   // Curated ME/RI/NH large-group snapshots shipped in the repo; bump "year" (a version stamp) after editing them.
   { dataset: "state_snapshots", year: 20261104, url: "repo:data/state-large-group" },
 ];

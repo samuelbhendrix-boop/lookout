@@ -813,3 +813,23 @@ model PlanDrug {
 
   @@index([planId, year])
 }
+
+/// What each carrier pays New England providers for one service, by state and setting, from the monthly MRF extract
+/// (GitHub release mrf-YYYY-MM, summary-code-rates.csv.gz). One median per provider group first, then the spread.
+model MarketCodeRate {
+  id           String @id @default(cuid())
+  month        String
+  carrier      String
+  carrierName  String
+  state        String
+  codeType     String
+  code         String
+  billingClass String
+  providers    Int
+  p25          Float
+  median       Float
+  p75          Float
+
+  @@index([codeType, code])
+  @@index([state, billingClass])
+}

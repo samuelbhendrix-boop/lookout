@@ -30,8 +30,8 @@ const ONLY = arg("--only")?.split(",");
 const DRY = process.argv.includes("--dry-run");
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
-type Kind = "cigna" | "aetna" | "uhc" | "blue";
-type Entry = { file: string; snap: Snapshot; kind: Kind };
+export type Kind = "cigna" | "aetna" | "uhc" | "blue";
+export type Entry = { file: string; snap: Snapshot; kind: Kind };
 type Result = { file: string; status: "refreshed" | "current" | "stale" | "failed"; detail: string };
 
 export function kindOf(url: string): Kind | null {
@@ -79,7 +79,7 @@ const tocFiles = (toc: Toc) => {
 };
 
 /** Current-month URL(s) for a snapshot, or null if its carrier's index doesn't list it. */
-const resolvers: Record<Kind, (e: Entry[]) => Promise<Map<string, string[]>>> = {
+export const resolvers: Record<Kind, (e: Entry[]) => Promise<Map<string, string[]>>> = {
   async cigna(entries) {
     const latest = await getJson<{ mrfs: Array<{ kind: string; files: Array<{ file_name: string; url: string }> }> }>("https://www.cigna.com/static/mrf/latest.json");
     const toc = latest.mrfs.find((m) => m.kind === "TOC")?.files[0];

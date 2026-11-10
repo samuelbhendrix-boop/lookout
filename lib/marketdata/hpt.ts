@@ -12,6 +12,7 @@ import Pick from "stream-json/filters/Pick";
 import Parser from "stream-json/Parser";
 import type { Prisma } from "@prisma/client";
 import { db } from "../db";
+import { manualFiles } from "./manual";
 import { benchCodeMap, codeKey } from "./mrf/codes";
 import { HOSPITALS } from "./networks";
 import tinMap from "../../data/medicare/hospital-tins.json";
@@ -94,7 +95,7 @@ export function productOf(plan: string): string {
   return "All plans";
 }
 
-type HptEntry = { location: string; url: string; source?: string };
+type HptEntry = { location?: string; url: string; source?: string };
 /** cms-hpt.txt: blocks of "key: value" lines; a block per hospital location. */
 export function parseHpt(text: string): HptEntry[] {
   const out: HptEntry[] = [];
@@ -242,9 +243,14 @@ export async function importHospitalFiles(opts: { domains?: string[]; force?: bo
   const dir = await mkdtemp(join(tmpdir(), "hpt-"));
   let total = 0;
   try {
+    // Files saved by hand from sites that refuse automated visits (docs/MANUAL-MRF.md).
+    let manual: Awaited<ReturnType<typeof manualFiles>>["hpt"] = [];
+    try { manual = (await manualFiles()).hpt; } catch { /* manual uploads are optional */ }
     for (const { domain, state } of HPT_DOMAINS.filter((d) => !opts.domains || opts.domains.includes(d.domain))) {
       let entries: HptEntry[] = [];
-      try {
+      const byHand = manual.filter((m) => m.domain === domain.replace(/^www\./, "") || m.domain === domain);
+      if (byHand.length) entries = byHand.map((m) => ({ url: m.url }));
+      else try {
         const res = await fetch(`https://${domain}/cms-hpt.txt`, { headers: UA, signal: AbortSignal.timeout(30_000) });
         if (!res.ok) throw new Error(`cms-hpt.txt: HTTP ${res.status}`);
         entries = parseHpt(await res.text());

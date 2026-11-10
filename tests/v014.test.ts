@@ -116,3 +116,14 @@ describe("GIC plan designs", () => {
     expect(r["hp-access-america"].individual).toEqual({ prior: 1435.03, enrollment: 1743, current: 1507.55, change: 0.051 });
   });
 });
+
+import { services } from "@/lib/marketdata/mrfx";
+describe("MRF extract service list", () => {
+  it("has the top physician services and the DRGs, ranked", () => {
+    const s = services();
+    expect(s.filter((x) => x.type === "CPT").length).toBe(1800);
+    expect(s.filter((x) => x.type === "MS-DRG").length).toBeGreaterThan(500);
+    expect(s.find((x) => x.type === "CPT" && x.rank === 1)?.code).toBe("99214");
+    expect(s.find((x) => x.code === "470")?.type).toBe("MS-DRG");
+  });
+});

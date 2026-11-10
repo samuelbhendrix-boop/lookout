@@ -1,0 +1,96 @@
+name: MRF extract (monthly)
+
+# Every carrier's in-network rate files → New England providers × top services → Parquet, published as the GitHub
+# release "mrf-YYYY-MM". Free on public repos. Runs once a month (carriers post on the 1st) or on demand.
+on:
+  schedule:
+    - cron: "17 7 4 * *" # 4th of each month, 07:17 UTC
+  push:
+    branches: [main]
+    paths: [".github/workflows/mrf-extract.yml"] # first run, and after pipeline changes
+  workflow_dispatch:
+    inputs:
+      shards: { description: "Parallel jobs", default: "20" }
+
+permissions:
+  contents: write
+
+concurrency: { group: mrf-extract, cancel-in-progress: false }
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+      month: ${{ steps.plan.outputs.month }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci && npx prisma generate
+      - run: pip install duckdb==1.1.3
+      - name: Make sure the manual-upload release exists (files saved by hand from browser-only sites)
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          if ! gh release view manual-mrf >/dev/null 2>&1; then
+            printf '%s\n' "# One file per line. Payersight reads these monthly. See the Manual MRF guide." \
+              "#   hpt <hospital-domain> <direct file url>" "#   tic <carrier> <network words> <direct file url>" "#   toc <carrier> <index url>" > links.txt
+            gh release create manual-mrf links.txt --title "Manual MRF uploads" --latest=false \
+              --notes "Files saved by hand from sites that refuse automated downloads. Edit this release and drag files in, named hpt__<domain>__<name>, tic__<carrier>__<network>.json.gz or toc__<carrier>.json, or add a line to links.txt."
+          fi
+      - name: New England providers (NPPES)
+        run: mkdir -p inputs && python3 scripts/nppes-ne.py inputs && rm -f inputs/*.zip
+      - name: List this month's rate files
+        id: plan
+        env: { GITHUB_TOKEN: "${{ github.token }}" }
+        run: |
+          npx tsx scripts/mrf-plan.ts ${{ inputs.shards || 20 }}
+          mv plan.json inputs/ && cp data/mrf/codes.csv data/mrf/ne-tins.txt inputs/
+          python3 -c "import json; d=json.load(open('data/irs/ne-health-orgs.json'))['orgs']; open('inputs/tin-states.csv','w').write('tin,state\n'+''.join(f'{t},{v[1]}\n' for t,v in d.items()))"
+          echo "matrix=$(cat matrix.json)" >> "$GITHUB_OUTPUT"
+          echo "month=$(jq -r .month inputs/plan.json)" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with: { name: inputs, path: inputs, retention-days: 7 }
+
+  extract:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    strategy:
+      fail-fast: false
+      max-parallel: 20
+      matrix:
+        shard: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: "1.24", cache-dependency-path: tools/mrfx/go.sum }
+      - run: cd tools/mrfx && go build -o "$GITHUB_WORKSPACE/mrfx" .
+      - run: pip install duckdb==1.1.3
+      - uses: actions/download-artifact@v4
+        with: { name: inputs, path: inputs }
+      - name: Extract
+        run: python3 scripts/mrf-shard.py ${{ matrix.shard }} inputs out
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: "shard-${{ matrix.shard }}", path: out, retention-days: 7, if-no-files-found: warn }
+
+  publish:
+    needs: [plan, extract]
+    if: always() && needs.plan.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install duckdb==1.1.3
+      - uses: actions/download-artifact@v4
+        with: { path: artifacts }
+      - name: Merge by carrier
+        run: python3 scripts/mrf-publish.py artifacts release
+      - name: Publish release mrf-${{ needs.plan.outputs.month }}
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          TAG="mrf-${{ needs.plan.outputs.month }}"
+          gh release view "$TAG" >/dev/null 2>&1 && gh release delete "$TAG" --yes --cleanup-tag
+          gh release create "$TAG" release/* --title "Negotiated rates extract ${{ needs.plan.outputs.month }}" --notes-file release/NOTES.md --latest=false
