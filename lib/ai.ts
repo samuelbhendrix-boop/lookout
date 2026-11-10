@@ -44,17 +44,20 @@ export async function claudeJson(opts: { system: string; user: string; schema: R
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) return null;
   let model = opts.model ?? process.env.CLASSIFIER_MODEL ?? "claude-haiku-5-5";
-  const call = () => fetch("https://api.anthropic.com/v1/messages", {
+  // Thinking off and the tool forced; if the API objects to that combination, retry letting the model choose the tool.
+  const call = (forced = true) => fetch("https://api.anthropic.com/v1/messages", {
     method: "POST", signal: AbortSignal.timeout(opts.timeoutMs ?? 120_000),
     headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
     body: JSON.stringify({
       model, max_tokens: opts.maxTokens ?? 4000, system: opts.system, messages: [{ role: "user", content: opts.user }],
-      tools: [{ name: opts.tool, description: "Record the result.", input_schema: opts.schema }], tool_choice: { type: "tool", name: opts.tool },
+      tools: [{ name: opts.tool, description: "Record the result.", input_schema: opts.schema }],
+      ...(forced ? { tool_choice: { type: "tool", name: opts.tool }, thinking: { type: "disabled" } } : { tool_choice: { type: "auto" } }),
     }),
   });
   try {
     let res = await call();
     let raw = await res.text();
+    if (res.status === 400 && /thinking|tool_choice/i.test(raw)) { console.error(`[ai] ${opts.label}: ${raw.slice(0, 200)}; retrying without forcing the tool`); res = await call(false); raw = await res.text(); }
     if (opts.model && (res.status === 404 || (res.status === 400 && /model/i.test(raw)))) { console.error(`[ai] ${opts.label}: ${model} refused (HTTP ${res.status} ${raw.slice(0, 300)}); falling back`); model = process.env.CLASSIFIER_MODEL ?? "claude-haiku-5-5"; res = await call(); raw = await res.text(); }
     if (!res.ok) { console.error(`[ai] ${opts.label}: HTTP ${res.status} ${raw.slice(0, 300)}`); return null; }
     const body = JSON.parse(raw) as { content?: Array<{ type?: string; input?: unknown }>; stop_reason?: string };
