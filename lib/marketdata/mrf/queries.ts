@@ -66,8 +66,9 @@ export type CarrierRate = { median: number; min: number; max: number; type: stri
  * networks (each network's preferred dollar type); the per-network values travel along for tooltips and CSV.
  * `state` limits providers to that state (matched hospital's state, else EIN prefix); "all" keeps everyone.
  */
-export async function codeBenchmark(codeType: string, code: string, billingClass: string, state = "all") {
-  const files = (await rateFiles()).filter((f) => f.status === "ok");
+export async function codeBenchmark(codeType: string, code: string, billingClass: string, state = "all", fileIds?: string[]) {
+  // fileIds: only these networks count (the Rates page's network filter); default every network.
+  const files = (await rateFiles()).filter((f) => f.status === "ok" && (!fileIds?.length || fileIds.includes(f.id)));
   const fileById = new Map(files.map((f) => [f.id, f]));
   const [sums, rows] = await Promise.all([
     db.rateSummary.findMany({ where: { codeType, code, billingClass, negotiatedType: { in: DOLLAR_TYPES } } }),

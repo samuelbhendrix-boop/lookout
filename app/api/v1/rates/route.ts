@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
   const billingClass = sp.get("class") === "professional" ? "professional" : "institutional";
   if (!codeType || !code || !/^[\w-]{1,10}$/.test(code)) return Response.json({ error: { message: "code must look like CPT|99213" } }, { status: 422 });
   const state = sp.get("state") ?? "all";
-  const b = await codeBenchmark(codeType, code, billingClass, state);
+  const b = await codeBenchmark(codeType, code, billingClass, state, sp.getAll("net"));
   const rows = b.providers.flatMap((p) =>
     Object.entries(p.rates).flatMap(([carrier, r]) =>
       r.networks.map((n) => {

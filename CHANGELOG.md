@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.21.2 — 2026-11-09
+- **Rates: network filter.** Pick exactly which carrier networks count (e.g. BCBSMA HMO Blue vs MGB Commercial HMO only); each carrier's cell is the median across its selected networks. The selection carries across services, states and the CSV export.
+
 ## 0.21.1 — 2026-11-09
 - Market share shows the selected state and segment only: one full-width bar summing to 100%, with every carrier's exact share and change listed under it, and the cross-check warning when that total disagrees with an independent count.
 - **Share over time**: a 100% bar per year (2020–2024) and a share trend line for every carrier that held 3%+.

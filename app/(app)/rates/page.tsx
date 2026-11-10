@@ -15,8 +15,11 @@ const idxClass = (x: number | null) => (x == null ? "text-stone-400" : x >= 1.05
 const pctM = (x: number | null | undefined) => (x == null ? "—" : `${Math.round(x * 100)}%`);
 const idxText = (x: number | null) => x == null ? "—" : `${x >= 1 ? "+" : "−"}${Math.abs((x - 1) * 100).toFixed(0)}%`;
 
-export default async function RatesPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
-  const sp = await searchParams;
+export default async function RatesPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const raw = await searchParams;
+  const sp = Object.fromEntries(Object.entries(raw).map(([k, v]) => [k, Array.isArray(v) ? v[0] : v])) as Record<string, string | undefined>;
+  // Network filter: repeated ?net=<file id>; none = every network.
+  const nets = [raw.net].flat().filter((x): x is string => !!x);
   const files = await rateFiles();
   if (!files.some((f) => f.status === "ok")) {
     return (
@@ -32,7 +35,7 @@ export default async function RatesPage({ searchParams }: { searchParams: Promis
   const billingClass = inpatient ? "institutional" : sp.class === "professional" ? "professional" : sp.class === "institutional" ? "institutional" : "professional";
   const STATES = ["MA", "NH", "RI", "ME", "CT", "VT", "all"];
   const state = STATES.includes(sp.state ?? "") ? sp.state! : "MA";
-  const [index, bench, gaps] = await Promise.all([carrierIndex(), codeBenchmark(selected.type, selected.code, billingClass, state), rateGaps()]);
+  const [index, bench, gaps] = await Promise.all([carrierIndex(), codeBenchmark(selected.type, selected.code, billingClass, state, nets), rateGaps()]);
   const suspects = await suspectPrices();
   const ok = files.filter((f) => f.status === "ok");
   const shown = bench.carriers;
@@ -40,7 +43,9 @@ export default async function RatesPage({ searchParams }: { searchParams: Promis
   // MA carriers pay inpatient on APR-DRG; only show MS-DRG chips once a file actually has them.
   const hasMsDrg = (await db.rateSummary.count({ where: { codeType: "MS-DRG", negotiatedType: { in: DOLLAR_TYPES } } })) > 0;
   const categories = [...new Set(BENCH_CODES.map((b) => b.category))];
-  const href = (code: string, cls?: string, st = state) => `/rates?code=${encodeURIComponent(code)}${cls ? `&class=${cls}` : ""}&state=${st}`;
+  const netQs = nets.map((n) => `&net=${encodeURIComponent(n)}`).join("");
+  const href = (code: string, cls?: string, st = state) => `/rates?code=${encodeURIComponent(code)}${cls ? `&class=${cls}` : ""}&state=${st}${netQs}`;
+  const byCarrier = [...ok.reduce((m, f) => m.set(f.carrierName, [...(m.get(f.carrierName) ?? []), f]), new Map<string, typeof ok>()).entries()].sort(([a], [b]) => a.localeCompare(b));
   const selKey = codeKey(selected.type, selected.code);
 
   return (
@@ -54,7 +59,7 @@ export default async function RatesPage({ searchParams }: { searchParams: Promis
             <span className="text-stone-700">{gb(c.compressed)} downloaded → {gb(c.scanned)} scanned in {Math.round(c.seconds)}s → {fmtInt(c.kept)} provider rates kept.</span>
           </p>
         </div>
-        <a className="btn-ghost" href={`/api/v1/rates?code=${encodeURIComponent(selKey)}&class=${billingClass}&state=${state}&format=csv`}>Export CSV</a>
+        <a className="btn-ghost" href={`/api/v1/rates?code=${encodeURIComponent(selKey)}&class=${billingClass}&state=${state}&format=csv${netQs}`}>Export CSV</a>
       </div>
 
       {index.length > 0 && (
@@ -132,6 +137,38 @@ export default async function RatesPage({ searchParams }: { searchParams: Promis
           ))}
           <span className="ml-2 text-stone-400">State = the matched Medicare hospital&apos;s state, else the tax ID&apos;s IRS prefix. &quot;All&quot; adds providers whose state can&apos;t be determined.</span>
         </div>
+
+        <details className="card text-sm" open={nets.length > 0}>
+          <summary className="cursor-pointer px-4 py-2">
+            <span className="font-medium">Networks</span>{" "}
+            <span className="text-stone-500">{nets.length ? `${nets.length} of ${ok.length} selected` : `all ${ok.length} included`} · a carrier&apos;s cell is the median across its selected networks</span>
+          </summary>
+          <form action="/rates" className="space-y-3 border-t border-stone-100 px-4 py-3">
+            <input type="hidden" name="code" value={selKey} />
+            {sp.class && <input type="hidden" name="class" value={sp.class} />}
+            <input type="hidden" name="state" value={state} />
+            <div className="grid gap-x-6 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
+              {byCarrier.map(([carrier, fs]) => (
+                <fieldset key={carrier} className="min-w-0">
+                  <legend className="mb-1 text-xs font-semibold text-stone-700">{carrier} <span className="font-normal text-stone-400">· {fs.length}</span></legend>
+                  <div className={fs.length > 6 ? "max-h-36 overflow-y-auto pr-1" : ""}>
+                    {fs.sort((a, b) => a.network.localeCompare(b.network, "en", { numeric: true })).map((f) => (
+                      <label key={f.id} className="flex items-start gap-1.5 py-0.5 text-xs text-stone-600">
+                        <input type="checkbox" name="net" value={f.id} defaultChecked={!nets.length || nets.includes(f.id)} className="mt-0.5" />
+                        <span className="min-w-0">{f.network}</span>
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+              ))}
+            </div>
+            <div className="flex items-center gap-3">
+              <button className="btn">Apply</button>
+              {nets.length > 0 && <Link href={`/rates?code=${encodeURIComponent(selKey)}${sp.class ? `&class=${sp.class}` : ""}&state=${state}`} className="text-xs text-stone-500 underline">Reset to all networks</Link>}
+              <span className="text-[11px] text-stone-400">Uncheck networks to leave them out. The price index above always uses every network.</span>
+            </div>
+          </form>
+        </details>
 
         {shown.length === 0 ? (
           <Empty title="No dollar rates for this service and billing class">Try the other billing class — some carriers pay this code only as a percentage of charges.</Empty>
