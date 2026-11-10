@@ -14,6 +14,7 @@ import type { Dataset } from "../lib/marketdata/datasets";
 import { syncEventsToWorkspaces } from "../lib/marketdata/events";
 import { ensureDerivedData } from "../lib/marketdata/history";
 import { ensureRecommendedSources } from "../lib/recommended-sources";
+import { maybeDiscover } from "../lib/marketdata/discover";
 
 let lastEventSync = 0;
 let lastHistoryCheck = 0;
@@ -41,6 +42,8 @@ async function schedule() {
     lastHistoryCheck = Date.now();
     for (const r of await ensureDerivedData()) log(r);
     for (const r of await ensureRecommendedSources()) log(r);
+    // Weekly: look for new yearly releases (new plan / reporting years, republished files).
+    try { const r = await maybeDiscover(); if (r) log(r); } catch (e) { log(`release check failed: ${(e as Error).message}`); }
   }
   // Hourly: turn detected market events into signals for every workspace tracking that carrier.
   if (Date.now() - lastEventSync > 3600e3) {

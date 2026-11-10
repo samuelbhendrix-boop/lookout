@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.25.0 — 2026-11-09
+
+- **New yearly releases are found automatically.** A weekly check reads CMS's rate-review page and CHIA's enrollment page, and probes next year's CMS loss-ratio, Exchange plan and DOL Form 5500 files. New years are added to the import list on their own; a republished file (new link for a year already on file) re-imports. Each find posts a "New data" item to Updates (Market view), and Settings → System status shows the last check, what it found and anything it couldn't reach.
+- First run found the **2027 ACA rate filings** (CMS posted them), which import after this deploy; the product dossiers move to 2027 filings once they land.
+- Exchange plans: state-exchange files (MA, CT, RI, VT, ME) are tried for every plan year by CMS's usual file name, so a year that shipped federal-only (2027 so far) fills in when CMS posts the state files.
+
 ## 0.24.0 — 2026-11-09
 
 - **Networks & Pricing** is its own sidebar section: Leverage (the summary), Prices, Networks.

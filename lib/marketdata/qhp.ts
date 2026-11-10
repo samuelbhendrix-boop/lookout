@@ -30,6 +30,9 @@ const SBE: Record<number, Record<string, string>> = {
     ME: "https://www.cms.gov/files/zip/mainesbepuf2026.zip",
   },
 };
+const SBE_NAMES: Record<string, string> = { MA: "massachusetts", CT: "connecticut", RI: "rhodeisland", VT: "vermont", ME: "maine" };
+/** State-exchange file for any year: the listed URL, else CMS's usual name (years found by release discovery). */
+const sbeUrl = (year: number, st: string) => SBE[year]?.[st] ?? `https://www.cms.gov/files/zip/${SBE_NAMES[st]}sbepuf${year}.zip`;
 /** Federal-platform New England states. */
 const FFE_STATES = new Set(["NH"]);
 const FFE_FILES = ["plan-attributes-puf", "benefits-and-cost-sharing-puf", "rate-puf", "service-area-puf", "network-puf"] as const;
@@ -37,7 +40,7 @@ const ffeUrl = (year: number, f: string) => `https://download.cms.gov/marketplac
 
 export const QHP_YEARS = [2024, 2025, 2026, 2027];
 /** States each plan year covers (SBE files appear mid-year; the federal files before open enrollment). */
-export const qhpCoverage = (year: number) => [...Object.keys(SBE[year] ?? {}), ...FFE_STATES];
+export const qhpCoverage = (_year?: number) => [...Object.keys(SBE_NAMES), ...FFE_STATES];
 
 const norm = (h: string) => h.replace(/^﻿|^ï»¿/, "").toUpperCase().replace(/[^A-Z0-9]/g, "");
 
@@ -160,8 +163,11 @@ export async function importQhp(year: number): Promise<number> {
   try {
     const states = qhpCoverage(year);
     // SBE: one small zip per state, all six tables inside.
-    for (const st of Object.keys(SBE[year] ?? {})) {
-      const zip = await download(SBE[year][st], dir, `${st}.zip`);
+    for (const st of Object.keys(SBE_NAMES)) {
+      let zip: string;
+      // State-exchange files appear months after the federal ones; a year without them yet imports NH only, and the
+      // monthly refresh picks the states up once CMS posts them. Listed years must download.
+      try { zip = await download(sbeUrl(year, st), dir, `${st}.zip`); } catch (e) { if (SBE[year]?.[st]) throw e; continue; }
       const acc: Acc = { plans: new Map(), covered: new Map(), share: new Map(), prem: new Map(), networks: new Map(), areas: new Map() };
       // Plans first (so later tables can be filtered to known plans), then the rest in one pass.
       await eachCsv(zip, isPlansFile, (_n, row) => planRow(normRow(row), year, st, acc, "SBE QHP PUF"), "upper");

@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { MemberForm } from "@/components/forms";
 import { ActionButton } from "@/components/ActionButton";
 import { InviteManager } from "@/components/InviteManager";
-import { DATASETS } from "@/lib/marketdata/datasets";
+import { allDatasets, discovered } from "@/lib/marketdata/discover";
 import { ssoConfig } from "@/lib/sso";
 import { IconPicker, InlineField } from "@/components/IconPicker";
 import Link from "next/link";
@@ -12,7 +12,7 @@ import Link from "next/link";
 export default async function SettingsPage() {
   const session = (await getSession())!;
   const isAdmin = hasRole(session.role, "ADMIN");
-  const imports = await db.dataImport.findMany();
+  const [imports, datasets, disc] = await Promise.all([db.dataImport.findMany(), allDatasets(), discovered()]);
   const [members, invites] = await Promise.all([
     db.membership.findMany({
       where: { workspaceId: session.workspaceId },
@@ -77,11 +77,11 @@ export default async function SettingsPage() {
           reports; MA CHIA enrollment including self-insured; and Maine, Rhode Island and New Hampshire large-group reports.
         </p>
         <ul className="divide-y divide-stone-100">
-          {DATASETS.map((d) => {
+          {datasets.map((d) => {
             const i = imports.find((x) => x.dataset === d.dataset && x.year === d.year);
             return (
               <li key={`${d.dataset}${d.year}`} className="flex items-center justify-between py-1.5">
-                <span>{({ urrt: "CMS rate filings", mlr: "CMS loss ratio reports", ma_chia: "MA CHIA enrollment (incl. self-insured)", state_snapshots: "ME / RI / NH large group", dol_5500: "DOL Form 5500 employer plans", tic: "Transparency in Coverage indexes", rates: "Negotiated rates" } as Record<string, string>)[d.dataset] ?? d.dataset}{d.dataset === "rates" ? ` · ${rateDatasetLabel(d.year).replace("Negotiated rates — ", "")}` : ` · ${d.dataset === "state_snapshots" ? "v" : ""}${d.year}`}</span>
+                <span>{({ urrt: "CMS rate filings", mlr: "CMS loss ratio reports", ma_chia: "MA CHIA enrollment (incl. self-insured)", state_snapshots: "ME / RI / NH large group", dol_5500: "DOL Form 5500 employer plans", tic: "Transparency in Coverage indexes", rates: "Negotiated rates", qhp: "Exchange plan files" } as Record<string, string>)[d.dataset] ?? d.dataset}{d.dataset === "rates" ? ` · ${rateDatasetLabel(d.year).replace("Negotiated rates — ", "")}` : ` · ${d.dataset === "state_snapshots" ? "v" : ""}${d.year}`}{d.discovered && <span className="ml-1.5 rounded bg-sky-50 px-1 text-[10px] text-sky-800" title={d.url}>found automatically</span>}</span>
                 <span className={`font-mono text-xs ${i?.status === "failed" ? "text-red-600" : "text-stone-500"}`}>
                   {!i ? "waiting" : i.status === "done" && i.finishedAt && i.finishedAt.getTime() > 0 ? `${i.rows.toLocaleString()} rows · ${i.finishedAt.toISOString().slice(0, 10)}` : i.status === "failed" ? `failed: ${i.error?.slice(0, 60)}` : i.status}
                 </span>
@@ -89,6 +89,10 @@ export default async function SettingsPage() {
             );
           })}
         </ul>
+        <p className="mt-2 text-xs text-stone-500">
+          New yearly releases are checked weekly (CMS rate filings, loss ratios and exchange plans, DOL Form 5500, CHIA enrollment) and added on their own.{" "}
+          {disc ? <>Last check {disc.checkedAt.slice(0, 10)}{disc.found.length ? ` · ${disc.found.length} found so far` : " · nothing new"}.{disc.problems.length ? <span className="text-amber-700"> Couldn&apos;t check: {disc.problems.join("; ")}.</span> : null}</> : "First check runs shortly after deploy."}
+        </p>
         {isAdmin && (
           <div className="mt-3">
             <ActionButton method="POST" path="/market-data" doneText="Re-import queued" className="btn-ghost">Re-import all</ActionButton>

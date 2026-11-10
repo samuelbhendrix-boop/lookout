@@ -9,7 +9,7 @@ import yauzl from "yauzl";
 import { parse } from "csv-parse";
 import type { Prisma, Segment } from "@prisma/client";
 import { db } from "../db";
-import { ALLOWED_DATA_HOSTS, DATASETS, REFRESH_DAYS, type Dataset } from "./datasets";
+import { ALLOWED_DATA_HOSTS, REFRESH_DAYS, type Dataset } from "./datasets";
 import { importChia, importStateSnapshots } from "./state";
 import { importDol } from "./dol";
 import { importTransparency } from "./tic";
@@ -235,7 +235,7 @@ export function snapshotVersion(): string {
 const isSnapshots = (d: { dataset: string; year: number }) => d.dataset === "rates" && d.year === 99;
 
 export async function importDataset(dataset: Dataset, year: number) {
-  const found = DATASETS.find((d) => d.dataset === dataset && d.year === year);
+  const found = (await (await import("./discover")).allDatasets()).find((d) => d.dataset === dataset && d.year === year);
   if (!found) throw new Error(`Unknown dataset ${dataset} ${year}`);
   const def = isSnapshots(found) ? { ...found, url: snapshotVersion() } : found;
   await db.dataImport.upsert({
@@ -322,9 +322,11 @@ export async function dueImports() {
   const existing = await db.dataImport.findMany();
   const cutoff = Date.now() - REFRESH_DAYS * 864e5;
   const version = snapshotVersion();
-  return DATASETS.filter((d) => {
+  return (await (await import("./discover")).allDatasets()).filter((d) => {
     const e = existing.find((x) => x.dataset === d.dataset && x.year === d.year);
     if (!e) return true;
+    // A republished file (new URL for a year already on file) re-imports right away.
+    if (/^https?:/.test(d.url) && e.url !== d.url && e.status !== "failed") return true;
     // Marked running/queued but no live job holds it (checked by the caller): its server died; run it again.
     if (e.status === "running" || e.status === "queued") return true;
     if (e.status === "failed") return Date.now() - (e.finishedAt?.getTime() ?? 0) > 6 * 3600e3;

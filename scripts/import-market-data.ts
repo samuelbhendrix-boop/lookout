@@ -3,7 +3,7 @@
  * The worker does this automatically; this is for local development and debugging.
  */
 import { importDataset, dueImports } from "../lib/marketdata/import";
-import { DATASETS } from "../lib/marketdata/datasets";
+import { allDatasets } from "../lib/marketdata/discover";
 import { db } from "../lib/db";
 
 (async () => {
@@ -34,7 +34,7 @@ import { db } from "../lib/db";
     await db.$disconnect();
     return;
   }
-  const list = ds ? DATASETS.filter((d) => d.dataset === ds && (!yr || d.year === Number(yr))) : await dueImports();
+  const list = ds ? (await allDatasets()).filter((d) => d.dataset === ds && (!yr || d.year === Number(yr))) : await dueImports();
   for (const d of list) {
     const t = Date.now();
     const rows = await importDataset(d.dataset, d.year);

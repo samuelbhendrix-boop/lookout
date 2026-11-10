@@ -1,11 +1,11 @@
 import { db } from "@/lib/db";
 import { route } from "@/lib/api";
-import { DATASETS } from "@/lib/marketdata/datasets";
+import { allDatasets } from "@/lib/marketdata/discover";
 
 /** Import status for each public dataset. */
 export const GET = route("VIEWER", async () => {
   const rows = await db.dataImport.findMany();
-  return DATASETS.map((d) => ({ ...d, import: rows.find((r) => r.dataset === d.dataset && r.year === d.year) ?? null }));
+  return (await allDatasets()).map((d) => ({ ...d, import: rows.find((r) => r.dataset === d.dataset && r.year === d.year) ?? null }));
 });
 
 /** Marks every dataset stale so the worker re-imports them one by one (admin). */

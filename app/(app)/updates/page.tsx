@@ -30,7 +30,7 @@ const CATS = {
 type Cat = keyof typeof CATS;
 const KIND: Record<string, { label: string; tone: string }> = {
   "account-won": { label: "Account won", tone: "bg-emerald-600" }, "account-lost": { label: "Account lost", tone: "bg-red-600" },
-  "rate-filing": { label: "Rate filing", tone: "bg-sky-700" }, "rate-change": { label: "Negotiated rates", tone: "bg-amber-600" },
+  "rate-filing": { label: "Rate filing", tone: "bg-sky-700" }, "rate-change": { label: "Negotiated rates", tone: "bg-amber-600" }, "data-release": { label: "New data", tone: "bg-stone-600" },
   "network-add": { label: "Network add", tone: "bg-emerald-600" }, "network-drop": { label: "Network drop", tone: "bg-red-600" },
 };
 const DAYS = [7, 30, 90, 365];
