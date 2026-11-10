@@ -54,5 +54,14 @@ export async function maybeRefreshMarketing(log: (m: string) => void): Promise<v
       const after = await db.rateFile.findUnique({ where: { id: `cache:marketing:${s.key}` }, select: { processedAt: true } });
       if (m && after?.processedAt?.getTime() !== before?.processedAt?.getTime()) log(`[marketing] ${s.key}: read ${m.products.length} products`);
     }
+    // Daily: note products and networks seen for the first time (large-group launch detection).
+    if (Date.now() - lastSighting > 864e5) {
+      lastSighting = Date.now();
+      const { recordSightings, classifyLaunchNews } = await import("../reports/lglaunches");
+      const r = await recordSightings();
+      log(`[launches] recorded ${r.marketed} marketed group products and ${r.networks} networks`);
+      for (const w of await db.workspace.findMany({ select: { id: true } })) { const n = await classifyLaunchNews(w.id).catch(() => 0); if (n) log(`[launches] judged ${n} headlines`); }
+    }
   } finally { busy = false; }
 }
+let lastSighting = 0;

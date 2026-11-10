@@ -884,3 +884,21 @@ model SiteLogo {
   source      String
   fetchedAt   DateTime @default(now())
 }
+
+/// First and last time a carrier's product or network was seen (large-group launch detection). kind: "marketed" (a
+/// product on the carrier's own pages) or "network" (a network in its price-transparency index). Rows first seen in
+/// the baseline pass are marked baseline, so only later arrivals count as launches.
+model LaunchSighting {
+  id        String   @id @default(cuid())
+  kind      String
+  site      String // marketing site key, or rate-file carrier id
+  key       String // normalised name
+  name      String
+  detail    Json?
+  baseline  Boolean  @default(false)
+  firstSeen DateTime @default(now())
+  lastSeen  DateTime @default(now())
+
+  @@unique([kind, site, key])
+  @@index([kind, firstSeen])
+}

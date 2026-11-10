@@ -6,6 +6,9 @@ import { Empty } from "@/components/ui";
 import { fmtInt } from "@/components/charts";
 import { FilterBar } from "@/components/FilterBar";
 import { Suspense } from "react";
+import { LargeGroupLaunches } from "@/components/reports/LargeGroupLaunches";
+import { getSession } from "@/lib/auth";
+import { db } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Product launches · Reports" };
@@ -28,8 +31,11 @@ export default async function LaunchesReport({ searchParams }: { searchParams: P
   const st = states.includes(sp.state ?? "") ? sp.state! : null;
   // Filters (all in the URL): carrier, segment, plan year, product kind; plus entry/exit and size for the moves table.
   const brands = [...new Set([...r.launches.map((l) => l.brand), ...r.moves.map((m) => m.brand)])].sort((a, b) => a.localeCompare(b));
-  const carrier = brands.includes(sp.carrier ?? "") ? sp.carrier! : null;
-  const seg = sp.segment === "Individual" || sp.segment === "SG" ? sp.segment : null;
+  const session = (await getSession())!;
+  const lgMode = sp.segment === "LG";
+  const compNames = lgMode ? (await db.competitor.findMany({ where: { workspaceId: session.workspaceId }, select: { name: true }, orderBy: { name: "asc" } })).map((c) => c.name) : [];
+  const carrier = (lgMode ? compNames : brands).includes(sp.carrier ?? "") ? sp.carrier! : null;
+  const seg = sp.segment === "Individual" || sp.segment === "SG" || sp.segment === "LG" ? sp.segment : null;
   const segOk = (market: string) => !seg || (seg === "Individual" ? market === "Individual" : market !== "Individual");
   const yr = r.years.includes(Number(sp.year)) ? Number(sp.year) : null;
   const kind = THEMES.some((t) => t.id === sp.kind) ? sp.kind! : null;
@@ -53,27 +59,30 @@ export default async function LaunchesReport({ searchParams }: { searchParams: P
     <div className="space-y-8">
       <div>
         <p className="font-mono text-[10px] uppercase tracking-wide text-stone-500">Reports</p>
-        <h1 className="h1">New commercial products, {r.years[0]}–{last}</h1>
-        <p className="max-w-3xl text-sm text-stone-500">Every new individual and small-group product filed in every state, which ones took off, what kind of product they are, and who entered or left which markets. From CMS&apos;s rate-review files for plan years {r.years.join(", ")}; rebuilt automatically when a new year&apos;s filings arrive.</p>
-        <div className="mt-3 flex flex-wrap items-center gap-1 text-xs">
+        <h1 className="h1">{lgMode ? "New large-group and self-funded products" : `New commercial products, ${r.years[0]}–${last}`}</h1>
+        {!lgMode && <p className="max-w-3xl text-sm text-stone-500">Every new individual and small-group product filed in every state, which ones took off, what kind of product they are, and who entered or left which markets. From CMS&apos;s rate-review files for plan years {r.years.join(", ")}; rebuilt automatically when a new year&apos;s filings arrive.</p>}
+        {!lgMode && <div className="mt-3 flex flex-wrap items-center gap-1 text-xs">
           <Link href={qsKeep({ state: null })} className={chip(!st)}>All states</Link>
           <span className="mx-1 text-stone-300">|</span>
           {ne.filter((s) => states.includes(s)).map((s) => <Link key={s} href={qsKeep({ state: s })} className={chip(st === s)}>{s}</Link>)}
           <span className="mx-1 text-stone-300">|</span>
           {states.filter((s) => !ne.includes(s)).map((s) => <Link key={s} href={qsKeep({ state: s })} className={chip(st === s)}>{s}</Link>)}
-        </div>
+        </div>}
         <div className="mt-2">
           <Suspense>
             <FilterBar filters={[
-              { key: "carrier", label: "Carrier", options: brands.map((b) => ({ value: b, label: b })) },
-              { key: "segment", label: "Segment", options: [{ value: "Individual", label: "Individual" }, { value: "SG", label: "Small group" }] },
-              { key: "year", label: "Plan year", options: r.years.map((y) => ({ value: String(y), label: String(y) })) },
-              { key: "kind", label: "Product kind", options: THEMES.map((t) => ({ value: t.id, label: t.label })) },
+              { key: "carrier", label: "Carrier", options: (lgMode ? compNames : brands).map((b) => ({ value: b, label: b })) },
+              { key: "segment", label: "Segment", options: [{ value: "Individual", label: "Individual" }, { value: "SG", label: "Small group" }, { value: "LG", label: "Large group & self-funded" }] },
+              ...(lgMode ? [] : [
+                { key: "year", label: "Plan year", options: r.years.map((y) => ({ value: String(y), label: String(y) })) },
+                { key: "kind", label: "Product kind", options: THEMES.map((t) => ({ value: t.id, label: t.label })) },
+              ]),
             ]} />
           </Suspense>
         </div>
       </div>
 
+      {seg === "LG" ? <LargeGroupLaunches workspaceId={session.workspaceId} carrier={carrier} /> : <>
       {!st && !filtered && <LaunchesRead />}
 
       <section className="grid gap-3 sm:grid-cols-3">
@@ -238,6 +247,8 @@ export default async function LaunchesReport({ searchParams }: { searchParams: P
           </div>
         </section>
       )}
+
+      </>}
 
       <NotIncluded items={[
         <>ACA individual and small-group products only (the rate-review filings). Large-group, self-funded and Medicare products aren&apos;t filed this way. ICHRA/CHOICE enrollment buys individual plans, so it&apos;s inside the individual numbers but can&apos;t be separated.</>,
