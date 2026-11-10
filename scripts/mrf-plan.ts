@@ -53,7 +53,7 @@ async function main() {
     const kind = kindOf(snap.url);
     if (kind) entries.push({ file, snap, kind });
   }
-  for (const kind of ["cigna", "aetna", "uhc", "blue"] as Kind[]) {
+  for (const kind of ["cigna", "aetna", "uhc", "blue", "bcbsma"] as Kind[]) {
     const list = entries.filter((e) => e.kind === kind);
     try {
       const urls = await resolvers[kind](list);

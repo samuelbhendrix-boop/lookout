@@ -26,6 +26,8 @@ jobs:
       month: ${{ steps.plan.outputs.month }}
     steps:
       - uses: actions/checkout@v4
+      - name: Trust BCBSMA's missing intermediate certificate (its server omits it)
+        run: sudo cp data/certs/digicert-global-g2-tls-rsa-sha256-2020-ca1.pem /usr/local/share/ca-certificates/digicert-g2-tls-2020-ca1.crt && sudo update-ca-certificates
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - run: npm ci && npx prisma generate
@@ -43,7 +45,7 @@ jobs:
         run: mkdir -p inputs && python3 scripts/nppes-ne.py inputs && rm -f inputs/*.zip
       - name: List this month's rate files
         id: plan
-        env: { GITHUB_TOKEN: "${{ github.token }}" }
+        env: { GITHUB_TOKEN: "${{ github.token }}", NODE_EXTRA_CA_CERTS: /etc/ssl/certs/ca-certificates.crt }
         run: |
           npx tsx scripts/mrf-plan.ts ${{ inputs.shards || 20 }}
           mv plan.json inputs/ && cp data/mrf/codes.csv data/mrf/ne-tins.txt inputs/
@@ -64,6 +66,8 @@ jobs:
         shard: ${{ fromJSON(needs.plan.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v4
+      - name: Trust BCBSMA's missing intermediate certificate (its server omits it)
+        run: sudo cp data/certs/digicert-global-g2-tls-rsa-sha256-2020-ca1.pem /usr/local/share/ca-certificates/digicert-g2-tls-2020-ca1.crt && sudo update-ca-certificates
       - uses: actions/setup-go@v5
         with: { go-version: "1.24", cache-dependency-path: tools/mrfx/go.sum }
       - run: cd tools/mrfx && go build -o "$GITHUB_WORKSPACE/mrfx" .

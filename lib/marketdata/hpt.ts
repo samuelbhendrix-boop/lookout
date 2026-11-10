@@ -113,7 +113,7 @@ export function parseHpt(text: string): HptEntry[] {
 }
 
 const basket = benchCodeMap();
-type Row = Omit<Prisma.HospitalRateCreateManyInput, "fileId" | "id">;
+export type Row = Omit<Prisma.HospitalRateCreateManyInput, "fileId" | "id">;
 
 /** One item (a service with its codes and per-payer charges) → kept rows. */
 function keep(codes: Array<{ code: string; type: string }>, setting: string | null, billingClass: string | null, payers: Array<{ payer: string; plan: string; dollar: number | null; pct: number | null; method: string | null; median?: number | null; gross?: number | null }>, ctx: { tin: string | null; hospital: string; state: string | null }, out: Row[]) {
@@ -239,7 +239,25 @@ export function tinForHospital(name: string, state: string | null): string | nul
   return h ? CCN_TIN.get(h.ccn) ?? null : null;
 }
 
-export async function importHospitalFiles(opts: { domains?: string[]; force?: boolean } = {}): Promise<number> {
+/** Where a processed file goes: the database (in the app) or a JSON-lines file (in the monthly GitHub extract). */
+export type HptFileRecord = { domain: string; hospital: string; url: string; state: string | null; tin?: string | null; lastUpdated?: string | null; version?: string | null; status: string; error: string | null; rows: number; payers?: unknown; processedAt: Date };
+export type HptSink = { save(id: string, file: HptFileRecord, rows: Row[] | null): Promise<void>; fresh?(id: string): Promise<boolean> };
+
+export const dbSink: HptSink = {
+  async save(id, file, rows) {
+    const data = { ...file, payers: (file.payers ?? undefined) as Prisma.InputJsonValue | undefined };
+    if (!rows) { await db.hospitalFile.upsert({ where: { id }, create: { id, ...data }, update: data }); return; }
+    await db.$transaction(async (tx) => {
+      await tx.hospitalRate.deleteMany({ where: { fileId: id } });
+      for (let i = 0; i < rows.length; i += 2000) await tx.hospitalRate.createMany({ data: rows.slice(i, i + 2000).map((r) => ({ ...r, fileId: id })) });
+      await tx.hospitalFile.upsert({ where: { id }, create: { id, ...data }, update: data });
+    }, { timeout: 300_000 });
+  },
+  async fresh(id) { const prev = await db.hospitalFile.findUnique({ where: { id } }); return prev?.status === "ok" && Date.now() - prev.processedAt.getTime() < 25 * 864e5; },
+};
+
+export async function importHospitalFiles(opts: { domains?: string[]; force?: boolean; sink?: HptSink } = {}): Promise<number> {
+  const sink = opts.sink ?? dbSink;
   const dir = await mkdtemp(join(tmpdir(), "hpt-"));
   let total = 0;
   try {
@@ -257,15 +275,13 @@ export async function importHospitalFiles(opts: { domains?: string[]; force?: bo
         if (!entries.length) throw new Error("cms-hpt.txt lists no machine-readable file");
       } catch (e) {
         const id = createHash("sha1").update(domain).digest("hex").slice(0, 16);
-        const data = { domain, hospital: domain, url: `https://${domain}/cms-hpt.txt`, state, status: "failed", error: (e as Error).message.slice(0, 300), rows: 0, processedAt: new Date() };
-        await db.hospitalFile.upsert({ where: { id }, create: { id, ...data }, update: data });
+        await sink.save(id, { domain, hospital: domain, url: `https://${domain}/cms-hpt.txt`, state, status: "failed", error: (e as Error).message.slice(0, 300), rows: 0, processedAt: new Date() }, null);
         continue;
       }
       const urls = [...new Map(entries.map((e) => [e.url, e])).values()];
       for (const e of urls) {
         const id = createHash("sha1").update(e.url).digest("hex").slice(0, 16);
-        const prev = await db.hospitalFile.findUnique({ where: { id } });
-        if (prev?.status === "ok" && !opts.force && Date.now() - prev.processedAt.getTime() < 25 * 864e5) continue; // monthly
+        if (!opts.force && (await sink.fresh?.(id))) continue; // monthly
         const tin = /(?:^|\/)(\d{9})[_-]/.exec(decodeURIComponent(e.url))?.[1] ?? null;
         let rows: Row[] = [];
         try {
@@ -285,16 +301,10 @@ export async function importHospitalFiles(opts: { domains?: string[]; force?: bo
           // Payer/plan inventory for the disclosure panel.
           const inv = new Map<string, { payer: string; plan: string | null; carrier: string | null; product: string | null; rows: number }>();
           for (const r of rows) { const k = `${r.payer}|${r.plan}`; const x = inv.get(k) ?? { payer: r.payer, plan: r.plan ?? null, carrier: r.carrier ?? null, product: r.product ?? null, rows: 0 }; x.rows++; inv.set(k, x); }
-          await db.$transaction(async (tx) => {
-            await tx.hospitalRate.deleteMany({ where: { fileId: id } });
-            for (let i = 0; i < rows.length; i += 2000) await tx.hospitalRate.createMany({ data: rows.slice(i, i + 2000).map((r) => ({ ...r, fileId: id })) });
-            const data = { domain, hospital, url: e.url, state, tin: ctx.tin, lastUpdated: meta.updated, version: meta.version, status: rows.length ? "ok" : "skipped", error: rows.length ? null : `no commercial basket prices found (${(bytes / 1e6).toFixed(0)} MB parsed)`, rows: rows.length, payers: [...inv.values()], processedAt: new Date() };
-            await tx.hospitalFile.upsert({ where: { id }, create: { id, ...data }, update: data });
-          }, { timeout: 300_000 });
+          await sink.save(id, { domain, hospital, url: e.url, state, tin: ctx.tin, lastUpdated: meta.updated ?? null, version: meta.version ?? null, status: rows.length ? "ok" : "skipped", error: rows.length ? null : `no commercial basket prices found (${(bytes / 1e6).toFixed(0)} MB parsed)`, rows: rows.length, payers: [...inv.values()], processedAt: new Date() }, rows);
           total += rows.length;
         } catch (err) {
-          const data = { domain, hospital: e.location || domain, url: e.url, state, tin, status: "failed", error: (err as Error).message.slice(0, 300), rows: 0, processedAt: new Date() };
-          await db.hospitalFile.upsert({ where: { id }, create: { id, ...data }, update: data });
+          await sink.save(id, { domain, hospital: e.location || domain, url: e.url, state, tin, status: "failed", error: (err as Error).message.slice(0, 300), rows: 0, processedAt: new Date() }, null);
         } finally {
           rows = [];
           await rm(join(dir, "raw"), { force: true }); await rm(join(dir, "x.json"), { force: true }); await rm(join(dir, "x.csv"), { force: true });

@@ -17,7 +17,7 @@ export function killImports() {
 
 /** Hospital price files are multi-GB downloads that overflow the web server's 2 GB /tmp and take the app down; they
  *  stay off until they're moved to the GitHub Actions pipeline. HPT_IMPORT=1 forces them on. */
-export const HPT_DISABLED = "Hospital price files are paused: they fill the web server's temporary disk and crash the app. They'll move to the monthly GitHub extract.";
+export const HPT_DISABLED = "Hospital price files are processed monthly in GitHub Actions (hpt-extract.yml) and loaded as \"hptx\"; the direct import is off because the files fill the web server's temporary disk.";
 export async function runImport(dataset: Dataset, year: number): Promise<string> {
   if (dataset === "hpt" && process.env.HPT_IMPORT !== "1") throw new Error(HPT_DISABLED);
   const cwd = process.cwd();

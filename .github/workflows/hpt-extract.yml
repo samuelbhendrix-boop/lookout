@@ -1,0 +1,72 @@
+name: Hospital price files (monthly)
+
+# New England hospitals' price-transparency files (45 CFR 180.50) → the benchmark basket's commercial prices, published
+# as the GitHub release "hpt-YYYY-MM" for the app to load. The files run to gigabytes each, too big for the web server.
+on:
+  schedule:
+    - cron: "41 6 6 * *" # 6th of each month, 06:41 UTC (hospitals update monthly or quarterly)
+  push:
+    branches: [main]
+    paths: [".github/workflows/hpt-extract.yml"] # first run, and after workflow changes
+  workflow_dispatch:
+    inputs:
+      shards: { description: "Parallel jobs", default: "8" }
+
+permissions:
+  contents: write
+
+concurrency: { group: hpt-extract, cancel-in-progress: false }
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.p.outputs.matrix }}
+      shards: ${{ steps.p.outputs.shards }}
+      month: ${{ steps.p.outputs.month }}
+    steps:
+      - id: p
+        run: |
+          N=${{ inputs.shards || 8 }}
+          echo "shards=$N" >> "$GITHUB_OUTPUT"
+          echo "matrix=$(python3 -c "import json;print(json.dumps(list(range($N))))")" >> "$GITHUB_OUTPUT"
+          echo "month=$(date -u +%Y-%m)" >> "$GITHUB_OUTPUT"
+
+  extract:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    strategy:
+      fail-fast: false
+      max-parallel: 8
+      matrix:
+        shard: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci && npx prisma generate
+      - name: Extract
+        env: { GITHUB_TOKEN: "${{ github.token }}", NODE_OPTIONS: "--max-old-space-size=6144" }
+        run: npx tsx scripts/hpt-extract.ts ${{ matrix.shard }} ${{ needs.plan.outputs.shards }} out
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: "hpt-${{ matrix.shard }}", path: out, retention-days: 7, if-no-files-found: warn }
+
+  publish:
+    needs: [plan, extract]
+    if: always() && needs.plan.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { path: artifacts }
+      - name: Publish release hpt-${{ needs.plan.outputs.month }}
+        env: { GH_TOKEN: "${{ github.token }}", GH_REPO: "${{ github.repository }}" }
+        run: |
+          mkdir -p release && find artifacts -name 'hpt-*.ndjson.gz' -exec cp {} release/ \;
+          ls -la release
+          [ -n "$(ls release)" ] || { echo "no shard output"; exit 1; }
+          TAG="hpt-${{ needs.plan.outputs.month }}"
+          printf 'Hospital price-file extract for %s: one JSON line per hospital file (status, payers, and the benchmark basket'"'"'s commercial prices). Loaded by Payersight automatically.\n' "${{ needs.plan.outputs.month }}" > NOTES.md
+          gh release view "$TAG" >/dev/null 2>&1 && gh release delete "$TAG" --yes --cleanup-tag
+          gh release create "$TAG" release/* --title "Hospital price files ${{ needs.plan.outputs.month }}" --notes-file NOTES.md --latest=false

@@ -30,7 +30,7 @@ const ONLY = arg("--only")?.split(",");
 const DRY = process.argv.includes("--dry-run");
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
-export type Kind = "cigna" | "aetna" | "uhc" | "blue";
+export type Kind = "cigna" | "aetna" | "uhc" | "blue" | "bcbsma";
 export type Entry = { file: string; snap: Snapshot; kind: Kind };
 type Result = { file: string; status: "refreshed" | "current" | "stale" | "failed"; detail: string };
 
@@ -39,6 +39,7 @@ export function kindOf(url: string): Kind | null {
   if (url.includes("healthsparq.com")) return "aetna";
   if (url.includes("transparency-in-coverage.uhc.com")) return "uhc";
   if (url.includes("mrf.bcbs.com")) return "blue";
+  if (url.includes("transparency-in-coverage.bluecrossma.com")) return "bcbsma";
   return null;
 }
 
@@ -123,6 +124,32 @@ export const resolvers: Record<Kind, (e: Entry[]) => Promise<Map<string, string[
     return out;
   },
   /**
+   * BCBSMA's own networks (Blue Care Elect, New England Managed Care, PAR Providers, Blue High Performance) on its
+   * transparency site: the same file name each month with a new date, listed in the two monthly indexes
+   * (YYYY-MM-01_Blue-Cross-and-Blue-Shield-of-Massachusetts[-HMO-Blue]-Inc_index.json). Its server omits an intermediate
+   * certificate: run with NODE_EXTRA_CA_CERTS including data/certs/digicert-global-g2-tls-rsa-sha256-2020-ca1.pem.
+   */
+  async bcbsma(entries) {
+    const base = "https://transparency-in-coverage.bluecrossma.com/";
+    const now = new Date();
+    const out = new Map<string, string[]>();
+    for (const back of [0, 1]) {
+      const m = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - back, 1)).toISOString().slice(0, 7);
+      const listed = new Set<string>();
+      for (const idx of ["Blue-Cross-and-Blue-Shield-of-Massachusetts-Inc", "Blue-Cross-and-Blue-Shield-of-Massachusetts-HMO-Blue-Inc"]) {
+        try { for (const [, u] of tocFiles(await getJson<Toc>(`${base}${m}-01_${idx}_index.json`))) listed.add(u.split("?")[0]); } catch { /* not published yet */ }
+      }
+      if (!listed.size) continue;
+      for (const e of entries) {
+        const tail = e.snap.url.split("/").pop()!.replace(/^\d{4}-\d{2}-\d{2}_/, "");
+        const hit = [...listed].find((u) => u.endsWith(`${m}-01_${tail}`));
+        if (hit) out.set(e.file, [hit]);
+      }
+      return out;
+    }
+    return out;
+  },
+  /**
    * The Blues' files live on the BCBS national host with signed links. Two indexes list them: BCBSMA's (browser-only, so
    * used only when a saved copy is supplied) and Anthem's own monthly index, which any client can fetch and which
    * carries Anthem CT/ME/NH's networks plus the BCBSRI and BCBSVT host files. Anthem's is ~2 GB compressed, so it is
@@ -201,7 +228,7 @@ async function main() {
   console.log(`${entries.length} snapshots, ${tracked.size} tracked TINs`);
 
   const results: Result[] = [];
-  for (const kind of ["cigna", "aetna", "uhc", "blue"] as Kind[]) {
+  for (const kind of ["cigna", "aetna", "uhc", "blue", "bcbsma"] as Kind[]) {
     const list = entries.filter((e) => e.kind === kind);
     if (!list.length) continue;
     let urls: Map<string, string[]>;

@@ -1,0 +1,37 @@
+name: Rate snapshots (monthly)
+
+# Refreshes the offline negotiated-rate snapshots in data/rates/ (Cigna, Aetna, UHC, the New England Blues and BCBSMA's
+# own networks): finds each carrier's current-month file, re-reduces it, and commits the snapshots. The commit deploys
+# the app, which loads them as the "rates" snapshot import.
+on:
+  schedule:
+    - cron: "23 9 5 * *" # 5th of each month, 09:23 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency: { group: rates-snapshots, cancel-in-progress: false }
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    steps:
+      - uses: actions/checkout@v4
+      - name: Trust BCBSMA's missing intermediate certificate (its server omits it)
+        run: sudo cp data/certs/digicert-global-g2-tls-rsa-sha256-2020-ca1.pem /usr/local/share/ca-certificates/digicert-g2-tls-2020-ca1.crt && sudo update-ca-certificates
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci && npx prisma generate
+      - name: Refresh
+        env: { NODE_EXTRA_CA_CERTS: /etc/ssl/certs/ca-certificates.crt, NODE_OPTIONS: "--max-old-space-size=6144" }
+        run: npx tsx scripts/refresh-snapshots.ts
+      - name: Commit refreshed snapshots
+        run: |
+          git config user.name "payersight-bot"
+          git config user.email "payersight-bot@users.noreply.github.com"
+          git add data/rates data/rates-refresh-report.json
+          if git diff --cached --quiet; then echo "nothing changed"; exit 0; fi
+          git commit -m "Monthly rate snapshot refresh ($(date -u +%Y-%m))"
+          git push
