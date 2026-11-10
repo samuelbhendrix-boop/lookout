@@ -140,11 +140,13 @@ export async function marketingFor(siteKey: string, opts: { force?: boolean; gen
   if (!pages.length) return normalize(c?.m);
   const pagesHash = createHash("sha1").update(pages.map((p) => p.hash).sort().join(",") + MODEL()).digest("hex").slice(0, 16);
   const hash = createHash("sha1").update(pagesHash + (await partnerNews(site.match)).map((n) => n.url).join(",")).digest("hex").slice(0, 16);
-  if (!opts.force && c?.hash === hash && c.m) return normalize(c.m);
+  // A read the preferred model didn't write (it fell back) is retried once a day.
+  const fellBack = !!c?.m && c.m.model !== MODEL() && Date.now() - new Date(c.m.generatedAt).getTime() > 864e5;
+  if (!opts.force && c?.hash === hash && c.m && !fellBack) return normalize(c.m);
   // A failed read waits six hours before trying again (no paying for the same failure every few minutes).
   if (!opts.force && c?.failedAt && Date.now() - new Date(c.failedAt).getTime() < 6 * 3600e3) return normalize(c.m);
   // New partnership headlines alone re-read the carrier at most weekly.
-  if (!opts.force && c?.m && c.pagesHash === pagesHash && Date.now() - new Date(c.m.generatedAt).getTime() < 7 * 864e5) return normalize(c.m);
+  if (!opts.force && !fellBack && c?.m && c.pagesHash === pagesHash && Date.now() - new Date(c.m.generatedAt).getTime() < 7 * 864e5) return normalize(c.m);
   const news = await partnerNews(site.match);
   const r = await claudeJson({ label: `marketing ${siteKey}`, tool: "record_products", schema: SCHEMA, model: MODEL(), maxTokens: 16_000, timeoutMs: 300_000, system: SYSTEM, user: `Carrier: ${site.label}\n\nPAGES:${corpus(pages)}${news.length ? `\n\nNEWS (headlines about partnerships, last two years):\n${news.map((n) => `- ${n.date} ${n.title} <${n.url}>`).join("\n")}` : ""}` });
   const fail = async () => {

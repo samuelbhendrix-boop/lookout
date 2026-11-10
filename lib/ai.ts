@@ -24,7 +24,7 @@ export async function claudeText(opts: { system: string; user: string; maxTokens
     let { res, raw } = await call(true);
     if (res.status === 400 && /thinking/i.test(raw)) ({ res, raw } = await call(false));
     // A model this account can't use: fall back to the default one.
-    if (opts.model && (res.status === 404 || (res.status === 400 && /model/i.test(raw)))) { model = process.env.CLASSIFIER_MODEL ?? "claude-haiku-5-5"; ({ res, raw } = await call(true)); }
+    if (opts.model && (res.status === 404 || (res.status === 400 && /model/i.test(raw)))) { console.error(`[ai] ${opts.label}: ${model} refused (HTTP ${res.status} ${raw.slice(0, 300)}); falling back`); model = process.env.CLASSIFIER_MODEL ?? "claude-haiku-5-5"; ({ res, raw } = await call(true)); }
     if (!res.ok) { console.error(`[ai] ${opts.label}: HTTP ${res.status} ${raw.slice(0, 300)}`); return null; }
     const body = JSON.parse(raw) as { content?: Array<{ type?: string; text?: string }>; stop_reason?: string };
     const text = (body.content ?? []).filter((b) => b.type === "text" && b.text).map((b) => b.text!.trim()).join("\n\n").trim();
@@ -55,7 +55,7 @@ export async function claudeJson(opts: { system: string; user: string; schema: R
   try {
     let res = await call();
     let raw = await res.text();
-    if (opts.model && (res.status === 404 || (res.status === 400 && /model/i.test(raw)))) { model = process.env.CLASSIFIER_MODEL ?? "claude-haiku-5-5"; res = await call(); raw = await res.text(); }
+    if (opts.model && (res.status === 404 || (res.status === 400 && /model/i.test(raw)))) { console.error(`[ai] ${opts.label}: ${model} refused (HTTP ${res.status} ${raw.slice(0, 300)}); falling back`); model = process.env.CLASSIFIER_MODEL ?? "claude-haiku-5-5"; res = await call(); raw = await res.text(); }
     if (!res.ok) { console.error(`[ai] ${opts.label}: HTTP ${res.status} ${raw.slice(0, 300)}`); return null; }
     const body = JSON.parse(raw) as { content?: Array<{ type?: string; input?: unknown }>; stop_reason?: string };
     const block = (body.content ?? []).find((b) => b.type === "tool_use");
