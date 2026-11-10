@@ -29,7 +29,7 @@ function Line({ seg, c, color, label = true }: { seg: Seg; c: Cell; color: strin
 
 /** Competitor × state grid: share, members and loss ratio per segment; exchange participation. */
 export async function Footprint({ workspaceId, seg }: { workspaceId: string; seg?: string }) {
-  const [{ year, rows, totals, selfFunded }, { color, us }] = await Promise.all([footprint(workspaceId), chartColors(workspaceId)]);
+  const [{ year, rows, totals }, { color, us }] = await Promise.all([footprint(workspaceId), chartColors(workspaceId)]);
   if (!year || !rows.length) return null;
   const mine = us ? rows.find((r) => r.id === us.id) ?? null : null;
   const only = SEGMENTS.find((s) => s === seg);
@@ -86,7 +86,7 @@ export async function Footprint({ workspaceId, seg }: { workspaceId: string; seg
                   </td>
                   <td className="min-w-[112px] px-2 py-2 tabular-nums">
                     {tot ? (tot.lives ? <><div className="text-sm font-semibold">{n(tot.lives)}</div><div className="text-stone-500">{pct(tot.lives / (segTotal || 1), 1)} share · <span className={lrTone(tot.lrD ? tot.lrN / tot.lrD : null)}>LR {pct(tot.lrD ? tot.lrN / tot.lrD : null)}</span></div></> : <span className="text-stone-300">—</span>)
-                      : r.lives ? <><div className="text-sm font-semibold">{n(r.lives)}</div><div className="text-stone-500">{pct(r.share, 1)} share{r.growth != null ? <> · <span className={r.growth >= 0 ? "text-emerald-700" : "text-red-600"}>{r.growth > 0 ? "+" : ""}{Math.round(r.growth * 100)}% y/y</span></> : null}</div><div className={lrTone(r.lossRatio)}>LR {pct(r.lossRatio)}</div>{r.selfLives > 0 && <div className="text-stone-500">+ {n(r.selfLives)} self-funded (MA/NH)</div>}</> : r.selfLives > 0 ? <div className="text-stone-500">{n(r.selfLives)} self-funded (MA/NH)</div> : <span className="text-stone-300">No fully insured filings</span>}
+                      : r.lives ? <><div className="text-sm font-semibold">{n(r.lives)}</div><div className="text-stone-500">{pct(r.share, 1)} share{r.growth != null ? <> · <span className={r.growth >= 0 ? "text-emerald-700" : "text-red-600"}>{r.growth > 0 ? "+" : ""}{Math.round(r.growth * 100)}% y/y</span></> : null}</div><div className={lrTone(r.lossRatio)}>LR {pct(r.lossRatio)}</div>{r.selfLives > 0 && <div className="text-stone-500">+ {n(r.selfLives)} self-funded</div>}</> : r.selfLives > 0 ? <div className="text-stone-500">{n(r.selfLives)} self-funded</div> : <span className="text-stone-300">No fully insured filings</span>}
                   </td>
                   {NE_STATES.map((st) => {
                     const cell = r.cells[st] ?? {};
@@ -96,7 +96,7 @@ export async function Footprint({ workspaceId, seg }: { workspaceId: string; seg
                       <td key={st} className={`px-2 py-2 ${lines.length ? "" : "text-stone-300"}`}>
                         <div className="space-y-1.5">
                           {lines.map((s) => <Line key={s} seg={s} c={cell[s]!} color={c} label={!only} />)}
-                          {only === "SELF_FUNDED" && !lines.length && !selfFunded.some((x) => x.state === st) && <span className="text-[10px] text-stone-400">not published</span>}
+                          
                           {!lines.length && !ex.length && "—"}
                           {ex.length > 0 && (!only || only !== "LARGE_GROUP") && <span className="inline-block rounded bg-sky-50 px-1 text-[10px] text-sky-800" title={`On the ${st} exchange: ${ex.join(", ")}`}>Ex {ex.map((e: string) => (e === "SHOP" ? "S" : "I")).sort().join("+")}</span>}
                         </div>
@@ -109,7 +109,7 @@ export async function Footprint({ workspaceId, seg }: { workspaceId: string; seg
           </tbody>
         </table>
       </div>
-      <p className="text-[10px] text-stone-400">CMS medical loss-ratio filings, {year} (comprehensive major medical, fully insured). Self-funded (ASO) members are only published by {selfFunded.map((x) => `${x.state} (${x.source === "ma_chia" ? "CHIA" : "Insurance Dept"}${x.estimated ? ", estimated" : ""}, ${x.asOf.toISOString().slice(0, 7)})`).join(" and ") || "no New England state yet"}; elsewhere carriers&apos; ASO books are invisible in public data, which understates the national carriers. Against KFF&apos;s independent count, these numbers see most of the individual market everywhere but well under half of employer coverage in CT, RI, VT and ME; the Market page&apos;s coverage check has the state-by-state figures. Loss ratio here is raw claims ÷ premium, not the regulatory MLR with its quality and tax adjustments. Exchange participation from the latest plan-year files.{hidden ? ` ${hidden} tracked competitor${hidden === 1 ? " has" : "s have"} no ${only ? SEG_LONG[only].toLowerCase() : "New England"} filings and ${hidden === 1 ? "is" : "are"} left out.` : ""}</p>
+      <p className="text-[10px] text-stone-400">CMS medical loss-ratio filings, {year} (comprehensive major medical, fully insured). Self-funded (ASO): Massachusetts from CHIA (residents); other states from the self-funded lives carriers file with CMS, by the state the contract is written in, with Aetna and UnitedHealthcare estimated (they don&apos;t file by state). See Market → Self-funded for the method and its Massachusetts check.{hidden ? ` ${hidden} tracked competitor${hidden === 1 ? " has" : "s have"} no ${only ? SEG_LONG[only].toLowerCase() : "New England"} filings and ${hidden === 1 ? "is" : "are"} left out.` : ""}</p>
     </section>
   );
 }

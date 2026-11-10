@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.29.0 — 2026-11-10
+
+- **Self-funded (ASO) lives for every New England state**, free: the "uninsured plans" column of the CMS loss-ratio files the app already imports (the same figures as the NAIC Supplemental Health Care Exhibit) gives each carrier's self-funded lives, member months and fee income by state. Shown on Market → Self-funded, the Competitors footprint and each competitor's book, with the administrative fee per member per month where filed.
+- **Estimates where carriers don't file by state**, labelled "est." with the reasoning on hover: Aetna files its whole national book under Connecticut, and UnitedHealthcare files none (a non-insurer subsidiary administers its plans; national total from its annual results, data/benchmarks/carrier-aso.json). Both are spread by where the carrier has fully insured group members. Dental-only administrators are left out.
+- **Method check** against Massachusetts, where CHIA publishes actual counts: estimates land within about 5–35% (Aetna 169K vs 176K, UnitedHealthcare 287K vs 216K); filed figures run about 3× residents for carriers with national accounts written in the state.
+- Coverage check now includes these: employer coverage seen rises to 74–91% in RI, NH, VT and ME (Connecticut exceeds 100% because national accounts are written there). Massachusetts keeps CHIA's resident counts.
+- Loss-ratio files re-import once to load this.
+
 ## 0.28.0 — 2026-11-10
 
 - **Coverage check** (Market page, open by default): for every New England state, how much of the commercial market the app's numbers see, against KFF's independent 2024 counts (Census ACS). Individual: loss-ratio filings capture 79–95% of KFF's non-group count. Employer: fully insured group plus published self-funded (MA CHIA, NH) captures 82% in MA and 59% in NH, but only 18–32% in CT, RI, VT and ME, where self-funded employers, federal employees, level-funded and association plans and out-of-state policies are invisible in public data.

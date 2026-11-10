@@ -429,6 +429,27 @@ model MarketEnrollment {
 }
 
 /**
+ * Self-funded (ASO) lives a carrier administers, by the state the contract is written in. From the "uninsured plans"
+ * column of CMS's loss-ratio filings (the same figures as the NAIC Supplemental Health Care Exhibit), plus estimates
+ * for carriers that don't report by state (lib/marketdata/aso-estimate.ts).
+ */
+model SelfFundedLives {
+  id           String  @id @default(cuid())
+  year         Int
+  state        String
+  company      String // legal entity as filed (matched to competitors by issuer pattern)
+  groupName    String?
+  lives        Float
+  memberMonths Float?
+  fees         Float? // income from fees of uninsured plans
+  basis        String // "reported" | "allocated" (home-state roll-up spread by fully insured presence) | "disclosed" (national total from the carrier's 10-K, spread the same way)
+  note         String?
+
+  @@unique([year, state, company, basis])
+  @@index([state, year])
+}
+
+/**
  * Carrier financials published by a state regulator (e.g. Maine BOI) — adds admin & underwriting gain.
  */
 model StateFinancial {

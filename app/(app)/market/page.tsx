@@ -10,7 +10,7 @@ import { marketLargeGroup } from "@/lib/marketdata/largegroup";
 import { MarketLargeGroup } from "@/components/LargeGroup";
 import { Legend, LineChart, OTHER, StackedShares } from "@/components/viz";
 import { chartColors } from "@/lib/us";
-import { selfFunded, sourceLabel, SELF_FUNDED_STATES } from "@/lib/marketdata/selffunded";
+import { asoMethodCheck, BASIS, selfFunded, sourceLabel, SELF_FUNDED_STATES } from "@/lib/marketdata/selffunded";
 import { crossCheck } from "@/lib/marketdata/crosscheck";
 import { CoverageCheck } from "@/components/CoverageCheck";
 
@@ -55,6 +55,7 @@ export default async function MarketPage({ searchParams }: { searchParams: Promi
   const checks = await crossCheck(year);
   const { color, us, has } = await chartColors(session.workspaceId);
   const sf = selfMode && SELF_FUNDED_STATES.includes(state) ? (await selfFunded(session.workspaceId, [state]))[0] ?? null : null;
+  const method = selfMode ? await asoMethodCheck(session.workspaceId) : null;
   const years = [...financialYears].sort((a, b) => a - b).slice(-5);
   const history = await Promise.all(years.map(async (y) => ({ y, share: y === year ? share : await marketShare(session.workspaceId, state, segment, y) })));
   const keyOf = (r: { key: string; competitorId: string | null }) => r.competitorId ?? r.key;
@@ -104,7 +105,8 @@ export default async function MarketPage({ searchParams }: { searchParams: Promi
                 {sf.rows.map((r) => (
                   <li key={r.key} className="flex items-center gap-2">
                     <span className="h-3 w-3 shrink-0 rounded-sm" style={{ background: has(r.competitorId ?? undefined) ? color(r.competitorId!) : OTHER }} />
-                    <span className={`min-w-0 flex-1 truncate ${r.competitorId ? "font-medium" : "text-stone-600"}`}>{r.label}{r.competitorId === us?.id ? " (you)" : ""}</span>
+                    <span className={`min-w-0 flex-1 truncate ${r.competitorId ? "font-medium" : "text-stone-600"}`} title={r.notes?.[0]}>{r.label}{r.competitorId === us?.id ? " (you)" : ""}{r.basis?.some((b) => b !== "reported") ? <span className="ml-1 rounded bg-amber-50 px-1 text-[10px] font-normal text-amber-800" title={r.notes?.[0] ?? BASIS[r.basis.find((b) => b !== "reported")!]}>est.</span> : null}</span>
+                    {r.feePmpm ? <span className="text-[10px] tabular-nums text-stone-500" title="Administrative fee per member per month (fee income ÷ member months, as filed)">${r.feePmpm.toFixed(0)} fee</span> : null}
                     <span className="tabular-nums">{fmtPct(r.share)}</span>
                     <span className="w-16 text-right text-xs tabular-nums text-stone-500">{Math.round(r.members / 1000)}K</span>
                     <span className={`w-12 text-right text-xs tabular-nums ${deltaClass(r.prevMembers ? r.members / r.prevMembers - 1 : null)}`}>{r.prevMembers ? fmtSignedPct(r.members / r.prevMembers - 1, 0) : ""}</span>
@@ -113,7 +115,28 @@ export default async function MarketPage({ searchParams }: { searchParams: Promi
               </ul>
             </div>
           ) : (
-            <Empty title={`${state} doesn't publish self-funded membership`}>Only Massachusetts (CHIA, quarterly) and New Hampshire (Insurance Department, estimated) report carriers&apos; self-funded books. Elsewhere the closest public view is Form 5500 Schedule C, a sample of large self-funded employers, on each competitor&apos;s products page.</Empty>
+            <Empty title={`No self-funded figures for ${state} yet`}>Self-funded lives come from CMS&apos;s loss-ratio filings for the six New England states; they load with the next loss-ratio import (System status).</Empty>
+          )}
+          {sf?.source === "cms_mlr" && (
+            <p className="text-xs text-stone-600">
+              These are lives on self-funded contracts <span className="font-medium">written in {state}</span>, as carriers file them with CMS (the same figures as the NAIC Supplemental Health Care Exhibit). A national employer based here counts all its members here, wherever they live, and some carriers&apos; counts include dental- or pharmacy-only administration. <span className="rounded bg-amber-50 px-1 text-amber-800">est.</span> marks carriers that don&apos;t file by state: Aetna files its whole national book under Connecticut, and UnitedHealthcare files none (a non-insurer subsidiary administers its plans; its national total comes from its annual results). Both are spread across states by where the carrier has fully insured group members. Hover a name for the detail.
+            </p>
+          )}
+          {method && method.rows.length > 0 && (
+            <details className="card" open={state !== "MA"}>
+              <summary className="cursor-pointer px-4 py-2 text-sm font-medium">How good are these figures? Massachusetts check: federal filings and estimates vs CHIA&apos;s actual counts</summary>
+              <div className="overflow-x-auto border-t border-stone-100">
+                <table className="w-full text-sm" data-static>
+                  <thead className="border-b border-stone-200 text-left font-mono text-[10px] uppercase tracking-wide text-stone-500"><tr><th className="px-3 py-2">Carrier · MA</th><th className="px-3 py-2">How</th><th className="px-3 py-2 text-right">Federal / estimate {method.year}</th><th className="px-3 py-2 text-right">CHIA residents {method.chiaAsOf.toISOString().slice(0, 7)}</th><th className="px-3 py-2 text-right">Ratio</th></tr></thead>
+                  <tbody className="divide-y divide-stone-100">
+                    {method.rows.map((r) => (
+                      <tr key={r.label}><td className="px-3 py-1.5">{r.label}</td><td className="px-3 py-1.5 text-xs text-stone-600">{r.basis.map((b) => BASIS[b]).join("; ")}</td><td className="px-3 py-1.5 text-right tabular-nums">{fmtInt(Math.round(r.federal))}</td><td className="px-3 py-1.5 text-right tabular-nums">{r.chia != null ? fmtInt(Math.round(r.chia)) : "—"}</td><td className="px-3 py-1.5 text-right tabular-nums">{r.chia ? `${(r.federal / r.chia).toFixed(1)}×` : "—"}</td></tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="border-t border-stone-100 px-4 py-2 text-xs text-stone-600">Estimates land close to CHIA where a carrier has no home-state effect (Aetna, UnitedHealthcare). Filed figures run about 3× CHIA for carriers based here or with national accounts written here (BCBSMA, Cigna), because they count members living in other states and non-medical administration. Carriers CHIA lists but the federal file doesn&apos;t (Anthem&apos;s national accounts, Tufts, MGB, Health New England) administer through entities that don&apos;t file. Expect the same pattern in other states: read filed figures as an upper bound on residents, and estimates as rough.</p>
+            </details>
           )}
         </section>
       )}

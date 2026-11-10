@@ -1,0 +1,14 @@
+{
+  "note": "National self-funded (fee-based / ASO) medical membership from carriers' own disclosures, for carriers that don't report it by state in their loss-ratio filings. Used to estimate state figures (lib/marketdata/aso-estimate.ts). Update yearly.",
+  "carriers": [
+    {
+      "brand": "UnitedHealthcare",
+      "payer": "UnitedHealthcare Insurance Company",
+      "pattern": "unitedhealthcare|united healthcare|oxford health|optimum choice|all savers|mamsi|neighborhood health partnership|sierra health and life|health plan of nevada",
+      "byYear": { "2024": { "selfFunded": 20885000, "fullyInsured": 8845000 } },
+      "why": "UnitedHealthcare administers self-funded plans through United HealthCare Services, Inc., which is not an insurer and files no state exhibit.",
+      "source": "UnitedHealth Group 2024 results, People Served (commercial fee-based, Dec 31 2024)",
+      "url": "https://www.businesswire.com/news/home/20250116305758/en/UnitedHealth-Group-Reports-2024-Results/"
+    }
+  ]
+}

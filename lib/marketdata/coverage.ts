@@ -20,7 +20,7 @@ const KFF = kff as unknown as { source: string; url: string; year: number; check
 export type CoverageRow = {
   state: string;
   individual: number; kffNonGroup: number; individualCapture: number;
-  fullyInsuredGroup: number; selfFunded: number | null; selfSource: string | null; groupSeen: number; kffEmployer: number; employerCapture: number; unseen: number;
+  fullyInsuredGroup: number; selfFunded: number | null; selfSource: string | null; selfEstimated: number; residentBasis: boolean; groupSeen: number; kffEmployer: number; employerCapture: number; unseen: number;
 };
 
 export async function coverageCheck(): Promise<{ year: number | null; kff: { source: string; url: string; year: number }; rows: CoverageRow[] }> {
@@ -32,8 +32,19 @@ export async function coverageCheck(): Promise<{ year: number | null; kff: { sou
   for (const st of NE_STATES) {
     const k = KFF.states[st];
     if (!k) continue;
-    const self = await db.marketEnrollment.findFirst({ where: { state: st, funding: "SELF_INSURED" }, orderBy: { asOf: "desc" } });
+    const self = st === "MA" ? await db.marketEnrollment.findFirst({ where: { state: st, funding: "SELF_INSURED" }, orderBy: { asOf: "desc" } }) : null;
     let selfFunded: number | null = null, selfSource: string | null = null, fullyGroup = lives(st, "SMALL_GROUP") + lives(st, "LARGE_GROUP");
+    let selfEstimated = 0;
+    if (!self) {
+      // Federal filings: self-funded lives by the state the contract is written in, some carriers estimated.
+      const yr = (await db.selfFundedLives.aggregate({ where: { state: st }, _max: { year: true } }))._max.year;
+      if (yr) {
+        const sf = await db.selfFundedLives.findMany({ where: { state: st, year: yr }, select: { lives: true, basis: true } });
+        selfFunded = sf.reduce((s, r) => s + r.lives, 0);
+        selfEstimated = sf.filter((r) => r.basis !== "reported").reduce((s, r) => s + r.lives, 0);
+        selfSource = `CMS loss-ratio filings ${yr}, contract state${selfEstimated ? `; ${Math.round((selfEstimated / (selfFunded || 1)) * 100)}% estimated` : ""}`;
+      }
+    }
     if (self) {
       const at = await db.marketEnrollment.findMany({ where: { state: st, source: self.source, asOf: self.asOf }, select: { funding: true, segment: true, members: true } });
       selfFunded = at.filter((r) => r.funding === "SELF_INSURED").reduce((s, r) => s + r.members, 0);
@@ -46,7 +57,7 @@ export async function coverageCheck(): Promise<{ year: number | null; kff: { sou
     const groupSeen = fullyGroup + (selfFunded ?? 0);
     rows.push({
       state: st, individual, kffNonGroup: k.nonGroup, individualCapture: individual / k.nonGroup,
-      fullyInsuredGroup: fullyGroup, selfFunded, selfSource, groupSeen, kffEmployer: k.employer, employerCapture: groupSeen / k.employer, unseen: Math.max(0, k.employer - groupSeen),
+      fullyInsuredGroup: fullyGroup, selfFunded, selfSource, selfEstimated, residentBasis: !!self, groupSeen, kffEmployer: k.employer, employerCapture: groupSeen / k.employer, unseen: Math.max(0, k.employer - groupSeen),
     });
   }
   return { year, kff: KFF, rows };

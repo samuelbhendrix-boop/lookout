@@ -220,15 +220,31 @@ async function bookOf(re: RegExp, state?: string): Promise<Book[]> {
     if (b.lossRatio != null && b.marketLossRatio != null) { const d = b.lossRatio - b.marketLossRatio; if (Math.abs(d) >= 0.04) b.read.push(`loss ratio ${Math.round(b.lossRatio * 100)}% vs market ${Math.round(b.marketLossRatio * 100)}%${d > 0 ? " (under pressure to raise rates)" : " (room to cut price)"}`); }
     out.push(b);
   }
-  // Self-funded (ASO) members where the state publishes them (MA CHIA, NH Insurance Dept).
-  for (const st of (state ? [state] : NE_STATES).filter((x) => ["MA", "NH"].includes(x))) {
-    const latest = await db.marketEnrollment.findFirst({ where: { state: st, funding: "SELF_INSURED" }, orderBy: { asOf: "desc" } });
-    if (!latest) continue;
-    const rows = await db.marketEnrollment.findMany({ where: { state: st, funding: "SELF_INSURED", source: latest.source, asOf: latest.asOf }, select: { payer: true, members: true } });
-    const total = rows.reduce((s, r) => s + r.members, 0);
-    const mine = rows.filter((r) => re.test(r.payer)).reduce((s, r) => s + r.members, 0);
+  // Self-funded (ASO) members: CHIA's resident counts in Massachusetts; elsewhere the federal filings (by contract
+  // state), with estimates where the carrier doesn't file by state.
+  for (const st of state ? [state] : NE_STATES) {
+    if (st === "MA") {
+      const latest = await db.marketEnrollment.findFirst({ where: { state: st, funding: "SELF_INSURED" }, orderBy: { asOf: "desc" } });
+      if (!latest) continue;
+      const rows = await db.marketEnrollment.findMany({ where: { state: st, funding: "SELF_INSURED", source: latest.source, asOf: latest.asOf }, select: { payer: true, members: true } });
+      const total = rows.reduce((s, r) => s + r.members, 0);
+      const mine = rows.filter((r) => re.test(r.payer)).reduce((s, r) => s + r.members, 0);
+      if (mine < 100) continue;
+      out.push({ state: st, segment: "SELF_FUNDED", year: latest.asOf.getUTCFullYear(), lives: mine, livesBefore: null, yearBefore: null, pmpm: null, marketPmpm: null, lossRatio: null, marketLossRatio: null, share: total ? mine / total : null, read: [`${total ? Math.round((mine / total) * 100) : 0}% of the state's self-funded members (CHIA, residents, ${latest.asOf.toISOString().slice(0, 7)})`] });
+      continue;
+    }
+    const yr = (await db.selfFundedLives.aggregate({ where: { state: st }, _max: { year: true } }))._max.year;
+    if (!yr) continue;
+    const rows = await db.selfFundedLives.findMany({ where: { state: st, year: yr } });
+    const mineRows = rows.filter((r) => re.test(r.company));
+    const mine = mineRows.reduce((s, r) => s + r.lives, 0);
     if (mine < 100) continue;
-    out.push({ state: st, segment: "SELF_FUNDED", year: latest.asOf.getUTCFullYear(), lives: mine, livesBefore: null, yearBefore: null, pmpm: null, marketPmpm: null, lossRatio: null, marketLossRatio: null, share: total ? mine / total : null, read: [`${total ? Math.round((mine / total) * 100) : 0}% of the state's self-funded members (${latest.source === "ma_chia" ? "CHIA" : "NH Insurance Dept"}${latest.estimated ? " estimate" : ""}, ${latest.asOf.toISOString().slice(0, 7)})`] });
+    const total = rows.reduce((s, r) => s + r.lives, 0);
+    const before = (await db.selfFundedLives.findMany({ where: { state: st, year: yr - 1 } })).filter((r) => re.test(r.company)).reduce((s, r) => s + r.lives, 0);
+    const fees = mineRows.reduce((s, r) => s + (r.fees && r.memberMonths ? r.fees : 0), 0), mm = mineRows.reduce((s, r) => s + (r.fees && r.memberMonths ? r.memberMonths : 0), 0);
+    const est = mineRows.some((r) => r.basis !== "reported");
+    out.push({ state: st, segment: "SELF_FUNDED", year: yr, lives: mine, livesBefore: before >= 100 ? before : null, yearBefore: before >= 100 ? yr - 1 : null, pmpm: mm > 0 ? fees / mm : null, marketPmpm: null, lossRatio: null, marketLossRatio: null, share: total ? mine / total : null,
+      read: [`${est ? "Estimated" : "Filed"} self-funded lives on contracts written in ${st}${mm > 0 ? `; admin fee $${(fees / mm).toFixed(0)} per member per month` : ""}${est ? ` (${mineRows.find((r) => r.note)?.note ?? "estimate"})` : ""}`] });
   }
   return out;
 }

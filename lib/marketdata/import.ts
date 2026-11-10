@@ -9,6 +9,7 @@ import yauzl from "yauzl";
 import { parse } from "csv-parse";
 import type { Prisma, Segment } from "@prisma/client";
 import { db } from "../db";
+import { estimateAso, type AsoInput } from "./aso-estimate";
 import { ALLOWED_DATA_HOSTS, REFRESH_DAYS, type Dataset } from "./datasets";
 import { importChia, importStateSnapshots } from "./state";
 import { importDol } from "./dol";
@@ -183,7 +184,18 @@ async function importMlr(year: number, zipPath: string): Promise<number> {
   }, "lower");
 
   const metrics = new Map<string, Metrics>(); // key: templateId|segment
+  // Self-funded ("uninsured plans") lives, member months and fee income, per template.
+  const aso = new Map<string, { aso: number; memberMonths: number; fees: number }>();
   await eachCsv(zipPath, (n) => /Part1_2/i.test(n), (_, r) => {
+    if (headers.has(r.mr_submission_template_id)) {
+      const u = num(r.uninsured_plans_yearly);
+      const code = r.row_lookup_code;
+      if (u && (code === "NUMBER_OF_COVERED_LIVES" || code === "MEMBER_MONTHS" || code === "INC_FROM_FEES_OF_UNINS_PLANS")) {
+        const a = aso.get(r.mr_submission_template_id) ?? { aso: 0, memberMonths: 0, fees: 0 };
+        if (code === "NUMBER_OF_COVERED_LIVES") a.aso += u; else if (code === "MEMBER_MONTHS") a.memberMonths += u; else a.fees += u;
+        aso.set(r.mr_submission_template_id, a);
+      }
+    }
     const field = MLR_CODES[r.row_lookup_code];
     if (!field || !headers.has(r.mr_submission_template_id)) return;
     for (const [seg, col] of SEGMENT_COLS) {
@@ -216,7 +228,21 @@ async function importMlr(year: number, zipPath: string): Promise<number> {
   const data = [...rows.values()];
   await db.marketFinancial.deleteMany({ where: { year } });
   for (let i = 0; i < data.length; i += 1000) await db.marketFinancial.createMany({ data: data.slice(i, i + 1000) });
-  return data.length;
+
+  // Self-funded lives: reported where filed by state, estimated where not (lib/marketdata/aso-estimate.ts).
+  const inputs = new Map<string, AsoInput>();
+  for (const [tid, h] of headers) {
+    const k = `${h.state}|${h.company}`;
+    const x = inputs.get(k) ?? { state: h.state, company: h.company, group: h.groupName, aso: 0, memberMonths: 0, fees: 0, fiGroup: 0, fiAll: 0 };
+    const a = aso.get(tid);
+    if (a) { x.aso += a.aso; x.memberMonths += a.memberMonths; x.fees += a.fees; }
+    for (const [seg] of SEGMENT_COLS) { const m = metrics.get(`${tid}|${seg}`); if (m) { x.fiAll += m.coveredLives; if (seg !== "INDIVIDUAL") x.fiGroup += m.coveredLives; } }
+    inputs.set(k, x);
+  }
+  const sf = estimateAso(year, [...inputs.values()]);
+  await db.selfFundedLives.deleteMany({ where: { year } });
+  for (let i = 0; i < sf.length; i += 1000) await db.selfFundedLives.createMany({ data: sf.slice(i, i + 1000).map((r) => ({ year, ...r })), skipDuplicates: true });
+  return data.length + sf.length;
 }
 
 // ─── orchestration ───────────────────────────────────────────────────
@@ -321,7 +347,7 @@ export async function scheduleNextImport(enqueue: (payload: { dataset: Dataset; 
 }
 
 /** Datasets whose parser was fixed: imports finished before the fix run again once (e.g. 2027's "9.74%" rate changes). */
-const PARSER_FIXED_AT: Partial<Record<string, number>> = { urrt: Date.parse("2026-11-10T05:00:00Z") };
+const PARSER_FIXED_AT: Partial<Record<string, number>> = { urrt: Date.parse("2026-11-10T05:00:00Z"), mlr: Date.parse("2026-11-10T08:30:00Z") };
 
 /** When the production database moved from 256 MB to 1 GB of memory (2026-11-10); bump if it's resized again. */
 const DB_RESIZED_AT = Date.parse("2026-11-10T04:34:00Z");

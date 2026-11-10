@@ -28,10 +28,10 @@ export async function CoverageCheck({ open = false, highlight }: { open?: boolea
                 <td className="px-3 py-1.5 text-right tabular-nums text-stone-500">{k(r.kffNonGroup)}</td>
                 <td className={`px-3 py-1.5 text-right tabular-nums ${tone(r.individualCapture)}`}>{pc(r.individualCapture)}</td>
                 <td className="px-3 py-1.5 text-right tabular-nums">{k(r.fullyInsuredGroup)}</td>
-                <td className="px-3 py-1.5 text-right tabular-nums" title={r.selfSource ?? "Not published by this state"}>{r.selfFunded != null ? k(r.selfFunded) : <span className="text-stone-400">not published</span>}</td>
+                <td className="px-3 py-1.5 text-right tabular-nums" title={r.selfSource ?? "Not available"}>{r.selfFunded != null ? <>{k(r.selfFunded)}{!r.residentBasis && <sup className="text-stone-400">†</sup>}</> : <span className="text-stone-400">not available</span>}</td>
                 <td className="px-3 py-1.5 text-right tabular-nums text-stone-500">{k(r.kffEmployer)}</td>
-                <td className={`px-3 py-1.5 text-right tabular-nums ${tone(r.employerCapture)}`}>{pc(r.employerCapture)}</td>
-                <td className="px-3 py-1.5 text-right tabular-nums text-stone-600">{k(r.unseen)}</td>
+                <td className={`px-3 py-1.5 text-right tabular-nums ${tone(Math.min(1, r.employerCapture))}`}>{pc(r.employerCapture)}</td>
+                <td className="px-3 py-1.5 text-right tabular-nums text-stone-600">{r.unseen > 0 ? k(r.unseen) : "—"}</td>
               </tr>
             ))}
           </tbody>
@@ -39,8 +39,8 @@ export async function CoverageCheck({ open = false, highlight }: { open?: boolea
       </div>
       <div className="space-y-1 border-t border-stone-100 px-4 py-3 text-xs text-stone-600">
         <p><span className="font-medium">Individual</span>: the CMS loss-ratio filings ({year}) count every fully insured individual policy, on and off the exchange, grandfathered included, so they land close to KFF. The remainder is mostly survey reporting differences and non-ACA coverage (short-term plans, health-care sharing ministries).</p>
-        <p><span className="font-medium">Employer</span>: the filings cover fully insured group only. Self-funded (ASO) employers are added where the state publishes them (Massachusetts, New Hampshire). &quot;Not visible&quot; is everything else KFF counts as employer coverage: above all self-funded employers in CT, RI, VT and ME, plus federal employees (FEHB), level-funded and association plans, and residents covered by a policy written in another state. National carriers&apos; and BCBS plans&apos; ASO books sit mostly in that gap, so <span className="font-medium">group market shares outside MA and NH are shares of the fully insured market only</span>.</p>
-        <p>Massachusetts uses CHIA for both fully and self-insured group (the federal filing counts some BCBSMA accounts as fully insured that CHIA counts as self-insured, so mixing sources would double count). Form 5500 can&apos;t fill the gap: it reports a company&apos;s employees nationwide under its headquarters state (CVS alone shows ~500K in Rhode Island). KFF counts people by residence and main coverage; the filings count policies by the state they&apos;re written in, so small differences either way are expected. Source: <a className="underline" href={kff.url} target="_blank" rel="noopener noreferrer">{kff.source}, {kff.year}</a>.</p>
+        <p><span className="font-medium">Employer</span>: fully insured group from the loss-ratio filings, plus self-funded (ASO) lives. Massachusetts uses CHIA&apos;s actual resident counts for both. <sup>†</sup>The other states use the self-funded lives carriers file with CMS (the NAIC exhibit&apos;s &quot;uninsured plans&quot;), which are counted by <span className="font-medium">the state the contract is written in</span>, not where members live, with estimates for Aetna and UnitedHealthcare, who don&apos;t file by state. That is why Connecticut can exceed 100% (Cigna, Aetna and Anthem write national accounts there) while Vermont and Maine stay well short. So outside Massachusetts, read &quot;seen&quot; as how much business is on the books in that state, not a count of covered residents.</p>
+        <p>Still not visible anywhere: plans run by independent administrators (UMR, Meritain and the like), federal employees (FEHB), level-funded and association plans, and Blue plans&apos; out-of-state national accounts. Form 5500 can&apos;t fill the gap (it reports a company&apos;s employees nationwide under its headquarters state). KFF counts people by residence and main coverage. Source: <a className="underline" href={kff.url} target="_blank" rel="noopener noreferrer">{kff.source}, {kff.year}</a>; method check on the Self-funded view.</p>
       </div>
     </details>
   );
