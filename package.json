@@ -1,6 +1,6 @@
 {
   "name": "lookout",
-  "version": "0.31.0",
+  "version": "0.31.1",
   "private": true,
   "description": "Competitive intelligence signal tracker: ingest competitor sources, classify signals, triage, alert.",
   "scripts": {

@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
-import { claudeText } from "../ai";
+import { claudeJson } from "../ai";
 import { db } from "../db";
 import { SITES } from "./sites";
 
@@ -18,31 +18,32 @@ const Partner = z.object({ name: z.string(), role: z.string().nullish(), source:
 const Product = z.object({
   name: z.string(),
   family: z.string().nullish(),
-  segments: z.array(z.string()).default([]),
-  states: z.array(z.string()).default([]),
+  segments: z.array(z.string()).catch([]),
+  states: z.array(z.string()).catch([]),
   planType: z.string().nullish(),
   network: z.enum(NETWORKS).catch("unknown"),
   networkDetail: z.string().nullish(),
   virtualFirst: z.boolean().catch(false),
   virtualDetail: z.string().nullish(),
   pcpRequired: z.boolean().nullish().catch(null),
-  costDesign: z.array(z.string()).default([]),
-  funding: z.array(z.string()).default([]),
+  costDesign: z.array(z.string()).catch([]),
+  funding: z.array(z.string()).catch([]),
   targetBuyer: z.string().nullish(),
   pitch: z.string().nullish(),
-  claims: z.array(z.string()).default([]),
-  partners: z.array(Partner).default([]),
-  docs: z.array(z.object({ title: z.string(), url: z.string() })).default([]),
-  sources: z.array(z.string()).default([]),
+  claims: z.array(z.string()).catch([]),
+  partners: z.array(Partner).catch([]),
+  docs: z.array(z.object({ title: z.string(), url: z.string() })).catch([]),
+  sources: z.array(z.string()).catch([]),
 });
 const Result = z.object({
   summary: z.string(),
   structure: z.string().nullish(),
-  positioning: z.array(z.string()).default([]),
+  positioning: z.array(z.string()).catch([]),
   channels: z.string().nullish(),
   gaps: z.string().nullish(),
-  partners: z.array(Partner).default([]),
-  products: z.array(Product).default([]),
+  partners: z.array(Partner).catch([]),
+  // One malformed product shouldn't drop the rest.
+  products: z.array(z.unknown()).catch([]).transform((xs) => xs.flatMap((x) => { const r = Product.safeParse(x); return r.success ? [r.data] : []; })),
 });
 export type MarketedProduct = z.infer<typeof Product>;
 export type ProductPartner = z.infer<typeof Partner>;
@@ -50,7 +51,7 @@ export type Marketing = z.infer<typeof Result> & { site: string; label: string; 
 
 const SYSTEM = `You are a competitive-intelligence analyst at a New England health insurer. You are given a carrier's own web pages, brochures and plan summaries about its COMMERCIAL medical products (employer group, small business, individual and family). Work out how the carrier structures and markets each product.
 
-Return ONLY a JSON object, no prose before or after, with this shape:
+Record your answer with the record_products tool, in this shape:
 {
   "summary": "3-4 sentences: how the portfolio is built (product families and how they differ) and how the carrier sells it (the main message, who it targets)",
   "structure": "1-2 sentences: the axes the products vary on (network size, plan type, funding, cost sharing)",
@@ -95,7 +96,21 @@ function corpus(pages: Array<{ url: string; title: string; kind: string; text: s
   return out;
 }
 
-const parseJson = (t: string) => { const s = t.indexOf("{"), e = t.lastIndexOf("}"); return s >= 0 && e > s ? JSON.parse(t.slice(s, e + 1)) : null; };
+const str = { type: "string" }, strs = { type: "array", items: { type: "string" } };
+const partner = { type: "object", properties: { name: str, role: str, source: str }, required: ["name"] };
+const SCHEMA = {
+  type: "object", required: ["summary", "products"],
+  properties: {
+    summary: str, structure: str, positioning: strs, channels: str, gaps: str,
+    partners: { type: "array", items: partner },
+    products: { type: "array", items: { type: "object", required: ["name", "network", "virtualFirst"], properties: {
+      name: str, family: str, segments: strs, states: strs, planType: str,
+      network: { type: "string", enum: [...NETWORKS] }, networkDetail: str, virtualFirst: { type: "boolean" }, virtualDetail: str,
+      pcpRequired: { type: ["boolean", "null"] }, costDesign: strs, funding: strs, targetBuyer: str, pitch: str, claims: strs,
+      partners: { type: "array", items: partner }, docs: { type: "array", items: { type: "object", properties: { title: str, url: str }, required: ["title", "url"] } }, sources: strs,
+    } } },
+  },
+};
 
 /** Partnership headlines about the carrier from the news feed (any workspace tracking it), last two years. */
 async function partnerNews(match: RegExp): Promise<Array<{ date: string; title: string; url: string }>> {
@@ -119,20 +134,28 @@ export async function marketingFor(siteKey: string, opts: { force?: boolean; gen
   if (!site || site.skip) return null;
   const id = `cache:marketing:${siteKey}`;
   const cached = await db.rateFile.findUnique({ where: { id } });
-  const c = cached?.stats as { hash?: string; pagesHash?: string; m?: Marketing } | null;
+  const c = cached?.stats as { hash?: string; pagesHash?: string; m?: Marketing; failedAt?: string } | null;
   if (opts.generate === false) return normalize(c?.m);
   const pages = await db.productPage.findMany({ where: { site: siteKey }, select: { url: true, title: true, kind: true, text: true, score: true, hash: true, fetchedAt: true } });
   if (!pages.length) return normalize(c?.m);
   const pagesHash = createHash("sha1").update(pages.map((p) => p.hash).sort().join(",") + MODEL()).digest("hex").slice(0, 16);
   const hash = createHash("sha1").update(pagesHash + (await partnerNews(site.match)).map((n) => n.url).join(",")).digest("hex").slice(0, 16);
   if (!opts.force && c?.hash === hash && c.m) return normalize(c.m);
+  // A failed read waits six hours before trying again (no paying for the same failure every few minutes).
+  if (!opts.force && c?.failedAt && Date.now() - new Date(c.failedAt).getTime() < 6 * 3600e3) return normalize(c.m);
   // New partnership headlines alone re-read the carrier at most weekly.
   if (!opts.force && c?.m && c.pagesHash === pagesHash && Date.now() - new Date(c.m.generatedAt).getTime() < 7 * 864e5) return normalize(c.m);
   const news = await partnerNews(site.match);
-  const r = await claudeText({ label: `marketing ${siteKey}`, model: MODEL(), maxTokens: 10_000, timeoutMs: 300_000, system: SYSTEM, user: `Carrier: ${site.label}\n\nPAGES:${corpus(pages)}${news.length ? `\n\nNEWS (headlines about partnerships, last two years):\n${news.map((n) => `- ${n.date} ${n.title} <${n.url}>`).join("\n")}` : ""}` });
-  if (!r) return normalize(c?.m);
+  const r = await claudeJson({ label: `marketing ${siteKey}`, tool: "record_products", schema: SCHEMA, model: MODEL(), maxTokens: 16_000, timeoutMs: 300_000, system: SYSTEM, user: `Carrier: ${site.label}\n\nPAGES:${corpus(pages)}${news.length ? `\n\nNEWS (headlines about partnerships, last two years):\n${news.map((n) => `- ${n.date} ${n.title} <${n.url}>`).join("\n")}` : ""}` });
+  const fail = async () => {
+    const data = { carrier: "_cache", carrierName: "_cache", network: "marketing", url: "", status: "cache", stats: JSON.parse(JSON.stringify({ ...(c ?? {}), failedAt: new Date().toISOString() })), processedAt: cached?.processedAt ?? null };
+    await db.rateFile.upsert({ where: { id }, create: { id, ...data }, update: data }).catch(() => {});
+    return normalize(c?.m);
+  };
+  if (!r) return fail();
   let parsed: z.infer<typeof Result>;
-  try { parsed = Result.parse(parseJson(r.text)); } catch (e) { console.error(`[marketing] ${siteKey}: unparseable reply (${(e as Error).message.slice(0, 200)})`); return normalize(c?.m); }
+  try { parsed = Result.parse(r.data); } catch (e) { console.error(`[marketing] ${siteKey}: reply didn't fit the schema (${(e as Error).message.slice(0, 300)})`); return fail(); }
+  if (!parsed.products.length) { console.error(`[marketing] ${siteKey}: no products in the reply`); return fail(); }
   // Keep only source links that were actually crawled or linked, so a made-up URL can't slip through.
   const known = new Set([...pages.map((p) => p.url), ...news.map((n) => n.url)]);
   const linked = (u: string) => known.has(u) || pages.some((p) => p.text.includes(u));

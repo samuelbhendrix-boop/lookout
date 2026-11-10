@@ -35,3 +35,35 @@ export async function claudeText(opts: { system: string; user: string; maxTokens
     return null;
   }
 }
+
+/**
+ * Structured output: the model must answer by "calling" a tool whose input is the given JSON schema, so the reply is
+ * always well-formed JSON (no stray quotes or prose). Returns the tool input, or null on failure.
+ */
+export async function claudeJson(opts: { system: string; user: string; schema: Record<string, unknown>; tool: string; maxTokens?: number; label: string; model?: string; timeoutMs?: number }): Promise<{ data: unknown; model: string } | null> {
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key) return null;
+  let model = opts.model ?? process.env.CLASSIFIER_MODEL ?? "claude-haiku-5-5";
+  const call = () => fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST", signal: AbortSignal.timeout(opts.timeoutMs ?? 120_000),
+    headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+    body: JSON.stringify({
+      model, max_tokens: opts.maxTokens ?? 4000, system: opts.system, messages: [{ role: "user", content: opts.user }],
+      tools: [{ name: opts.tool, description: "Record the result.", input_schema: opts.schema }], tool_choice: { type: "tool", name: opts.tool },
+    }),
+  });
+  try {
+    let res = await call();
+    let raw = await res.text();
+    if (opts.model && (res.status === 404 || (res.status === 400 && /model/i.test(raw)))) { model = process.env.CLASSIFIER_MODEL ?? "claude-haiku-5-5"; res = await call(); raw = await res.text(); }
+    if (!res.ok) { console.error(`[ai] ${opts.label}: HTTP ${res.status} ${raw.slice(0, 300)}`); return null; }
+    const body = JSON.parse(raw) as { content?: Array<{ type?: string; input?: unknown }>; stop_reason?: string };
+    const block = (body.content ?? []).find((b) => b.type === "tool_use");
+    if (!block) { console.error(`[ai] ${opts.label}: no structured reply (stop: ${body.stop_reason})`); return null; }
+    if (body.stop_reason === "max_tokens") console.error(`[ai] ${opts.label}: reply hit the token limit; it may be incomplete`);
+    return { data: block.input, model };
+  } catch (e) {
+    console.error(`[ai] ${opts.label} failed: ${(e as Error).message}`);
+    return null;
+  }
+}
