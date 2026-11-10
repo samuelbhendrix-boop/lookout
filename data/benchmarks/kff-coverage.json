@@ -1,0 +1,14 @@
+{
+  "source": "KFF State Health Facts, Health Insurance Coverage of the Total Population (American Community Survey, primary coverage by residence)",
+  "url": "https://www.kff.org/other/state-indicator/total-population/",
+  "year": 2024,
+  "checked": "2026-11-10",
+  "states": {
+    "MA": { "employer": 3739300, "nonGroup": 409000, "total": 6898700 },
+    "CT": { "employer": 1843000, "nonGroup": 175400, "total": 3564600 },
+    "RI": { "employer": 528300, "nonGroup": 59000, "total": 1069300 },
+    "NH": { "employer": 763600, "nonGroup": 94700, "total": 1365900 },
+    "VT": { "employer": 307700, "nonGroup": 41600, "total": 624300 },
+    "ME": { "employer": 646400, "nonGroup": 79100, "total": 1361900 }
+  }
+}

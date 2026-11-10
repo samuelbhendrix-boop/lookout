@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.28.0 — 2026-11-10
+
+- **Coverage check** (Market page, open by default): for every New England state, how much of the commercial market the app's numbers see, against KFF's independent 2024 counts (Census ACS). Individual: loss-ratio filings capture 79–95% of KFF's non-group count. Employer: fully insured group plus published self-funded (MA CHIA, NH) captures 82% in MA and 59% in NH, but only 18–32% in CT, RI, VT and ME, where self-funded employers, federal employees, level-funded and association plans and out-of-state policies are invisible in public data.
+- Group market shares outside MA and NH now say they're shares of the fully insured market only; the footprint grid notes the same.
+- Benchmark kept in data/benchmarks/kff-coverage.json with source and year.
+
 ## 0.27.4 — 2026-11-10
 
 - AI write-ups: extended thinking turned off (the model was spending its whole budget thinking and returning no text, so most strategy reads came back empty), with a retry that allows thinking and more room if the API rejects the setting. One shared helper (lib/ai.ts) for every write-up.

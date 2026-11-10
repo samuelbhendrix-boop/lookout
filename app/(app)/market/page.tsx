@@ -12,6 +12,7 @@ import { Legend, LineChart, OTHER, StackedShares } from "@/components/viz";
 import { chartColors } from "@/lib/us";
 import { selfFunded, sourceLabel, SELF_FUNDED_STATES } from "@/lib/marketdata/selffunded";
 import { crossCheck } from "@/lib/marketdata/crosscheck";
+import { CoverageCheck } from "@/components/CoverageCheck";
 
 /** Known explanations for cross-check gaps over 15%, found by comparing the two sources carrier by carrier. */
 const WHY: Record<string, string> = {
@@ -90,6 +91,8 @@ export default async function MarketPage({ searchParams }: { searchParams: Promi
         {financialYears.slice(0, 5).map((y) => <Pill key={y} href={qs({ year: y })} active={y === year} label={String(y)} />)}
       </div>
 
+      <CoverageCheck highlight={state} open />
+
       {selfMode && (
         <section className="space-y-3">
           <h2 className="text-lg font-semibold tracking-tight">Self-funded (ASO) share · {state}</h2>
@@ -118,7 +121,7 @@ export default async function MarketPage({ searchParams }: { searchParams: Promi
       {!selfMode && <section className="space-y-3">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="text-lg font-semibold tracking-tight">Market share · {state} {SEGMENT_LABEL[segment].toLowerCase()} · {year}</h2>
-          <p className="text-xs text-stone-500">Share of fully insured covered lives; the bar sums to 100%. {fmtInt(share.total)} lives.</p>
+          <p className="text-xs text-stone-500">Share of fully insured covered lives; the bar sums to 100%. {fmtInt(share.total)} lives.{segment !== "INDIVIDUAL" && !["MA", "NH"].includes(state) ? " Self-funded employers (most group coverage in this state) aren't included; see the coverage check above." : ""}</p>
         </div>
         {us && <p className="text-sm">{mine ? <><span className="font-medium">{us.name} (you):</span> {fmtPct(mine.share)} share, rank {myRank} of {share.rows.length}, {fmtInt(mine.coveredLives)} lives{mine.livesChange != null ? <>, <span className={deltaClass(mine.livesChange)}>{fmtSignedPct(mine.livesChange, 0)}</span> y/y</> : null}{myRank && myRank > 1 ? <> · {share.rows[0].label} leads by {((share.rows[0].share - mine.share) * 100).toFixed(1)} pts</> : null}</> : <span className="text-stone-500">{us.name} (you) has no fully insured {SEGMENT_LABEL[segment].toLowerCase()} business in {state}.</span>}</p>}
         {share.rows.length > 0 && (
