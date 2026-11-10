@@ -32,7 +32,7 @@ export default async function SignalPage({ params }: { params: Promise<{ id: str
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_280px]">
       <article className="space-y-5">
-        <Link href="/feed" className="text-sm text-stone-500 hover:text-stone-900">← Feed</Link>
+        <Link href="/updates" className="text-sm text-stone-500 hover:text-stone-900">← Updates</Link>
         {signal.duplicateOf && (
           <div className="card flex flex-wrap items-center justify-between gap-2 border-amber-200 bg-amber-50 px-4 py-2 text-sm">
             <span>

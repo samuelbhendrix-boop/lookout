@@ -42,7 +42,7 @@ export function SignalEditor({ signal, competitors, canDelete }: Props) {
   async function remove() {
     if (!confirm("Delete this signal permanently?")) return;
     await api("DELETE", `/signals/${signal.id}`);
-    router.replace("/feed");
+    router.replace("/updates");
     router.refresh();
   }
 

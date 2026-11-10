@@ -76,7 +76,7 @@ export default async function CompetitorProfilePage({
               Tier {comp.tier}
               {comp.website && <> · <a className="underline" href={comp.website} target="_blank" rel="noopener noreferrer">website</a></>}
               {" · "}<Link className="underline" href={`/competitors/${comp.id}/products${state ? `?state=${state}` : ""}`}>commercial products</Link>
-              {" · "}<Link className="underline" href={`/feed?competitorId=${comp.id}`}>all signals</Link>
+              {" · "}<Link className="underline" href={`/updates?competitorId=${comp.id}`}>all signals</Link>
             </p>
           </div>
         </div>
@@ -148,7 +148,7 @@ export default async function CompetitorProfilePage({
         <section className="space-y-2">
           <div className="flex items-baseline justify-between">
             <h2 className="text-lg font-semibold tracking-tight">Recent market changes</h2>
-            <Link href={`/changes?competitor=${comp.id}`} className="text-xs underline">All changes →</Link>
+            <Link href={`/updates?view=market&days=365&competitorId=${comp.id}`} className="text-xs underline">All changes →</Link>
           </div>
           <div className="card divide-y divide-stone-100">
             {changes.map((e) => (

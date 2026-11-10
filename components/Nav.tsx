@@ -10,8 +10,7 @@ import { Brand } from "./Brand";
 const GROUPS = [
   {
     id: "review", label: "Market Review", links: [
-      { href: "/briefing", label: "Briefing" },
-      { href: "/feed", label: "Feed" },
+      { href: "/updates", label: "Updates" },
       { href: "/competitors", label: "Competitors" },
       { href: "/products", label: "Products" },
       { href: "/market", label: "Market" },
@@ -19,7 +18,6 @@ const GROUPS = [
       { href: "/rates/explore", label: "Rate explorer" },
       { href: "/leverage", label: "Leverage" },
       { href: "/networks", label: "Networks" },
-      { href: "/changes", label: "Changes" },
     ],
   },
   { id: "sales", label: "Sales", links: [{ href: "/accounts", label: "In play" }, { href: "/employers", label: "Employers" }] },
@@ -37,7 +35,7 @@ const ALL = [HOME, ...GROUPS.flatMap((g) => g.links)];
 
 /** The most specific link matching the current path (so /settings/account doesn't also light up /settings). */
 function activeHref(path: string) {
-  if (path.startsWith("/signals")) return "/feed";
+  if (path.startsWith("/signals")) return "/updates";
   return ALL.map((l) => l.href).filter((h) => path === h || path.startsWith(h + "/")).sort((a, b) => b.length - a.length)[0];
 }
 

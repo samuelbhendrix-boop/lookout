@@ -12,7 +12,7 @@ export function AcceptInvite({ token }: { token: string }) {
     setBusy(true);
     try {
       await api("POST", "/invites/accept", { token });
-      router.replace("/feed");
+      router.replace("/home");
       router.refresh();
     } catch (e) {
       setError((e as Error).message);

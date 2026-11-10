@@ -1,186 +1,179 @@
 import Link from "next/link";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { briefing, type BriefItem } from "@/lib/briefing";
-import { accountsInPlay } from "@/lib/marketdata/inplay";
 import { AUTO_FILTER_TAG } from "@/lib/relevance";
-import { Importance, TypeBadge, timeAgo } from "@/components/ui";
-import type { SignalType } from "@prisma/client";
+import { MARKET_NOISE } from "@/lib/briefing";
+import { accountMoves, competitorsOf, rankCompetitors, exchangeTrend, filedRateChanges, networkPosition, premiumTrend } from "@/lib/homecharts";
+import { accountsInPlay } from "@/lib/marketdata/inplay";
+import { NE_STATES } from "@/lib/marketdata/products";
+import { colorMap, HBars, hasColor, Legend, LineChart } from "@/components/viz";
+import { timeAgo } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Home" };
 
-const KIND_LABEL: Record<string, string> = { account_won: "Account won", account_lost: "Account lost", rate_filing: "Rate filing", rate_change: "Negotiated rates", network_add: "Network add", network_drop: "Network drop" };
-const KIND_TONE: Record<string, string> = { account_won: "bg-emerald-600", account_lost: "bg-red-600", network_drop: "bg-red-600", network_add: "bg-emerald-600", rate_filing: "bg-ink", rate_change: "bg-ink" };
-const DAY = 864e5;
+const SEGMENTS = { LARGE_GROUP: "Large group", SMALL_GROUP: "Small group", INDIVIDUAL: "Individual" } as const;
+type Seg = keyof typeof SEGMENTS;
+const usd = (v: number) => `$${Math.round(v).toLocaleString("en-US")}`;
+const pct = (v: number) => `${v > 0 ? "+" : ""}${(v * 100).toFixed(1)}%`;
+const lives = (v: number) => (Math.abs(v) >= 1000 ? `${(v / 1000).toFixed(1)}K` : String(Math.round(v)));
 
-/** Best-ranked first, at most `per` from any one competitor, so one busy carrier can't fill the list. */
-function spread<T extends { competitorId: string | null }>(xs: T[], n: number, per = 2) {
-  const seen = new Map<string, number>();
-  const out: T[] = [];
-  for (const x of xs) {
-    const k = x.competitorId ?? "_";
-    if ((seen.get(k) ?? 0) >= per) continue;
-    seen.set(k, (seen.get(k) ?? 0) + 1);
-    out.push(x);
-    if (out.length === n) break;
-  }
-  // Too few other competitors to fill the list: top it up with the next best.
-  for (const x of xs) { if (out.length >= Math.min(n, 4)) break; if (!out.includes(x)) out.push(x); }
-  return out;
-}
-
-function greeting(now = new Date()) {
-  const h = Number(now.toLocaleString("en-US", { hour: "numeric", hour12: false, timeZone: "America/New_York" }));
+function greeting() {
+  const h = Number(new Date().toLocaleString("en-US", { hour: "numeric", hour12: false, timeZone: "America/New_York" }));
   return h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
 }
 
-function Kpi({ label, value, sub, href, tone }: { label: string; value: React.ReactNode; sub?: React.ReactNode; href?: string; tone?: "up" | "down" | "warn" }) {
-  const body = (
-    <>
-      <p className="font-mono text-[10px] uppercase tracking-wide text-stone-500">{label}</p>
-      <p className="mt-1 text-2xl font-semibold tabular-nums tracking-tight">{value}</p>
-      {sub && <p className={`mt-0.5 text-xs ${tone === "up" ? "text-emerald-700" : tone === "down" ? "text-red-600" : tone === "warn" ? "text-amber-700" : "text-stone-500"}`}>{sub}</p>}
-    </>
-  );
-  return href ? <Link href={href} className="card block p-4 hover:border-stone-300 hover:bg-stone-50">{body}</Link> : <div className="card p-4">{body}</div>;
-}
-
-function Row({ it }: { it: BriefItem }) {
+function Card({ title, sub, href, cta, children, className = "" }: { title: string; sub?: React.ReactNode; href?: string; cta?: string; children: React.ReactNode; className?: string }) {
   return (
-    <li className="px-4 py-3">
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-stone-500">
-        {it.kind ? <span className={`rounded px-1.5 py-0.5 font-mono text-[10px] font-medium tracking-wide text-white ${KIND_TONE[it.kind] ?? "bg-ink"}`}>{KIND_LABEL[it.kind] ?? it.kind}</span> : <TypeBadge type={it.type as SignalType} />}
-        <Importance value={it.importance} />
-        {it.competitor && <span className="font-medium text-stone-700">{it.competitor}</span>}
-        <span>{timeAgo(it.when)} ago</span>
-        {it.coverage > 0 && <span>· {it.coverage + 1} outlets</span>}
-      </div>
-      <Link href={it.href} className="mt-1 block font-medium leading-snug hover:underline">{it.title}</Link>
-      <p className="mt-0.5 line-clamp-2 text-sm text-stone-600">{it.why}</p>
-    </li>
-  );
-}
-
-function Panel({ title, href, cta, children }: { title: string; href?: string; cta?: string; children: React.ReactNode }) {
-  return (
-    <section className="min-w-0">
-      <div className="mb-2 flex items-baseline justify-between">
-        <h2 className="font-mono text-xs uppercase tracking-wide text-stone-500">{title}</h2>
-        {href && <Link href={href} className="text-xs text-stone-500 hover:text-stone-900">{cta ?? "All"} →</Link>}
+    <section className={`card min-w-0 p-4 ${className}`}>
+      <div className="mb-2 flex items-start justify-between gap-3">
+        <div className="min-w-0"><h3 className="text-sm font-semibold tracking-tight">{title}</h3>{sub && <p className="text-[11px] text-stone-500">{sub}</p>}</div>
+        {href && <Link href={href} className="shrink-0 text-xs text-stone-500 hover:text-stone-900">{cta ?? "More"} →</Link>}
       </div>
       {children}
     </section>
   );
 }
 
-export default async function HomePage() {
+export default async function HomePage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const session = (await getSession())!;
-  const ws = session.workspaceId;
-  const now = Date.now();
-  const live = { workspaceId: ws, duplicateOfId: null, status: { not: "ARCHIVED" as const }, NOT: { tags: { some: { tag: { name: AUTO_FILTER_TAG } } } } };
-  const [b, play, thisWeek, lastWeek, daily, sources, competitors, imports] = await Promise.all([
-    briefing(ws, 30),
-    accountsInPlay(ws, { days: 90 }),
-    db.signal.count({ where: { ...live, createdAt: { gte: new Date(now - 7 * DAY) } } }),
-    db.signal.count({ where: { ...live, createdAt: { gte: new Date(now - 14 * DAY), lt: new Date(now - 7 * DAY) } } }),
-    db.$queryRaw<Array<{ d: Date; n: bigint }>>`
-      SELECT date_trunc('day', s."createdAt") AS d, count(*) AS n FROM "Signal" s
-      WHERE s."workspaceId" = ${ws} AND s."duplicateOfId" IS NULL AND s.status <> 'ARCHIVED' AND s."createdAt" >= now() - interval '30 days'
-      GROUP BY 1 ORDER BY 1`,
-    db.source.findMany({ where: { workspaceId: ws, enabled: true }, select: { lastError: true, lastPolledAt: true } }),
-    db.competitor.count({ where: { workspaceId: ws } }),
-    db.dataImport.findMany({ select: { status: true, finishedAt: true } }),
+  const sp = await searchParams;
+  const state = NE_STATES.includes(sp.state ?? "") ? sp.state! : "MA";
+  const seg: Seg = sp.seg && sp.seg in SEGMENTS ? (sp.seg as Seg) : "LARGE_GROUP";
+  const { comps, match } = await competitorsOf(session.workspaceId);
+  const ranked = await rankCompetitors(session.workspaceId);
+  const color = colorMap(ranked);
+  void comps;
+  const [prem, filed, exch, sales, net, play, productNews, changes30] = await Promise.all([
+    premiumTrend(match, state, seg),
+    filedRateChanges(match, state),
+    exchangeTrend(match, state),
+    accountMoves(match),
+    networkPosition(match),
+    accountsInPlay(session.workspaceId, { days: 90, state }),
+    db.signal.findMany({
+      where: { workspaceId: session.workspaceId, duplicateOfId: null, status: { not: "ARCHIVED" }, competitorId: { not: null }, type: { in: ["PRODUCT", "PRICING", "NETWORK"] },
+        tags: { none: { tag: { name: { in: ["market-data", AUTO_FILTER_TAG] } } } }, OR: [{ publishedAt: { gte: new Date(Date.now() - 60 * 864e5) } }, { publishedAt: null, createdAt: { gte: new Date(Date.now() - 60 * 864e5) } }] },
+      orderBy: [{ importance: "desc" }, { publishedAt: { sort: "desc", nulls: "last" } }], take: 60, include: { competitor: { select: { name: true } } },
+    }).then((xs) => xs.filter((s) => !MARKET_NOISE.test(s.title)).slice(0, 6)),
+    db.marketEvent.count({ where: { createdAt: { gte: new Date(Date.now() - 30 * 864e5) }, importance: { gte: 3 } } }),
   ]);
-
-  const week = new Date(now - 7 * DAY);
-  const movers = spread(b.items.filter((i) => i.kind), 6);
-  const allNews = b.items.filter((i) => !i.kind);
-  const recentNews = allNews.filter((i) => i.when >= week);
-  const stories = spread(recentNews.length >= 3 ? recentNews : allNews, 6);
-  const hot = play.rows.filter((r) => r.score >= 3);
-  const hotLives = hot.reduce((s, r) => s + (r.persons ?? r.participants ?? 0), 0);
-  const delta = lastWeek ? (thisWeek - lastWeek) / lastWeek : null;
-  const failing = sources.filter((s) => s.lastError).length;
-  const lastImport = imports.map((i) => i.finishedAt?.getTime() ?? 0).filter((t) => t > 0).sort((a, c) => c - a)[0];
-  const failedImports = imports.filter((i) => i.status === "failed").length;
-
-  // 30-day activity strip.
-  const counts = new Map(daily.map((r) => [new Date(r.d).toISOString().slice(0, 10), Number(r.n)]));
-  const days = Array.from({ length: 30 }, (_, i) => { const d = new Date(now - (29 - i) * DAY).toISOString().slice(0, 10); return { d, n: counts.get(d) ?? 0 }; });
-  const peak = Math.max(1, ...days.map((x) => x.n));
-  const active = b.byCompetitor.slice().sort((a, c) => c.count - a.count).slice(0, 6);
-  const activePeak = Math.max(1, ...active.map((c) => c.count));
+  const qs = (o: Record<string, string>) => `/home?${new URLSearchParams({ state, seg, ...o })}`;
+  const chip = (on: boolean) => `rounded px-2.5 py-1 ${on ? "bg-stone-900 text-white" : "bg-stone-100 hover:bg-stone-200"}`;
   const first = (session.name ?? "").split(" ")[0];
+  const top6 = <T extends { name: string; competitorId?: string; points: Array<{ y: number | null }> }>(s: T[]) => {
+    const mkt = s.filter((x) => !x.competitorId);
+    const comps = s.filter((x) => hasColor(ranked, x.competitorId)).sort((a, b) => b.points.filter((p) => p.y != null).length - a.points.filter((p) => p.y != null).length || (b.points.at(-1)?.y ?? 0) - (a.points.at(-1)?.y ?? 0));
+    return [...comps.slice(0, 6), ...mkt];
+  };
+  const legendFor = (s: Array<{ name: string; competitorId?: string }>) => s.map((x) => ({ name: x.name, color: color(x.competitorId), dashed: !x.competitorId }));
+
+  // Headline numbers.
+  const mkt = filed.rows.find((r) => r.name === "Market");
+  const lastYearIdx = filed.years.length - 1;
+  const mktFiled = mkt?.values[lastYearIdx] ?? null;
+  const premMkt = prem.series.find((s) => s.name === "Market");
+  const premLast = premMkt?.points.at(-1)?.y ?? null, premPrev = premMkt?.points.at(-2)?.y ?? null;
+  const cheapestHosp = net.position.filter((p) => p.competitorId)[0];
+  const topWinner = sales.rows[0];
+  const hot = play.rows.filter((r) => r.score >= 3);
+
+  const filedComp = filed.rows.filter((r) => r.name !== "Market").sort((a, b) => (b.values[lastYearIdx] ?? -9) - (a.values[lastYearIdx] ?? -9));
+  const yearColors = ["#a8a29e", "#2a78d6", "#1c1917"].slice(-filed.years.length);
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">{greeting()}{first ? `, ${first}` : ""}.</h1>
-          <p className="text-sm text-stone-500">
-            {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "America/New_York" })} ·{" "}
-            {b.total ? <>{b.total} things moved in the last 30 days{b.major ? `, ${b.major} of them major` : ""}.</> : <>Nothing new in the last 30 days.</>}
-          </p>
+          <p className="text-sm text-stone-500">Pricing, networks, products and sales for your competitors · {state}</p>
         </div>
-        <div className="flex gap-2">
-          <Link href="/briefing" className="btn-ghost">Full briefing</Link>
-          <Link href="/changes" className="btn-ghost">All market changes</Link>
+        <div className="flex flex-wrap items-center gap-1.5 text-xs">
+          {NE_STATES.map((s) => <Link key={s} href={qs({ state: s })} className={chip(state === s)}>{s}</Link>)}
+          <Link href="/updates" className="btn-ghost ml-2 py-1 text-xs">All updates ({changes30} changes in 30d) →</Link>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
-        <Kpi label="News this week" value={thisWeek.toLocaleString()} href="/feed" sub={delta == null ? "no prior week" : `${delta >= 0 ? "▲" : "▼"} ${Math.abs(Math.round(delta * 100))}% vs last week`} tone={delta == null ? undefined : delta >= 0 ? "up" : "down"} />
-        <Kpi label="Major items · 30d" value={b.major} href="/briefing?days=30" sub="importance 4–5" />
-        <Kpi label="Detected from data · 30d" value={b.dataDetected} href="/changes" sub="filings, rates, networks, accounts" />
-        <Kpi label="Accounts in play · 90d" value={hot.length} href="/accounts" sub={hot.length ? `${hotLives.toLocaleString()} covered lives` : "none with strong signals"} />
-        <Kpi label="Competitors tracked" value={competitors} href="/competitors" sub={b.quiet.length ? `${b.quiet.length} quiet this month` : "all active this month"} />
-        <Kpi label="Sources" value={`${sources.length - failing}/${sources.length}`} href="/sources" sub={failing ? `${failing} failing` : lastImport ? `market data ${timeAgo(new Date(lastImport))} old${failedImports ? ` · ${failedImports} import failed` : ""}` : "healthy"} tone={failing || failedImports ? "warn" : undefined} />
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="card p-4"><p className="font-mono text-[10px] uppercase tracking-wide text-stone-500">Filed rate change {filed.years.at(-1) ?? ""}</p><p className="mt-1 text-2xl font-semibold tabular-nums">{mktFiled != null ? pct(mktFiled) : "—"}</p><p className="text-xs text-stone-500">{state} individual + small group, renewing plans</p></div>
+        <div className="card p-4"><p className="font-mono text-[10px] uppercase tracking-wide text-stone-500">{SEGMENTS[seg]} premium PMPM</p><p className="mt-1 text-2xl font-semibold tabular-nums">{premLast != null ? usd(premLast) : "—"}</p><p className="text-xs text-stone-500">{premLast && premPrev ? `${pct(premLast / premPrev - 1)} vs ${prem.years.at(-2)}` : "market, fully insured"}</p></div>
+        <Link href="/leverage" className="card block p-4 hover:bg-stone-50"><p className="font-mono text-[10px] uppercase tracking-wide text-stone-500">Lowest hospital prices</p><p className="mt-1 truncate text-2xl font-semibold">{cheapestHosp ? cheapestHosp.name : "—"}</p><p className="text-xs text-stone-500">{cheapestHosp ? `${cheapestHosp.median.toFixed(2)}× Medicare across ${cheapestHosp.hospitals} hospitals` : "no hospital rates yet"}</p></Link>
+        <Link href="/accounts" className="card block p-4 hover:bg-stone-50"><p className="font-mono text-[10px] uppercase tracking-wide text-stone-500">Biggest net account gain</p><p className="mt-1 truncate text-2xl font-semibold">{topWinner && topWinner.wonLives > topWinner.lostLives ? topWinner.name : "—"}</p><p className="text-xs text-stone-500">{topWinner ? `+${lives(topWinner.wonLives - topWinner.lostLives)} lives net, ${sales.years}` : "no account moves"} · {hot.length} in play</p></Link>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Panel title="Top things that moved" href="/changes" cta="All changes">
-          {movers.length ? <ul className="card divide-y divide-stone-100">{movers.map((it) => <Row key={it.id} it={it} />)}</ul>
-            : <div className="card px-4 py-8 text-center text-sm text-stone-500">No rate, network or account changes detected for your competitors in the last 30 days.</div>}
-        </Panel>
-        <Panel title={recentNews.length >= 3 ? "Top stories this week" : "Top stories · 30 days"} href="/feed" cta="Feed">
-          {stories.length ? <ul className="card divide-y divide-stone-100">{stories.map((it) => <Row key={it.id} it={it} />)}</ul>
-            : <div className="card px-4 py-8 text-center text-sm text-stone-500">No news yet. <Link href="/sources" className="underline">Add sources</Link>.</div>}
-        </Panel>
+      <h2 className="font-mono text-xs uppercase tracking-wide text-stone-500">Pricing</h2>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card title={`Premium per member per month · ${SEGMENTS[seg]}`} sub={`Fully insured, ${state}, CMS loss-ratio filings. Dashed = whole market.`} href="/market" cta="Market">
+          <div className="mb-2 flex gap-1 text-[11px]">{(Object.keys(SEGMENTS) as Seg[]).map((k) => <Link key={k} href={qs({ seg: k })} className={chip(seg === k)}>{SEGMENTS[k]}</Link>)}</div>
+          <LineChart series={top6(prem.series)} x={prem.years} color={color} fmt={usd} />
+          <Legend items={legendFor(top6(prem.series))} />
+        </Card>
+        <Card title="Filed rate increases" sub={`Average requested change on renewing ACA plans, ${state}, by plan year (enrollment-weighted).`} href="/rates" cta="Rates">
+          <HBars rows={[...(mkt ? [{ name: "Market", values: mkt.values }] : []), ...filedComp]} keys={filed.years} colors={yearColors} fmt={pct} reference={{ value: 0, label: "0%" }} />
+          <Legend items={filed.years.map((y, i) => ({ name: y, color: yearColors[i] }))} />
+        </Card>
+        <Card title="Cheapest silver plan, age 40" sub={`Monthly premium on the ${state} exchange, by plan year.`} href={`/products?state=${state}`} cta="Products">
+          <LineChart series={top6(exch.silver)} x={exch.years} color={color} fmt={usd} />
+          <Legend items={legendFor(top6(exch.silver))} />
+        </Card>
+        <Card title="Exchange plans offered" sub={`Individual plans filed on the ${state} exchange, by plan year: expansion or retreat.`} href={`/products?state=${state}`} cta="Products">
+          <LineChart series={top6(exch.plans)} x={exch.years} color={color} fmt={(v) => String(Math.round(v))} yZero />
+          <Legend items={legendFor(top6(exch.plans))} />
+        </Card>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <Panel title="Activity · 30 days">
-          <div className="card p-4">
-            <div className="flex h-24 items-end gap-[3px]" aria-label="News items per day, last 30 days">
-              {days.map((x) => <div key={x.d} title={`${x.d}: ${x.n}`} className={`flex-1 rounded-sm ${x.n ? "bg-accent" : "bg-stone-100"}`} style={{ height: `${Math.max(4, (x.n / peak) * 100)}%` }} />)}
-            </div>
-            <div className="mt-1 flex justify-between font-mono text-[10px] text-stone-400"><span>{days[0].d.slice(5)}</span><span>today</span></div>
-          </div>
-        </Panel>
-        <Panel title="Most active competitors · 30d" href="/competitors" cta="All">
-          <div className="card space-y-2 p-4">
-            {active.length ? active.map((c) => (
-              <Link key={c.id} href={`/competitors/${c.id}`} className="block text-sm hover:underline">
-                <div className="flex justify-between"><span className="truncate">{c.name}</span><span className="tabular-nums text-stone-500">{c.count}{c.major ? <span className="text-red-600"> · {c.major} major</span> : null}</span></div>
-                <div className="mt-1 h-1.5 rounded-full bg-stone-100"><div className="h-1.5 rounded-full bg-ink" style={{ width: `${(c.count / activePeak) * 100}%` }} /></div>
-              </Link>
-            )) : <p className="text-sm text-stone-500">No competitor activity yet.</p>}
-          </div>
-        </Panel>
-        <Panel title="Renewing soon · in play" href="/accounts" cta="Accounts">
+      <h2 className="font-mono text-xs uppercase tracking-wide text-stone-500">Network negotiations</h2>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card title="Hospital prices as a multiple of Medicare" sub={`Median across hospitals each carrier prices, common services${net.month ? `, ${net.month}` : ""}. Lower = stronger negotiating position.`} href="/leverage" cta="Leverage">
+          <HBars rows={net.position.slice(0, 12).map((p) => ({ name: p.name, values: [p.median], note: `${p.hospitals} hospitals` }))} keys={["× Medicare"]} colors={["#2a78d6"]} fmt={(v) => `${v.toFixed(2)}×`} reference={{ value: 1, label: "Medicare" }} />
+        </Card>
+        <Card title="Negotiated-rate and network moves · 12 months" sub="Detected month over month in carriers' rate files: provider rates up or down, hospitals added or dropped." href="/updates?view=market&cat=network&days=365" cta="Changes">
+          {net.moves.length ? (
+            <>
+              <HBars rows={net.moves.slice(0, 10).map((m) => ({ name: m.name, values: [m.up, -m.down, m.adds, -m.drops] }))} keys={["Rates up", "Rates down", "Hospitals added", "Hospitals dropped"]} colors={["#eb6834", "#2a78d6", "#1baf7a", "#e34948"]} fmt={(v) => String(Math.abs(v))} reference={{ value: 0, label: "" }} />
+              <Legend items={[{ name: "Rates up", color: "#eb6834" }, { name: "Rates down", color: "#2a78d6" }, { name: "Hospitals added", color: "#1baf7a" }, { name: "Hospitals dropped", color: "#e34948" }]} />
+            </>
+          ) : <p className="text-xs text-stone-500">Moves appear once two months of rate files are on hand.</p>}
+        </Card>
+      </div>
+
+      <h2 className="font-mono text-xs uppercase tracking-wide text-stone-500">Sales</h2>
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Card title={`Employer accounts won and lost · ${sales.years}`} sub="Covered lives moving between insured carriers (Form 5500, 100+ participant plans)." href="/updates?view=market&cat=sales&days=365" cta="Account moves" className="lg:col-span-2">
+          {sales.rows.length ? (
+            <>
+              <HBars rows={sales.rows.slice(0, 10).map((r) => ({ name: r.name, values: [r.wonLives, -r.lostLives], note: `${r.won} won, ${r.lost} lost` }))} keys={["Lives won", "Lives lost"]} colors={["#1baf7a", "#e34948"]} fmt={lives} reference={{ value: 0, label: "" }} />
+              <Legend items={[{ name: "Lives won", color: "#1baf7a" }, { name: "Lives lost", color: "#e34948" }]} />
+            </>
+          ) : <p className="text-xs text-stone-500">No account moves for your competitors yet.</p>}
+        </Card>
+        <Card title="Renewing in 90 days · in play" sub={`Competitor-held accounts in ${state} with switching signals.`} href="/accounts" cta="Accounts">
           {hot.length ? (
-            <ul className="card divide-y divide-stone-100 text-sm">
-              {hot.slice(0, 5).map((r) => (
-                <li key={`${r.ein}${r.planNum}`} className="px-4 py-2.5">
+            <ul className="divide-y divide-stone-100 text-sm">
+              {hot.slice(0, 6).map((r) => (
+                <li key={`${r.ein}${r.planNum}`} className="py-1.5">
                   <Link href={`/employers?q=${encodeURIComponent(r.sponsor)}`} className="font-medium hover:underline">{r.sponsor}</Link>
-                  <p className="text-xs text-stone-500">{r.competitorName ?? r.carrier} · {(r.persons ?? r.participants ?? 0).toLocaleString()} covered · {r.daysOut} days</p>
+                  <p className="text-[11px] text-stone-500">{r.competitorName ?? r.carrier} · {(r.persons ?? r.participants ?? 0).toLocaleString()} covered · {r.daysOut} days</p>
                 </li>
               ))}
             </ul>
-          ) : <div className="card px-4 py-6 text-center text-sm text-stone-500">No competitor-held accounts with strong signals renew in the next 90 days.</div>}
-        </Panel>
+          ) : <p className="text-xs text-stone-500">None with strong signals.</p>}
+        </Card>
       </div>
+
+      <h2 className="font-mono text-xs uppercase tracking-wide text-stone-500">Product, pricing and network news · competitors</h2>
+      <Card title="Latest from your competitors" sub="Product launches, pricing and network news from the last 60 days. Everything else is in Updates." href="/updates?cat=product" cta="All product news">
+        {productNews.length ? (
+          <ul className="divide-y divide-stone-100">
+            {productNews.map((s) => (
+              <li key={s.id} className="py-2">
+                <p className="text-[11px] text-stone-500">{s.type.toLowerCase()} · {s.competitor?.name} · {timeAgo(s.publishedAt ?? s.createdAt)} ago</p>
+                <Link href={`/signals/${s.id}`} className="text-sm font-medium leading-snug hover:underline">{s.title}</Link>
+              </li>
+            ))}
+          </ul>
+        ) : <p className="text-xs text-stone-500">No product, pricing or network news in the last 60 days.</p>}
+      </Card>
     </div>
   );
 }

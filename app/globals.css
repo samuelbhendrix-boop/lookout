@@ -32,3 +32,7 @@ body {
     @apply text-xl font-semibold tracking-tight;
   }
 }
+
+/* Sortable headers (components/TableTools.tsx) */
+th[aria-sort="ascending"]::after { content: " ▲"; font-size: 8px; }
+th[aria-sort="descending"]::after { content: " ▼"; font-size: 8px; }

@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { Nav } from "@/components/Nav";
+import { TableTools } from "@/components/TableTools";
 import { db } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -26,6 +27,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         role={session.role}
       />
       <main className="mx-auto w-full min-w-0 max-w-6xl flex-1 px-4 py-6 md:px-8">{children}</main>
+      <TableTools />
     </div>
   );
 }

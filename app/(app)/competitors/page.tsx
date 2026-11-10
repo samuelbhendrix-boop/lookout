@@ -6,11 +6,12 @@ import { ActionButton } from "@/components/ActionButton";
 import { Empty } from "@/components/ui";
 import { StarterPacks } from "@/components/StarterPacks";
 import { packsWithStatus } from "@/lib/starter-packs";
+import { untrackedCarriers } from "@/lib/briefing";
 
 export default async function CompetitorsPage() {
   const session = (await getSession())!;
   const since = new Date(Date.now() - 30 * 864e5);
-  const [competitors, recent] = await Promise.all([
+  const [competitors, recent, untracked] = await Promise.all([
     db.competitor.findMany({
       where: { workspaceId: session.workspaceId },
       orderBy: [{ tier: "asc" }, { name: "asc" }],
@@ -21,6 +22,7 @@ export default async function CompetitorsPage() {
       where: { workspaceId: session.workspaceId, publishedAt: { gte: since }, duplicateOfId: null, status: { not: "ARCHIVED" } },
       _count: { _all: true },
     }),
+    untrackedCarriers(session.workspaceId),
   ]);
   const sourceUrls = new Set(
     (await db.source.findMany({ where: { workspaceId: session.workspaceId }, select: { url: true } })).map((s) => s.url ?? ""),
@@ -76,6 +78,20 @@ export default async function CompetitorsPage() {
             </tbody>
           </table>
         </div>
+      )}
+      {untracked.length > 0 && (
+        <section>
+          <h2 className="mb-1 font-mono text-xs uppercase tracking-wide text-stone-500">Carriers in your states you don&apos;t track</h2>
+          <p className="mb-2 text-xs text-stone-500">Fully insured covered lives in New England from CMS loss-ratio filings ({untracked[0].year}). Add one to pull its filings, products, rates and news into Payersight.</p>
+          <ul className="card divide-y divide-stone-100 text-sm">
+            {untracked.map((u) => (
+              <li key={u.name} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2">
+                <span><span className="font-medium">{u.name}</span> <span className="text-xs text-stone-500">· {u.lives.toLocaleString()} lives · {u.states.join(", ")}</span></span>
+                {hasRole(session.role, "ANALYST") && <ActionButton method="POST" path="/competitors" body={{ name: u.name, tier: 3 }} className="btn-ghost text-xs" doneText="Added">Track</ActionButton>}
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
     </div>
   );

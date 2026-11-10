@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.21.0 — 2026-11-09
+- **Home is about competitors' pricing, networks, products and sales**, in charts: premium per member per month 2020–2024 by competitor and market (large group, small group, individual); filed ACA rate increases by plan year; cheapest silver premium and exchange plan counts 2024–2027; hospital prices as a multiple of Medicare; negotiated-rate and network moves; accounts won and lost; renewals in play; and only product, pricing and network news.
+- **Updates replaces Briefing, Feed and Changes**: one feed of competitor news and data-detected changes (your competitors, with triage) or every carrier's changes (whole market), filtered by pricing, network, product, sales or news, time window, competitor, state and status, with the week's top five on top. Old links redirect. Carriers you don't track moved to Competitors.
+- **Market share at a glance**: one bar per state for each segment, summing to 100%, competitors colored. **Cross-check** of every state/segment total against an independent count (MA CHIA, Maine BOI, NH and RI regulators, ACA rate filings): 11 of 15 within 15%; the four gaps are explained (BCBSMA's MA large-group classification, Harvard Pilgrim's Maine small group, filing timing, OHIC scope).
+- **Every table is sortable** (click a header) **and filterable** (search box on tables with 6+ rows).
+- Competitor colors are fixed app-wide: the eight largest by New England lives get the eight palette colors; the rest are gray "other", never a repeated color.
+
 ## 0.20.0 — 2026-11-09
 - **Monthly MRF extract, free on GitHub Actions.** Every reachable carrier rate file (about 130 files, 38 GB compressed a month: Cigna, Aetna, UHC, Anthem CT/ME/NH, BCBSRI, BCBSVT, Harvard Pilgrim, Tufts, MGB, Fallon, NHPRI, CHO) is streamed by a new Go extractor (`tools/mrfx`, ~150 MB/s) in 20 parallel jobs. It keeps every New England provider (500K NPIs from NPPES, plus known New England TINs), physician and facility, for 2,567 services: the top 1,800 by Medicare spend (97% of it) and every DRG. Output is Parquet per carrier on the GitHub release `mrf-YYYY-MM`, plus a market summary.
 - **Rate explorer** (Market Review → Rate explorer): what each carrier pays for any of those services by state and setting (physician, hospital outpatient, inpatient), with low/median/high and provider counts; a price index per carrier (100 = typical); search by code or name; any code across every state. The app checks daily for a new extract.

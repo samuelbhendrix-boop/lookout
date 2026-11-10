@@ -20,7 +20,7 @@ export const dynamic = "force-dynamic";
 /** One screen that says what the system is doing and what's stuck — the thing to screenshot when a page is empty. */
 export default async function StatusPage() {
   const session = (await getSession())!;
-  if (!hasRole(session.role, "ADMIN")) redirect("/briefing");
+  if (!hasRole(session.role, "ADMIN")) redirect("/home");
   const stale = new Date(Date.now() - 15 * 60_000);
   const hospitalFiles = await db.hospitalFile.findMany({ orderBy: [{ status: "asc" }, { domain: "asc" }], select: { domain: true, hospital: true, status: true, rows: true, error: true, lastUpdated: true } });
   const [jobs, stuck, failed, imports, months, events, rateFiles, lastJob] = await Promise.all([

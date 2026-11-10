@@ -8,6 +8,19 @@ import { ShareBar, fmtInt, fmtMoneyM, fmtPct, fmtSignedPct, fmtUsd, lrClass, del
 import { Empty } from "@/components/ui";
 import { marketLargeGroup } from "@/lib/marketdata/largegroup";
 import { MarketLargeGroup } from "@/components/LargeGroup";
+import { colorMap, hasColor, Legend, OTHER, StackedShares } from "@/components/viz";
+import { rankCompetitors } from "@/lib/homecharts";
+import { crossCheck } from "@/lib/marketdata/crosscheck";
+
+const NE = ["MA", "CT", "RI", "NH", "VT", "ME"];
+/** Known explanations for cross-check gaps over 15%, found by comparing the two sources carrier by carrier. */
+const WHY: Record<string, string> = {
+  "MA|LARGE_GROUP": "Almost all of it is BCBSMA: 669K fully insured lives in its loss-ratio filings vs 330K in CHIA (other carriers match within a few %). CHIA counts some BCBSMA accounts as self-insured (likely minimum-premium funding) and only MA residents; MLR counts MA-sitused policies wherever members live.",
+  "ME|SMALL_GROUP": "Mostly Harvard Pilgrim: 11K small-group lives in its Maine loss-ratio filing vs 30K in its Maine rate filing. The rate filing's count is at filing and may include groups reported under another state in MLR.",
+  "NH|SMALL_GROUP": "Rate-filing enrollment is a snapshot at filing (early in the year), MLR is year-end; NH small group also shifted to association and level-funded plans that leave the fully insured count.",
+  "RI|LARGE_GROUP": "OHIC's rate review only covers the carriers and products it reviews, at filing; MLR counts every fully insured large-group policy sitused in RI.",
+  "NH|LARGE_GROUP": "The NH figure is estimated from published market shares, not a direct count.",
+};
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +48,12 @@ export default async function MarketPage({ searchParams }: { searchParams: Promi
     rateActions(session.workspaceId, state),
     segment === "LARGE_GROUP" ? marketLargeGroup(session.workspaceId, state) : null,
   ]);
+  // At-a-glance: every state × segment, competitors colored, everyone else in "Other".
+  const glance = await Promise.all(SEGMENTS.flatMap((seg) => NE.map(async (st) => ({ seg, st, share: await marketShare(session.workspaceId, st, seg, year) }))));
+  const checks = await crossCheck(year);
+  const ranked = await rankCompetitors(session.workspaceId);
+  const color = colorMap(ranked);
+  const inGlance = [...new Map(glance.flatMap((g) => g.share.rows.filter((r) => hasColor(ranked, r.competitorId ?? undefined)).map((r) => [r.competitorId!, r.label] as const))).entries()].sort((a, b) => ranked.indexOf(a[0]) - ranked.indexOf(b[0]));
   const qs = (o: Record<string, string | number>) => "?" + new URLSearchParams({ state, segment, year: String(year), ...Object.fromEntries(Object.entries(o).map(([k, v]) => [k, String(v)])) });
 
   return (
@@ -52,6 +71,55 @@ export default async function MarketPage({ searchParams }: { searchParams: Promi
         <span className="mx-1 text-stone-300">|</span>
         {financialYears.slice(0, 5).map((y) => <Pill key={y} href={qs({ year: y })} active={y === year} label={String(y)} />)}
       </div>
+
+      <section className="space-y-3">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="text-lg font-semibold tracking-tight">Market share at a glance · {year}</h2>
+          <p className="text-xs text-stone-500">Share of fully insured covered lives; each bar sums to 100%. Hover a segment for its share and lives.</p>
+        </div>
+        <Legend items={[...inGlance.map(([id, name]) => ({ name, color: color(id) })), { name: "All other carriers", color: OTHER }]} />
+        <div className="grid gap-4 lg:grid-cols-3">
+          {SEGMENTS.map((seg) => (
+            <div key={seg} className="card p-4">
+              <p className="mb-2 text-sm font-semibold">{SEGMENT_LABEL[seg]}</p>
+              <StackedShares
+                rows={glance.filter((g) => g.seg === seg && g.share.total > 0).map((g) => {
+                  const mine = g.share.rows.filter((r) => hasColor(ranked, r.competitorId ?? undefined));
+                  const other = g.share.total - mine.reduce((s, r) => s + r.coveredLives, 0);
+                  const flag = checks.find((c) => c.state === g.st && c.segment === seg && Math.abs(c.diff) > 0.15);
+                  return { label: `${g.st}${flag ? " ⚠" : ""}`, total: g.share.total, sub: "lives", parts: [...mine.map((r) => ({ name: r.label, key: r.competitorId!, value: r.coveredLives })), ...(other > 0 ? [{ name: "Other", key: "__other", value: other }] : [])] };
+                })}
+                color={(k) => (k === "__other" ? OTHER : color(k))}
+                fmtTotal={(v) => Math.round(v).toLocaleString("en-US")}
+              />
+            </div>
+          ))}
+        </div>
+
+        <details className="card" open={checks.some((c) => Math.abs(c.diff) > 0.15)}>
+          <summary className="cursor-pointer px-4 py-2 text-sm font-medium">Cross-check: market totals vs an independent count ({checks.filter((c) => Math.abs(c.diff) <= 0.15).length} of {checks.length} within 15%)</summary>
+          <div className="overflow-x-auto border-t border-stone-100">
+            <table className="w-full text-sm">
+              <thead className="border-b border-stone-200 text-left font-mono text-[10px] uppercase tracking-wide text-stone-500"><tr><th className="px-3 py-2">State</th><th className="px-3 py-2">Segment</th><th className="px-3 py-2 text-right">CMS loss-ratio lives ({year})</th><th className="px-3 py-2 text-right">Independent count</th><th className="px-3 py-2 text-right">Difference</th><th className="px-3 py-2">Source · period</th><th className="px-3 py-2">Why it differs</th></tr></thead>
+              <tbody className="divide-y divide-stone-100">
+                {checks.map((c) => {
+                  const off = Math.abs(c.diff) > 0.15;
+                  return (
+                    <tr key={`${c.state}${c.segment}`} className="align-top">
+                      <td className="px-3 py-1.5">{c.state}</td><td className="px-3 py-1.5">{SEGMENT_LABEL[c.segment]}</td>
+                      <td className="px-3 py-1.5 text-right tabular-nums">{fmtInt(c.mlr)}</td><td className="px-3 py-1.5 text-right tabular-nums">{fmtInt(c.value)}</td>
+                      <td className={`px-3 py-1.5 text-right font-medium tabular-nums ${off ? "text-red-600" : "text-emerald-700"}`}>{fmtSignedPct(c.diff, 0)}</td>
+                      <td className="px-3 py-1.5 text-xs text-stone-600">{c.source} · {c.period}</td>
+                      <td className="max-w-[360px] px-3 py-1.5 text-xs text-stone-500">{off ? WHY[`${c.state}|${c.segment}`] ?? "Not yet explained." : ""}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            <p className="px-3 py-2 text-[11px] text-stone-500">No independent count exists for Connecticut or Vermont large group. Differences under 15% are timing and scope (year-end vs filing date, residents vs policy situs).</p>
+          </div>
+        </details>
+      </section>
 
       {lg && <MarketLargeGroup data={lg} state={state} />}
 

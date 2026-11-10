@@ -57,7 +57,7 @@ export function whyItMatters(i: { kind: string | null; type: string; title: stri
 }
 
 /** Stock-quote pages and analyst rating notes get classified as pricing or financial news; they aren't competitive moves. */
-export const MARKET_NOISE = /stock price|share price|price target|buy rating|sell rating|hold rating|outperform|underperform|\b(nyse|nasdaq)\b|stock quote|quote & history|\(\w{2,5}\.us\)|shares (rise|fall|jump|slip|drop)|moomoo|marketbeat|seeking alpha|\bstocks?\b|ad-hoc-news|barron's|simply wall st|tradingview|investing\.com|yahoo finance|zacks|motley fool|fair value|earnings call transcript|call is live|stock (may|could|is)\b|(stock|shares) (tumbles|soars|climbs|sinks|plunges)/i;
+export const MARKET_NOISE = /stock price|share price|price target|buy rating|sell rating|hold rating|outperform|underperform|\b(nyse|nasdaq)\b|stock quote|quote & history|\(\w{2,5}\.us\)|shares (rise|fall|jump|slip|drop)|moomoo|marketbeat|seeking alpha|\bstocks?\b|target price|stock price|\bquote\b|moomoo|yahoo! finance|ad-hoc-news|barron's|simply wall st|tradingview|investing\.com|yahoo finance|zacks|motley fool|fair value|earnings call transcript|call is live|stock (may|could|is)\b|(stock|shares) (tumbles|soars|climbs|sinks|plunges)/i;
 
 const KINDS = ["account-won", "account-lost", "rate-filing", "rate-change", "network-add", "network-drop"];
 
