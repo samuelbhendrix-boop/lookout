@@ -332,6 +332,7 @@ export async function dueImports() {
   const cutoff = Date.now() - REFRESH_DAYS * 864e5;
   const version = snapshotVersion();
   return (await (await import("./discover")).allDatasets()).filter((d) => {
+    if (d.dataset === "hpt" && process.env.HPT_IMPORT !== "1") return false; // paused: see HPT_DISABLED in run.ts
     const e = existing.find((x) => x.dataset === d.dataset && x.year === d.year);
     if (!e) return true;
     // A republished file (new URL for a year already on file) re-imports right away.

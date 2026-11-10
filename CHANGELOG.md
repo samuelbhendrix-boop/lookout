@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.27.1 — 2026-11-10
+
+- Hospital price-file import paused. After the database upgrade let it run, it filled the web server's 2 GB temporary disk and memory, and Render restarted the app every 1–2 minutes. It moves to the GitHub Actions extract instead (HPT_IMPORT=1 forces it back on).
+
 ## 0.27.0 — 2026-11-10
 
 - **Your company.** Mark one competitor "This is us" (Competitors list). Every view then compares against it: it's drawn in ink on all charts and pinned first; the footprint grid shows each carrier as bigger or smaller than you; Market shows your share, rank and gap to the leader; Products' "Who is doing what" shows each carrier's renewal increase and price index vs yours; each competitor's products page gets a head-to-head table (members, PMPM, loss ratio by state and segment; renewal increase, price index and filed members); Home gets a you-vs-market strip.

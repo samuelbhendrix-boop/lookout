@@ -15,7 +15,11 @@ export function killImports() {
   for (const c of children) c.kill("SIGTERM");
 }
 
+/** Hospital price files are multi-GB downloads that overflow the web server's 2 GB /tmp and take the app down; they
+ *  stay off until they're moved to the GitHub Actions pipeline. HPT_IMPORT=1 forces them on. */
+export const HPT_DISABLED = "Hospital price files are paused: they fill the web server's temporary disk and crash the app. They'll move to the monthly GitHub extract.";
 export async function runImport(dataset: Dataset, year: number): Promise<string> {
+  if (dataset === "hpt" && process.env.HPT_IMPORT !== "1") throw new Error(HPT_DISABLED);
   const cwd = process.cwd();
   // Prefer the precompiled bundle (npm run build:import): running through tsx costs ~90 MB more per import process,
   // enough to push a 51-network rate import past a 512 MB server.
