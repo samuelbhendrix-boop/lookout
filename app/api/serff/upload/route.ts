@@ -9,8 +9,12 @@ export const maxDuration = 300;
  * their top folder, so several filing folders can go up at once. Attachments we don't use are dropped on the client.
  */
 export async function POST(req: Request) {
+  // A signed-in user, or a trusted script holding INGEST_TOKEN (used to load filings from a user's folder).
   const session = await getSession();
-  if (!session) return NextResponse.json({ error: "Sign in first" }, { status: 401 });
+  const token = process.env.INGEST_TOKEN;
+  const byToken = !!token && req.headers.get("authorization") === `Bearer ${token}`;
+  if (!session && !byToken) return NextResponse.json({ error: "Sign in first" }, { status: 401 });
+  const who = session?.email ?? req.headers.get("x-uploaded-for") ?? "ingest token";
   const form = await req.formData();
   const groups = new Map<string, UploadedFile[]>();
   for (const [, v] of form.entries()) {
@@ -26,7 +30,7 @@ export async function POST(req: Request) {
   if (!groups.size) return NextResponse.json({ error: "No filing files in the upload (expected the SERFF PDF and its attachments)." }, { status: 400 });
   const results: Array<{ folder: string; ok: boolean; tracking?: string; id?: string; access?: number; crosswalk?: number; error?: string }> = [];
   for (const [folder, files] of groups) {
-    try { const r = await ingestFiling(files, session.email); results.push({ folder, ok: true, ...r }); }
+    try { const r = await ingestFiling(files, who); results.push({ folder, ok: true, ...r }); }
     catch (e) { results.push({ folder, ok: false, error: (e as Error).message }); }
   }
   return NextResponse.json({ results });
