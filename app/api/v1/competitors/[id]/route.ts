@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { HttpError, parseBody, route } from "@/lib/api";
 import { competitorUpdate } from "@/lib/validators";
 import { validatePattern } from "@/lib/marketdata/queries";
+import { applyNewsScope } from "@/lib/signals";
 
 type P = { id: string };
 
@@ -28,7 +29,10 @@ export const PATCH = route<P>("ANALYST", async ({ session, params, req }) => {
     if (err) throw new HttpError(422, err);
   }
   if (body.issuerPattern === "") body.issuerPattern = null;
-  return db.competitor.update({ where: { id: params.id }, data: body });
+  const updated = await db.competitor.update({ where: { id: params.id }, data: body });
+  // Changing the news scope re-sorts this competitor's recent feed stories right away.
+  if (body.newsScope) await applyNewsScope(session.workspaceId, params.id);
+  return updated;
 });
 
 export const DELETE = route<P>("ADMIN", async ({ session, params }) => {

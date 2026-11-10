@@ -219,10 +219,20 @@ async function bookOf(re: RegExp, state?: string): Promise<Book[]> {
     if (b.lossRatio != null && b.marketLossRatio != null) { const d = b.lossRatio - b.marketLossRatio; if (Math.abs(d) >= 0.04) b.read.push(`loss ratio ${Math.round(b.lossRatio * 100)}% vs market ${Math.round(b.marketLossRatio * 100)}%${d > 0 ? " (under pressure to raise rates)" : " (room to cut price)"}`); }
     out.push(b);
   }
+  // Self-funded (ASO) members where the state publishes them (MA CHIA, NH Insurance Dept).
+  for (const st of (state ? [state] : NE_STATES).filter((x) => ["MA", "NH"].includes(x))) {
+    const latest = await db.marketEnrollment.findFirst({ where: { state: st, funding: "SELF_INSURED" }, orderBy: { asOf: "desc" } });
+    if (!latest) continue;
+    const rows = await db.marketEnrollment.findMany({ where: { state: st, funding: "SELF_INSURED", source: latest.source, asOf: latest.asOf }, select: { payer: true, members: true } });
+    const total = rows.reduce((s, r) => s + r.members, 0);
+    const mine = rows.filter((r) => re.test(r.payer)).reduce((s, r) => s + r.members, 0);
+    if (mine < 100) continue;
+    out.push({ state: st, segment: "SELF_FUNDED", year: latest.asOf.getUTCFullYear(), lives: mine, livesBefore: null, yearBefore: null, pmpm: null, marketPmpm: null, lossRatio: null, marketLossRatio: null, share: total ? mine / total : null, read: [`${total ? Math.round((mine / total) * 100) : 0}% of the state's self-funded members (${latest.source === "ma_chia" ? "CHIA" : "NH Insurance Dept"}${latest.estimated ? " estimate" : ""}, ${latest.asOf.toISOString().slice(0, 7)})`] });
+  }
   return out;
 }
 
-const SEG: Record<string, string> = { INDIVIDUAL: "individual", SMALL_GROUP: "small group", LARGE_GROUP: "large group" };
+const SEG: Record<string, string> = { INDIVIDUAL: "individual", SMALL_GROUP: "small group", LARGE_GROUP: "large group", SELF_FUNDED: "self-funded (ASO)" };
 /** Rule-written strategy summary: a few sentences per state, biggest products first. */
 function summarize(products: Product[], book: Book[]): string[] {
   const out: string[] = [];
@@ -280,7 +290,7 @@ export async function strategyNarrative(competitorId: string, name: string, d: A
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key || !d.products.length) return null;
   const facts = [
-    ...d.book.map((b) => `BOOK ${b.state} ${SEG[b.segment]} ${b.year}: ${Math.round(b.lives).toLocaleString()} lives${b.livesBefore ? ` (was ${Math.round(b.livesBefore).toLocaleString()} in ${b.yearBefore})` : ""}; premium PMPM ${b.pmpm?.toFixed(0)} vs market ${b.marketPmpm?.toFixed(0)}; loss ratio ${b.lossRatio != null ? Math.round(b.lossRatio * 100) : "?"}% vs market ${b.marketLossRatio != null ? Math.round(b.marketLossRatio * 100) : "?"}%`),
+    ...d.book.map((b) => b.segment === "SELF_FUNDED" ? `BOOK ${b.state} self-funded (ASO) ${b.year}: ${Math.round(b.lives).toLocaleString()} members administered; ${b.read.join("; ")}` : `BOOK ${b.state} ${SEG[b.segment]} ${b.year}: ${Math.round(b.lives).toLocaleString()} lives${b.livesBefore ? ` (was ${Math.round(b.livesBefore).toLocaleString()} in ${b.yearBefore})` : ""}; premium PMPM ${b.pmpm?.toFixed(0)} vs market ${b.marketPmpm?.toFixed(0)}; loss ratio ${b.lossRatio != null ? Math.round(b.lossRatio * 100) : "?"}% vs market ${b.marketLossRatio != null ? Math.round(b.marketLossRatio * 100) : "?"}%`),
     ...d.products.slice(0, 25).map((p) => `PRODUCT ${p.state} "${p.name}" ${p.planType ?? ""} [${p.markets.join("+")}]: ${p.plans} plans (+${p.newPlans} new, -${p.terminated} terminated), metals ${p.metals.join("/")}, ${p.enrolled.toLocaleString()} filed members${p.growth != null ? ` (${pc(p.growth)} y/y)` : ""}; tags: ${p.tags.map((t) => `${t.label} (${t.why})`).join("; ") || "none"}`),
     ...news.slice(0, 6).map((n) => `NEWS ${n.when.toISOString().slice(0, 10)}: ${n.title}`),
   ].join("\n");

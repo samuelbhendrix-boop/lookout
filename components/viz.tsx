@@ -11,11 +11,13 @@ export const OTHER = "#d6d3d1";
  * Stable color per competitor. `ranked` = competitor ids, biggest first (rankCompetitors): the first eight get the eight
  * categorical slots, in order, everywhere in the app; the rest are "other" gray. Hues are never cycled.
  */
-export function colorMap(ranked: string[]) {
-  const order = [...new Set(ranked)];
-  return (id: string | undefined) => { if (id == null) return INK.market; const i = order.indexOf(id); return i >= 0 && i < CATEGORICAL.length ? CATEGORICAL[i] : OTHER; };
+/** The workspace's own carrier is always drawn in ink, outside the categorical palette. */
+export const US = "#161826";
+export function colorMap(ranked: string[], usId?: string) {
+  const order = [...new Set(ranked)].filter((x) => x !== usId);
+  return (id: string | undefined) => { if (id == null) return INK.market; if (usId && id === usId) return US; const i = order.indexOf(id); return i >= 0 && i < CATEGORICAL.length ? CATEGORICAL[i] : OTHER; };
 }
-export const hasColor = (ranked: string[], id?: string) => !!id && ranked.indexOf(id) >= 0 && ranked.indexOf(id) < CATEGORICAL.length;
+export const hasColor = (ranked: string[], id?: string, usId?: string) => { if (!id) return false; if (usId && id === usId) return true; const order = ranked.filter((x) => x !== usId); return order.indexOf(id) >= 0 && order.indexOf(id) < CATEGORICAL.length; };
 
 function niceTicks(min: number, max: number, n = 4) {
   if (min === max) { min -= 1; max += 1; }

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.27.0 — 2026-11-10
+
+- **Your company.** Mark one competitor "This is us" (Competitors list). Every view then compares against it: it's drawn in ink on all charts and pinned first; the footprint grid shows each carrier as bigger or smaller than you; Market shows your share, rank and gap to the leader; Products' "Who is doing what" shows each carrier's renewal increase and price index vs yours; each competitor's products page gets a head-to-head table (members, PMPM, loss ratio by state and segment; renewal increase, price index and filed members); Home gets a you-vs-market strip.
+- **Self-funded (ASO).** A self-funded segment wherever a state publishes it (MA CHIA quarterly, NH Insurance Dept estimates): in the footprint grid, a Self-funded view on Market, and in each competitor's book. Other states are labelled "not published".
+- **New England news for national carriers.** UnitedHealthcare, Cigna, Aetna, Elevance, Centene, Molina, Humana, Oscar, Kaiser and HCSC now keep only stories that touch New England, plus their national exchange, employer and ICHRA moves (entering, leaving, launching); earnings, stock and Medicare coverage elsewhere is archived (tagged outside-new-england, still searchable). Per-competitor toggle on its page; existing stories re-sorted on deploy. "National anthem" no longer counts as Anthem.
+- **2027 rate filings fix.** CMS's 2027 file writes percentages as "9.74%"; rate changes and loss ratios were being dropped. Parsed now, and the 2027 import re-runs automatically.
+- Market: the BCBSMA large-group gap vs CHIA is explained in full (two legal entities, 402K + 267K, vs CHIA's ~330K: a definitional difference, not an error).
+
 ## 0.26.2 — 2026-11-09
 
 - Production database moved to 1 GB of memory. Imports that failed out of memory before the move (hospital price files, offline rate snapshots) get one immediate retry.

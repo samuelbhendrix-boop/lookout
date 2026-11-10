@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { parseBody, route } from "@/lib/api";
 import { competitorCreate } from "@/lib/validators";
+import { defaultNewsScope } from "@/lib/relevance";
 
 export const GET = route("VIEWER", async ({ session }) =>
   db.competitor.findMany({
@@ -12,5 +13,5 @@ export const GET = route("VIEWER", async ({ session }) =>
 
 export const POST = route("ANALYST", async ({ session, req }) => {
   const body = await parseBody(req, competitorCreate);
-  return db.competitor.create({ data: { ...body, workspaceId: session.workspaceId } });
+  return db.competitor.create({ data: { ...body, newsScope: defaultNewsScope(body.name), workspaceId: session.workspaceId } });
 });

@@ -19,7 +19,10 @@ import { importRates, ResumeLater } from "./mrf/files";
 
 export const num = (v: string | undefined): number | null => {
   if (v == null || v.trim() === "") return null;
-  const n = Number(v.replace(/[$,]/g, ""));
+  const t = v.trim();
+  // CMS's 2027 rate-review file writes percentages as "9.74%" (earlier years: 0.0974).
+  if (t.endsWith("%")) { const p = Number(t.slice(0, -1).replace(/[$,]/g, "")); return Number.isFinite(p) ? p / 100 : null; }
+  const n = Number(t.replace(/[$,]/g, ""));
   return Number.isFinite(n) ? n : null;
 };
 
@@ -317,6 +320,9 @@ export async function scheduleNextImport(enqueue: (payload: { dataset: Dataset; 
   return next;
 }
 
+/** Datasets whose parser was fixed: imports finished before the fix run again once (e.g. 2027's "9.74%" rate changes). */
+const PARSER_FIXED_AT: Partial<Record<string, number>> = { urrt: Date.parse("2026-11-10T05:00:00Z") };
+
 /** When the production database moved from 256 MB to 1 GB of memory (2026-11-10); bump if it's resized again. */
 const DB_RESIZED_AT = Date.parse("2026-11-10T04:34:00Z");
 
@@ -341,6 +347,7 @@ export async function dueImports() {
       return Date.now() - at > 6 * 3600e3;
     }
     if (e.status === "partial") return true; // resume right away in a fresh process
+    if (e.status === "done" && (e.finishedAt?.getTime() ?? 0) < (PARSER_FIXED_AT[d.dataset] ?? 0)) return true;
     if (isSnapshots(d) && e.url !== version) return true; // refreshed snapshots arrived with this deploy
     if (d.dataset === "mrfx" && Date.now() - (e.finishedAt?.getTime() ?? 0) > 864e5) return true; // daily: is there a newer monthly extract?
     return (e.finishedAt?.getTime() ?? 0) < cutoff;

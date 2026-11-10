@@ -8,7 +8,11 @@ const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
  * Attributes an item to a competitor by whole-word match on name or aliases.
  * Returns the competitor with the most hits (ties → first), or null.
  */
+/** Common phrases where a carrier alias is an ordinary word ("national anthem", "the anthem"), removed before matching. */
+const COLLISIONS = /\b(national|state|school|team|club|fight|rock|pop|punk|disco|soccer|olympic)\s+anthems?\b|\banthems?\s+(singer|song|lyrics|performance|protest|kneel\w*)\b|\b(sing|sang|sung|singing|played|playing|stand|standing|kneel|kneeling)\s+(for\s+|during\s+)?(the\s+)?anthems?\b|\b'?bodyguard'?\s+anthem\b/gi;
+
 export function matchCompetitor(text: string, competitors: CompetitorLite[]): string | null {
+  text = text.replace(COLLISIONS, " ");
   let best: { id: string; hits: number } | null = null;
   for (const c of competitors) {
     const terms = [c.name, ...c.aliases].filter(Boolean);

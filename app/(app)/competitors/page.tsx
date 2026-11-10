@@ -15,6 +15,8 @@ export default async function CompetitorsPage({ searchParams }: { searchParams: 
   const session = (await getSession())!;
   const sp = await searchParams;
   const since = new Date(Date.now() - 30 * 864e5);
+  const ws = await db.workspace.findUnique({ where: { id: session.workspaceId }, select: { ownCompetitorId: true } });
+  const usId = ws?.ownCompetitorId ?? null;
   const [competitors, recent, untracked] = await Promise.all([
     db.competitor.findMany({
       where: { workspaceId: session.workspaceId },
@@ -39,6 +41,11 @@ export default async function CompetitorsPage({ searchParams }: { searchParams: 
         <h1 className="h1">Competitors</h1>
         <p className="text-sm text-stone-500">Where each competitor sells and how big it is, then the list you manage below. Aliases drive auto-attribution for general market sources; be generous with them.</p>
       </div>
+      {competitors.length > 0 && !competitors.some((c) => c.id === usId) && (
+        <div className="card flex flex-wrap items-center justify-between gap-2 border-amber-200 bg-amber-50 p-3 text-sm">
+          <span><span className="font-medium">Which one is your company?</span> Mark it with &quot;This is us&quot; in the list below and every page compares against it: share, members, pricing, products. Not listed? Add it as a competitor first.</span>
+        </div>
+      )}
       {competitors.length > 0 && <Footprint workspaceId={session.workspaceId} seg={sp.seg} />}
       {hasRole(session.role, "ANALYST") && (
         <>
@@ -66,6 +73,7 @@ export default async function CompetitorsPage({ searchParams }: { searchParams: 
                 <tr key={c.id}>
                   <td className="px-4 py-2.5">
                     <Link href={`/competitors/${c.id}`} className="font-medium hover:underline">{c.name}</Link>
+                    {c.id === usId && <span className="ml-2 rounded bg-stone-900 px-1.5 py-0.5 text-[10px] font-medium text-white">Us</span>}
                     {c.website && <a href={c.website} target="_blank" rel="noopener noreferrer" className="ml-2 text-xs text-stone-400 hover:text-stone-700">↗</a>}
                   </td>
                   <td className="px-4 py-2.5 font-mono">T{c.tier}</td>
@@ -74,6 +82,9 @@ export default async function CompetitorsPage({ searchParams }: { searchParams: 
                   <td className="px-4 py-2.5 text-right font-mono tabular-nums text-stone-500">{c._count.signals}</td>
                   <td className="px-4 py-2.5 text-right font-mono tabular-nums text-stone-500">{c._count.sources}</td>
                   <td className="px-4 py-2.5 text-right">
+                    {hasRole(session.role, "ADMIN") && (c.id === usId
+                      ? <ActionButton method="PATCH" path="/workspace" body={{ ownCompetitorId: null }} className="mr-3 text-xs text-stone-500 hover:underline" doneText="Cleared">Not us</ActionButton>
+                      : <ActionButton method="PATCH" path="/workspace" body={{ ownCompetitorId: c.id }} className="mr-3 text-xs text-stone-700 hover:underline" doneText="Set">This is us</ActionButton>)}
                     {hasRole(session.role, "ADMIN") && (
                       <ActionButton method="DELETE" path={`/competitors/${c.id}`} confirmText={`Delete ${c.name}? Signals are kept but unattributed.`} className="text-xs text-red-600 hover:underline">Delete</ActionButton>
                     )}

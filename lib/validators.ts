@@ -51,6 +51,7 @@ export const competitorCreate = z.object({
 });
 export const competitorUpdate = competitorCreate.partial().extend({
   issuerPattern: z.string().trim().max(300).nullable().optional(), // null resets to the default match
+  newsScope: z.enum(["all", "region"]).optional(),
 });
 
 export const sourceCreate = z.object({

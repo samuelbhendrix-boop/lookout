@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ActionButton } from "@/components/ActionButton";
 import { NotIncluded } from "@/components/NotIncluded";
 import { notFound } from "next/navigation";
 import type { Segment } from "@prisma/client";
@@ -77,6 +78,12 @@ export default async function CompetitorProfilePage({
               {comp.website && <> · <a className="underline" href={comp.website} target="_blank" rel="noopener noreferrer">website</a></>}
               {" · "}<Link className="underline" href={`/competitors/${comp.id}/products${state ? `?state=${state}` : ""}`}>commercial products</Link>
               {" · "}<Link className="underline" href={`/updates?competitorId=${comp.id}`}>all signals</Link>
+            </p>
+            <p className="mt-1 text-xs text-stone-500">
+              News: {comp.newsScope === "region" ? "New England only (plus its national exchange, employer and ICHRA moves)" : "everything that names it"}{" "}
+              <ActionButton method="PATCH" path={`/competitors/${comp.id}`} body={{ newsScope: comp.newsScope === "region" ? "all" : "region" }} className="underline hover:text-stone-900" doneText="Updated">
+                {comp.newsScope === "region" ? "Show all its news" : "Limit to New England"}
+              </ActionButton>
             </p>
           </div>
         </div>

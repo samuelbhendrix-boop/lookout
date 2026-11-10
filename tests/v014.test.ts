@@ -157,3 +157,29 @@ describe("product news themes", () => {
     expect(productScore("Maine Medical Center vows to exit Anthem insurance network because of billing disputes")?.theme).toBe("Network products");
   });
 });
+import { regionRelevant } from "@/lib/relevance";
+import { matchCompetitor } from "@/lib/match";
+describe("New England news scope", () => {
+  it("keeps regional and national commercial-strategy stories", () => {
+    expect(regionRelevant("UnitedHealthcare trims offerings in Rhode Island\nMedicare Advantage plans")).toBe(true);
+    expect(regionRelevant("As Rivals Retreat, Oscar Health To Expand Obamacare Footprint For 2027")).toBe(true);
+    expect(regionRelevant("Cigna to exit ACA exchanges in 2027, affecting 369,000 members")).toBe(true);
+  });
+  it("drops national earnings, Medicare and investor coverage", () => {
+    expect(regionRelevant("Cigna tops Q3 estimates, raises 2026 outlook as it flags 2027 headwinds")).toBe(false);
+    expect(regionRelevant("White River Health leaving UnitedHealthcare Medicare Advantage network in 2027 - Arkansas")).toBe(false);
+    expect(regionRelevant("What Oscar Health Holders Bought Into Before A 122% Run\nexpand in Massachusetts")).toBe(false);
+  });
+  it("doesn't read 'national anthem' as Anthem", () => {
+    expect(matchCompetitor("Fans stand for the national anthem - WGME", [{ id: "a", name: "Elevance Health (Anthem)", aliases: ["anthem"] }])).toBeNull();
+  });
+});
+import { num } from "@/lib/marketdata/import";
+describe("rate filing numbers", () => {
+  it("reads percentages written with a % sign (2027 file) the same as decimals", () => {
+    expect(num("9.74%")).toBeCloseTo(0.0974);
+    expect(num("0.0974")).toBeCloseTo(0.0974);
+    expect(num("$1,234.50")).toBe(1234.5);
+    expect(num("")).toBeNull();
+  });
+});

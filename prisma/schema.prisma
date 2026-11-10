@@ -30,6 +30,8 @@ model Workspace {
   name        String
   icon        String? // small image as a data: URL, or an emoji
   slug        String       @unique
+  // The workspace's own carrier (one of its competitors rows), so every view can compare against "us".
+  ownCompetitorId String?
   createdAt   DateTime     @default(now())
   memberships Membership[]
   competitors Competitor[]
@@ -87,6 +89,9 @@ model Competitor {
   // Regex (case-insensitive) matched against legal company names in public filings, e.g.
   // "harvard pilgrim|hphc|tufts (associated|insurance)". Null → curated default or aliases.
   issuerPattern String?
+  // "region": keep only news that touches New England (or the carrier's commercial/exchange strategy); for national
+  // carriers whose national news would otherwise flood the feed. "all": keep everything that names the carrier.
+  newsScope     String    @default("all")
   createdAt     DateTime  @default(now())
   workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   sources       Source[]

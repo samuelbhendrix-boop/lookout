@@ -34,3 +34,28 @@ export function mentions(text: string, c: { id: string; name: string; aliases: s
 }
 
 export const AUTO_FILTER_TAG = "auto-filtered";
+
+// ── New England scope for national carriers ────────────────────────────────────────────────────────────────────────
+/** Places, regulators and exchanges that put a story in New England. Ambiguous names (Portland, Springfield,
+ *  Manchester, Concord) only count with their state. */
+const NEW_ENGLAND = /\b(massachusetts|connecticut|rhode island|new hampshire|vermont|maine|new england|boston|worcester|lowell|cambridge,? ma|providence|hartford|new haven|stamford|bridgeport|bangor|augusta,? me|nashua|burlington,? vt|montpelier|cape cod|berkshires?|portland,? (me|maine)|springfield,? (ma|mass)|manchester,? (nh|new hampshire)|concord,? (nh|new hampshire)|health connector|connectorcare|masshealth|access health ct|healthsource ri|coverme|vermont health connect|mass\.|conn\.|r\.i\.|n\.h\.|chia|beacon hill)\b/i;
+/** National commercial-strategy moves worth keeping wherever they happen: entering, leaving or launching in the
+ *  exchange, employer or ICHRA business. */
+const NATIONAL_COMMERCIAL_MOVE = /\b(exit\w*|withdraw\w*|pull\w* out|leav\w*|enter\w*|expand\w*|launch\w*|new plans?|drop\w*)\b[^.]{0,80}\b(aca|obamacare|exchanges?|marketplaces?|individual market|small[- ]group|employer|commercial|ichra|choice arrangement)\b|\b(aca|obamacare|exchanges?|marketplaces?|individual market|ichra)\b[^.]{0,80}\b(exit\w*|withdraw\w*|pull\w* out|leav\w*|enter\w*|expan\w*|launch\w*)\b/i;
+export const OUTSIDE_REGION_TAG = "outside-new-england";
+
+/** Health-insurance context: guards against name collisions ("national anthem" for Anthem) from regional outlets. */
+const HEALTH = /\b(health|insur\w*|medic\w*|hospital\w*|plans?|coverage|benefits?|members?|patients?|pharm\w*|drugs?|aca|obamacare|premiums?|employers?|clinic\w*|physicians?|doctors?|care)\b/i;
+/** Investor coverage: never regional news, even from a regional outlet. */
+const INVESTOR = /\b(stock|shares|holders|investors?|price target|buy rating|sell rating|earnings call|eps|guidance|nyse|nasdaq|run-up|\d+% run)\b/i;
+
+/** For a carrier whose news is scoped to New England: does this story qualify? */
+export function regionRelevant(text: string): boolean {
+  const title = text.split("\n")[0];
+  if (INVESTOR.test(title) || !HEALTH.test(text)) return false;
+  return NEW_ENGLAND.test(text) || NATIONAL_COMMERCIAL_MOVE.test(text);
+}
+
+/** National carriers get New England-only news by default. */
+export const NATIONAL_CARRIER = /unitedhealth|united healthcare|cigna|aetna|cvs|elevance|anthem|centene|ambetter|molina|humana|oscar|kaiser|hcsc|health care service/i;
+export const defaultNewsScope = (name: string) => (NATIONAL_CARRIER.test(name) ? "region" : "all");

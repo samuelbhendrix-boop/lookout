@@ -15,6 +15,8 @@ import { syncEventsToWorkspaces } from "../lib/marketdata/events";
 import { ensureDerivedData } from "../lib/marketdata/history";
 import { ensureRecommendedSources } from "../lib/recommended-sources";
 import { maybeDiscover } from "../lib/marketdata/discover";
+import { applyNewsScope } from "../lib/signals";
+let newsScopeApplied = false;
 
 let lastEventSync = 0;
 let lastHistoryCheck = 0;
@@ -42,6 +44,8 @@ async function schedule() {
     lastHistoryCheck = Date.now();
     for (const r of await ensureDerivedData()) log(r);
     for (const r of await ensureRecommendedSources()) log(r);
+    // Once per process: re-sort stored feed stories by each competitor's news scope (cheap when nothing changed).
+    if (!newsScopeApplied) { newsScopeApplied = true; try { const r = await applyNewsScope(); if (r.archived || r.restored) log(`news scope: archived ${r.archived} outside New England, restored ${r.restored}`); } catch (e) { log(`news scope failed: ${(e as Error).message}`); } }
     // Weekly: look for new yearly releases (new plan / reporting years, republished files).
     try { const r = await maybeDiscover(); if (r) log(r); } catch (e) { log(`release check failed: ${(e as Error).message}`); }
   }

@@ -1,3 +1,4 @@
+import { defaultNewsScope } from "@/lib/relevance";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { HttpError, parseBody, route } from "@/lib/api";
@@ -36,7 +37,7 @@ export const POST = route("ANALYST", async ({ session, req }) => {
     } else {
       comp = await db.competitor.create({
         // issuerPattern stays null → the curated pattern (lib/starter-packs) applies and improves with each release.
-        data: { workspaceId, name: c.name, aliases: c.aliases, tier: c.tier, website: c.website },
+        data: { workspaceId, name: c.name, aliases: c.aliases, tier: c.tier, website: c.website, newsScope: defaultNewsScope(c.name) },
       });
     }
     if (!existing) competitors++;

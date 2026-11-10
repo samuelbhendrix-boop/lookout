@@ -4,7 +4,7 @@ import { classify } from "./classify";
 import { dedupeKey, matchCompetitor } from "./match";
 import { evaluateAlerts } from "./alerts";
 import { CLUSTER_WINDOW_HOURS, findLead } from "./cluster";
-import { AUTO_FILTER_TAG, mentions } from "./relevance";
+import { AUTO_FILTER_TAG, OUTSIDE_REGION_TAG, mentions, regionRelevant } from "./relevance";
 
 export type SignalInput = {
   title: string;
@@ -74,7 +74,18 @@ export async function ingestSignal(workspaceId: string, input: SignalInput) {
     status = "ARCHIVED";
   }
 
-  const tagNames = [...new Set([...(input.tags ?? []), ...(status === "ARCHIVED" ? [AUTO_FILTER_TAG] : [])].map((t) => t.toLowerCase()))];
+  // National carriers scoped to New England: feed stories that don't touch the region (or the carrier's commercial
+  // and exchange moves) are archived. The source's own name counts, so a regional outlet's coverage stays.
+  const extraTags: string[] = [];
+  if (status === "NEW" && competitorId && input.sourceId) {
+    const [c, src] = await Promise.all([
+      db.competitor.findUnique({ where: { id: competitorId }, select: { newsScope: true } }),
+      db.source.findUnique({ where: { id: input.sourceId }, select: { name: true } }),
+    ]);
+    if (c?.newsScope === "region" && !regionRelevant(`${text}\n${src?.name ?? ""}`)) { status = "ARCHIVED"; extraTags.push(OUTSIDE_REGION_TAG); }
+  }
+
+  const tagNames = [...new Set([...(input.tags ?? []), ...extraTags, ...(status === "ARCHIVED" ? [AUTO_FILTER_TAG] : [])].map((t) => t.toLowerCase()))];
 
   // INSERT … ON CONFLICT DO NOTHING: a concurrent poll that wins the race simply makes this a no-op.
   const [signal] = await db.signal.createManyAndReturn({
@@ -117,4 +128,40 @@ export async function setTags(workspaceId: string, signalId: string, tags: strin
       await tx.signalTag.create({ data: { signalId, tagId: tag.id } });
     }
   });
+}
+
+/**
+ * Re-applies each competitor's news scope to feed stories already stored (last 120 days): archives stories outside
+ * New England for "region" competitors, and restores ones this filter archived when a competitor is set back to
+ * "all". Manual entries are never touched. Returns how many stories changed.
+ */
+export async function applyNewsScope(workspaceId?: string, competitorId?: string): Promise<{ archived: number; restored: number }> {
+  const { regionRelevant: ok, OUTSIDE_REGION_TAG: TAG, AUTO_FILTER_TAG: AUTO } = await import("./relevance");
+  const comps = await db.competitor.findMany({ where: { ...(workspaceId ? { workspaceId } : {}), ...(competitorId ? { id: competitorId } : {}) }, select: { id: true, workspaceId: true, newsScope: true, name: true, aliases: true } });
+  const since = new Date(Date.now() - 120 * 864e5);
+  let archived = 0, restored = 0;
+  const tagId = async (ws: string, name: string) => (await db.tag.upsert({ where: { workspaceId_name: { workspaceId: ws, name } }, create: { workspaceId: ws, name }, update: {} })).id;
+  for (const c of comps) {
+    if (c.newsScope === "region") {
+      const rows = await db.signal.findMany({ where: { competitorId: c.id, sourceId: { not: null }, status: { not: "ARCHIVED" }, createdAt: { gte: since } }, select: { id: true, title: true, summary: true, source: { select: { name: true } } } });
+      // Out of region, or doesn't actually name the carrier (alias collisions such as "national anthem").
+      const out = rows.filter((r) => !ok(`${r.title}\n${r.summary ?? ""}\n${r.source?.name ?? ""}`) || !mentions(`${r.title}\n${r.summary ?? ""}`, c)).map((r) => r.id);
+      if (!out.length) continue;
+      const [t1, t2] = [await tagId(c.workspaceId, TAG), await tagId(c.workspaceId, AUTO)];
+      for (let i = 0; i < out.length; i += 1000) {
+        const ids = out.slice(i, i + 1000);
+        await db.signal.updateMany({ where: { id: { in: ids } }, data: { status: "ARCHIVED" } });
+        await db.signalTag.createMany({ data: ids.flatMap((signalId) => [{ signalId, tagId: t1 }, { signalId, tagId: t2 }]), skipDuplicates: true });
+      }
+      archived += out.length;
+    } else {
+      const rows = await db.signal.findMany({ where: { competitorId: c.id, status: "ARCHIVED", tags: { some: { tag: { name: TAG } } } }, select: { id: true } });
+      if (!rows.length) continue;
+      const ids = rows.map((r) => r.id);
+      await db.signal.updateMany({ where: { id: { in: ids } }, data: { status: "NEW" } });
+      await db.signalTag.deleteMany({ where: { signalId: { in: ids }, tag: { name: { in: [TAG, AUTO] } } } });
+      restored += ids.length;
+    }
+  }
+  return { archived, restored };
 }

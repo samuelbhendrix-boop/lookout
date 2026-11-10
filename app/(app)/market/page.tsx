@@ -8,13 +8,14 @@ import { ShareBar, fmtInt, fmtMoneyM, fmtPct, fmtSignedPct, fmtUsd, lrClass, del
 import { Empty } from "@/components/ui";
 import { marketLargeGroup } from "@/lib/marketdata/largegroup";
 import { MarketLargeGroup } from "@/components/LargeGroup";
-import { colorMap, hasColor, Legend, LineChart, OTHER, StackedShares } from "@/components/viz";
-import { rankCompetitors } from "@/lib/homecharts";
+import { Legend, LineChart, OTHER, StackedShares } from "@/components/viz";
+import { chartColors } from "@/lib/us";
+import { selfFunded, sourceLabel, SELF_FUNDED_STATES } from "@/lib/marketdata/selffunded";
 import { crossCheck } from "@/lib/marketdata/crosscheck";
 
 /** Known explanations for cross-check gaps over 15%, found by comparing the two sources carrier by carrier. */
 const WHY: Record<string, string> = {
-  "MA|LARGE_GROUP": "Almost all of it is BCBSMA: 669K fully insured lives in its loss-ratio filings vs 330K in CHIA (other carriers match within a few %). CHIA counts some BCBSMA accounts as self-insured (likely minimum-premium funding) and only MA residents; MLR counts MA-sitused policies wherever members live.",
+  "MA|LARGE_GROUP": "Almost all of it is BCBSMA, and both numbers are real: its federal loss-ratio filings report 669K fully insured large-group lives across two legal entities (HMO Blue, Inc. 402K and Blue Cross and Blue Shield of Massachusetts, Inc. 267K), while CHIA counts about 330K. The two sources define the population differently: CHIA counts only Massachusetts residents and classifies some BCBSMA employer accounts (likely minimum-premium or other partially self-funded arrangements) as self-insured, whereas the federal filing counts every member of a policy written in Massachusetts as fully insured. Other carriers match CHIA within a few percent. Use the federal number for premium and loss-ratio comparisons, and CHIA's for Massachusetts membership.",
   "ME|SMALL_GROUP": "Mostly Harvard Pilgrim: 11K small-group lives in its Maine loss-ratio filing vs 30K in its Maine rate filing. The rate filing's count is at filing and may include groups reported under another state in MLR.",
   "NH|SMALL_GROUP": "Rate-filing enrollment is a snapshot at filing (early in the year), MLR is year-end; NH small group also shifted to association and level-funded plans that leave the fully insured count.",
   "RI|LARGE_GROUP": "OHIC's rate review only covers the carriers and products it reviews, at filing; MLR counts every fully insured large-group policy sitused in RI.",
@@ -40,6 +41,8 @@ export default async function MarketPage({ searchParams }: { searchParams: Promi
     );
 
   const state = /^[A-Z]{2}$/.test(sp.state ?? "") ? sp.state! : "MA";
+  // "SELF_FUNDED" shows the self-funded (ASO) view where a state publishes it; the rest of the page uses large group.
+  const selfMode = sp.segment === "SELF_FUNDED";
   const segment = (SEGMENTS.includes(sp.segment as Segment) ? sp.segment : "LARGE_GROUP") as Segment;
   const year = financialYears.includes(Number(sp.year)) ? Number(sp.year) : financialYears[0];
   const [share, actions, lg] = await Promise.all([
@@ -49,12 +52,14 @@ export default async function MarketPage({ searchParams }: { searchParams: Promi
   ]);
   // Share for the selected state × segment: this year in full, and how it moved over the years on file.
   const checks = await crossCheck(year);
-  const ranked = await rankCompetitors(session.workspaceId);
-  const color = colorMap(ranked);
+  const { color, us, has } = await chartColors(session.workspaceId);
+  const sf = selfMode && SELF_FUNDED_STATES.includes(state) ? (await selfFunded(session.workspaceId, [state]))[0] ?? null : null;
   const years = [...financialYears].sort((a, b) => a - b).slice(-5);
   const history = await Promise.all(years.map(async (y) => ({ y, share: y === year ? share : await marketShare(session.workspaceId, state, segment, y) })));
   const keyOf = (r: { key: string; competitorId: string | null }) => r.competitorId ?? r.key;
-  const colorOf = (r: { competitorId: string | null }) => (hasColor(ranked, r.competitorId ?? undefined) ? color(r.competitorId!) : OTHER);
+  const colorOf = (r: { competitorId: string | null }) => (has(r.competitorId ?? undefined) ? color(r.competitorId!) : OTHER);
+  const mine = us ? share.rows.find((r) => r.competitorId === us.id) : undefined;
+  const myRank = mine ? share.rows.indexOf(mine) + 1 : null;
   const partsOf = (rows: typeof share.rows) => rows.map((r) => ({ name: r.label, key: keyOf(r), value: r.coveredLives }));
   const colorByKey = new Map(history.flatMap((h) => h.share.rows.map((r) => [keyOf(r), colorOf(r)] as const)));
   const flag = checks.find((c) => c.state === state && c.segment === segment && Math.abs(c.diff) > 0.15);
@@ -63,7 +68,7 @@ export default async function MarketPage({ searchParams }: { searchParams: Promi
   const shareSeries = lineKeys.map((k) => {
     const label = history.flatMap((h) => h.share.rows).find((r) => keyOf(r) === k)!.label;
     const comp = history.flatMap((h) => h.share.rows).find((r) => keyOf(r) === k)?.competitorId ?? null;
-    return { name: label, competitorId: hasColor(ranked, comp ?? undefined) ? comp! : `__gray:${k}`, points: history.map((h) => ({ x: String(h.y), y: h.share.rows.find((r) => keyOf(r) === k)?.share ?? null })) };
+    return { name: label, competitorId: has(comp ?? undefined) ? comp! : `__gray:${k}`, points: history.map((h) => ({ x: String(h.y), y: h.share.rows.find((r) => keyOf(r) === k)?.share ?? null })) };
   }).sort((a, b) => (b.points.at(-1)?.y ?? 0) - (a.points.at(-1)?.y ?? 0));
   const lineColor = (id?: string) => (id?.startsWith("__gray:") ? "#a8a29e" : color(id));
   const qs = (o: Record<string, string | number>) => "?" + new URLSearchParams({ state, segment, year: String(year), ...Object.fromEntries(Object.entries(o).map(([k, v]) => [k, String(v)])) });
@@ -79,16 +84,43 @@ export default async function MarketPage({ searchParams }: { searchParams: Promi
       <div className="flex flex-wrap items-center gap-2 text-sm">
         {STATES.map((s) => <Pill key={s} href={qs({ state: s })} active={s === state} label={s} />)}
         <span className="mx-1 text-stone-300">|</span>
-        {SEGMENTS.map((s) => <Pill key={s} href={qs({ segment: s })} active={s === segment} label={SEGMENT_LABEL[s]} />)}
+        {SEGMENTS.map((s) => <Pill key={s} href={qs({ segment: s })} active={!selfMode && s === segment} label={SEGMENT_LABEL[s]} />)}
+        <Pill href={qs({ segment: "SELF_FUNDED" })} active={selfMode} label="Self-funded (ASO)" />
         <span className="mx-1 text-stone-300">|</span>
         {financialYears.slice(0, 5).map((y) => <Pill key={y} href={qs({ year: y })} active={y === year} label={String(y)} />)}
       </div>
 
-      <section className="space-y-3">
+      {selfMode && (
+        <section className="space-y-3">
+          <h2 className="text-lg font-semibold tracking-tight">Self-funded (ASO) share · {state}</h2>
+          {sf ? (
+            <div className="card space-y-3 p-4">
+              <p className="text-xs text-stone-500">Members in employer plans that pay their own claims, by the carrier administering them. {sourceLabel(sf)}. {Math.round(sf.total).toLocaleString("en-US")} members.{us && sf.rows.find((r) => r.competitorId === us.id) ? ` You: ${fmtPct(sf.rows.find((r) => r.competitorId === us.id)!.share)} (rank ${sf.rows.findIndex((r) => r.competitorId === us.id) + 1} of ${sf.rows.length}).` : ""}</p>
+              <StackedShares rows={[{ label: "", total: sf.total, parts: sf.rows.map((r) => ({ name: r.label, key: r.competitorId ?? r.key, value: r.members })) }]} color={(k) => (has(k) ? color(k) : OTHER)} fmtTotal={(v) => Math.round(v).toLocaleString("en-US")} tall />
+              <ul className="grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2 lg:grid-cols-3">
+                {sf.rows.map((r) => (
+                  <li key={r.key} className="flex items-center gap-2">
+                    <span className="h-3 w-3 shrink-0 rounded-sm" style={{ background: has(r.competitorId ?? undefined) ? color(r.competitorId!) : OTHER }} />
+                    <span className={`min-w-0 flex-1 truncate ${r.competitorId ? "font-medium" : "text-stone-600"}`}>{r.label}{r.competitorId === us?.id ? " (you)" : ""}</span>
+                    <span className="tabular-nums">{fmtPct(r.share)}</span>
+                    <span className="w-16 text-right text-xs tabular-nums text-stone-500">{Math.round(r.members / 1000)}K</span>
+                    <span className={`w-12 text-right text-xs tabular-nums ${deltaClass(r.prevMembers ? r.members / r.prevMembers - 1 : null)}`}>{r.prevMembers ? fmtSignedPct(r.members / r.prevMembers - 1, 0) : ""}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : (
+            <Empty title={`${state} doesn't publish self-funded membership`}>Only Massachusetts (CHIA, quarterly) and New Hampshire (Insurance Department, estimated) report carriers&apos; self-funded books. Elsewhere the closest public view is Form 5500 Schedule C, a sample of large self-funded employers, on each competitor&apos;s products page.</Empty>
+          )}
+        </section>
+      )}
+
+      {!selfMode && <section className="space-y-3">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="text-lg font-semibold tracking-tight">Market share · {state} {SEGMENT_LABEL[segment].toLowerCase()} · {year}</h2>
           <p className="text-xs text-stone-500">Share of fully insured covered lives; the bar sums to 100%. {fmtInt(share.total)} lives.</p>
         </div>
+        {us && <p className="text-sm">{mine ? <><span className="font-medium">{us.name} (you):</span> {fmtPct(mine.share)} share, rank {myRank} of {share.rows.length}, {fmtInt(mine.coveredLives)} lives{mine.livesChange != null ? <>, <span className={deltaClass(mine.livesChange)}>{fmtSignedPct(mine.livesChange, 0)}</span> y/y</> : null}{myRank && myRank > 1 ? <> · {share.rows[0].label} leads by {((share.rows[0].share - mine.share) * 100).toFixed(1)} pts</> : null}</> : <span className="text-stone-500">{us.name} (you) has no fully insured {SEGMENT_LABEL[segment].toLowerCase()} business in {state}.</span>}</p>}
         {share.rows.length > 0 && (
           <div className="card space-y-3 p-4">
             <StackedShares rows={[{ label: "", total: share.total, parts: partsOf(share.rows) }]} color={(k) => colorByKey.get(k ?? "") ?? OTHER} fmtTotal={(v) => Math.round(v).toLocaleString("en-US")} tall />
@@ -96,7 +128,7 @@ export default async function MarketPage({ searchParams }: { searchParams: Promi
               {share.rows.map((r) => (
                 <li key={r.key} className="flex items-center gap-2">
                   <span className="h-3 w-3 shrink-0 rounded-sm" style={{ background: colorOf(r) }} />
-                  <span className={`min-w-0 flex-1 truncate ${r.competitorId ? "font-medium" : "text-stone-600"}`} title={r.label}>{r.label}</span>
+                  <span className={`min-w-0 flex-1 truncate ${r.competitorId ? "font-medium" : "text-stone-600"}`} title={r.label}>{r.label}{r.competitorId && r.competitorId === us?.id ? " (you)" : ""}</span>
                   <span className="tabular-nums">{fmtPct(r.share)}</span>
                   <span className={`w-14 text-right text-xs tabular-nums ${deltaClass(r.livesChange)}`} title="Change in covered lives vs prior year">{fmtSignedPct(r.livesChange, 0)}</span>
                 </li>
@@ -144,7 +176,7 @@ export default async function MarketPage({ searchParams }: { searchParams: Promi
             <p className="px-3 py-2 text-[11px] text-stone-500">No independent count exists for Connecticut or Vermont large group. Differences under 15% are timing and scope (year-end vs filing date, residents vs policy situs).</p>
           </div>
         </details>
-      </section>
+      </section>}
 
       {lg && <MarketLargeGroup data={lg} state={state} />}
 

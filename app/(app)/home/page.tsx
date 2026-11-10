@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { accountMoves, competitorsOf, rankCompetitors, exchangeTrend, filedRateChanges, networkPosition, premiumTrend } from "@/lib/homecharts";
+import { chartColors } from "@/lib/us";
+import { accountMoves, competitorsOf, exchangeTrend, filedRateChanges, networkPosition, premiumTrend } from "@/lib/homecharts";
 import { accountsInPlay } from "@/lib/marketdata/inplay";
 import { NE_STATES } from "@/lib/marketdata/products";
 import { ProductNews } from "@/components/ProductNews";
-import { colorMap, HBars, hasColor, Legend, LineChart } from "@/components/viz";
+import { HBars, Legend, LineChart } from "@/components/viz";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Home" };
@@ -39,8 +40,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
   const state = NE_STATES.includes(sp.state ?? "") ? sp.state! : "MA";
   const seg: Seg = sp.seg && sp.seg in SEGMENTS ? (sp.seg as Seg) : "LARGE_GROUP";
   const { comps, match } = await competitorsOf(session.workspaceId);
-  const ranked = await rankCompetitors(session.workspaceId);
-  const color = colorMap(ranked);
+  const { color, us, has } = await chartColors(session.workspaceId);
   void comps;
   const [prem, filed, exch, sales, net, play, changes30] = await Promise.all([
     premiumTrend(match, state, seg),
@@ -56,7 +56,8 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
   const first = (session.name ?? "").split(" ")[0];
   const top6 = <T extends { name: string; competitorId?: string; points: Array<{ y: number | null }> }>(s: T[]) => {
     const mkt = s.filter((x) => !x.competitorId);
-    const comps = s.filter((x) => hasColor(ranked, x.competitorId)).sort((a, b) => b.points.filter((p) => p.y != null).length - a.points.filter((p) => p.y != null).length || (b.points.at(-1)?.y ?? 0) - (a.points.at(-1)?.y ?? 0));
+    // Your company always makes the cut; then the competitors with the longest, largest series.
+    const comps = s.filter((x) => has(x.competitorId)).sort((a, b) => Number(b.competitorId === us?.id) - Number(a.competitorId === us?.id) || b.points.filter((p) => p.y != null).length - a.points.filter((p) => p.y != null).length || (b.points.at(-1)?.y ?? 0) - (a.points.at(-1)?.y ?? 0));
     return [...comps.slice(0, 6), ...mkt];
   };
   const legendFor = (s: Array<{ name: string; competitorId?: string }>) => s.map((x) => ({ name: x.name, color: color(x.competitorId), dashed: !x.competitorId }));
@@ -93,6 +94,25 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
         <Link href="/leverage" className="card block p-4 hover:bg-stone-50"><p className="font-mono text-[10px] uppercase tracking-wide text-stone-500">Lowest hospital prices</p><p className="mt-1 truncate text-2xl font-semibold">{cheapestHosp ? cheapestHosp.name : "—"}</p><p className="text-xs text-stone-500">{cheapestHosp ? `${cheapestHosp.median.toFixed(2)}× Medicare across ${cheapestHosp.hospitals} hospitals` : "no hospital rates yet"}</p></Link>
         <Link href="/accounts" className="card block p-4 hover:bg-stone-50"><p className="font-mono text-[10px] uppercase tracking-wide text-stone-500">Biggest net account gain</p><p className="mt-1 truncate text-2xl font-semibold">{topWinner && topWinner.wonLives > topWinner.lostLives ? topWinner.name : "—"}</p><p className="text-xs text-stone-500">{topWinner ? `+${lives(topWinner.wonLives - topWinner.lostLives)} lives net, ${sales.years}` : "no account moves"} · {hot.length} in play</p></Link>
       </div>
+
+      {us && (() => {
+        const myFiled = filed.rows.find((r) => r.competitorId === us.id)?.values[lastYearIdx] ?? null;
+        const myPrem = prem.series.find((x) => x.competitorId === us.id)?.points.at(-1)?.y ?? null;
+        const myHosp = net.position.find((p) => p.competitorId === us.id);
+        const peers = net.position.filter((p) => p.competitorId && p.competitorId !== us.id).map((p) => p.median).sort((a, b) => a - b);
+        const peerMed = peers.length ? peers[peers.length >> 1] : null;
+        const mySales = sales.rows.find((r) => r.competitorId === us.id);
+        const pp = (v: number) => `${v > 0 ? "+" : ""}${(v * 100).toFixed(1)} pts`;
+        return (
+          <div className="card flex flex-wrap gap-x-8 gap-y-2 p-4 text-sm">
+            <span className="font-medium">{us.name} (you) · {state}</span>
+            <span>Filed rate change: {myFiled != null ? <>{(myFiled * 100).toFixed(1)}% <span className={mktFiled != null && myFiled > mktFiled ? "text-red-600" : "text-emerald-700"}>({mktFiled != null ? `${pp(myFiled - mktFiled)} vs market` : ""})</span></> : "—"}</span>
+            <span>{SEGMENTS[seg]} premium PMPM: {myPrem != null ? <>${Math.round(myPrem)} <span className="text-stone-500">({premLast ? `${myPrem >= premLast ? "+" : ""}${Math.round((myPrem / premLast - 1) * 100)}% vs market` : ""})</span></> : "—"}</span>
+            <span>Hospital prices: {myHosp ? <>{myHosp.median.toFixed(2)}× Medicare <span className="text-stone-500">({peerMed ? `competitors' median ${peerMed.toFixed(2)}×` : ""})</span></> : "no rate file"}</span>
+            <span>Accounts {sales.years}: {mySales ? <><span className="text-emerald-700">+{mySales.wonLives.toLocaleString()}</span> / <span className="text-red-600">−{mySales.lostLives.toLocaleString()}</span> lives</> : "none recorded"}</span>
+          </div>
+        );
+      })()}
 
       <h2 className="font-mono text-xs uppercase tracking-wide text-stone-500">Pricing</h2>
       <div className="grid gap-4 lg:grid-cols-2">
