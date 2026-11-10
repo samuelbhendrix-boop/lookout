@@ -7,7 +7,7 @@ on:
     - cron: "17 7 4 * *" # 4th of each month, 07:17 UTC
   push:
     branches: [main]
-    paths: [".github/workflows/mrf-extract.yml"] # first run, and after pipeline changes
+    paths: [".github/workflows/mrf-extract.yml"] # first run, and after pipeline changes (publish-only fixes: mrf-republish.yml)
   workflow_dispatch:
     inputs:
       shards: { description: "Parallel jobs", default: "20" }
@@ -80,7 +80,7 @@ jobs:
     needs: [plan, extract]
     if: always() && needs.plan.result == 'success'
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 300
     steps:
       - uses: actions/checkout@v4
       - run: pip install duckdb==1.1.3

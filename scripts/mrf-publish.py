@@ -10,7 +10,7 @@ os.makedirs(rel, exist_ok=True)
 con = duckdb.connect()
 # Leave headroom: DuckDB spills to disk past this.
 ram_gb = os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES") / 1e9
-con.execute(f"SET memory_limit='{max(1, int(ram_gb * 0.5))}GB'; SET temp_directory='/tmp/duck'; SET preserve_insertion_order=false; SET threads=2")
+con.execute(f"SET memory_limit='{max(1, int(ram_gb * 0.5))}GB'; SET temp_directory='/tmp/duck'; SET preserve_insertion_order=false; SET threads={os.cpu_count() or 2}")
 
 plan = json.load(open(os.path.join(art, "inputs", "plan.json")))
 summaries = [json.loads(l) for p in glob.glob(os.path.join(art, "shard-*", "summary-*.jsonl")) for l in open(p) if l.strip()]
@@ -19,14 +19,20 @@ missing = [f for s in plan["shards"] for f in s["files"] if f["id"] not in done]
 
 carriers = sorted({os.path.basename(p).split("__")[0] for p in glob.glob(os.path.join(art, "shard-*", "*.rates.parquet"))})
 assets = []
+PART_BYTES = float(os.environ.get("MRF_PART_BYTES", 1.2e9))  # GitHub release assets max out at 2 GB; split big carriers by service code
 for c in carriers:
     for kind in ("rates", "groups"):
         files = glob.glob(os.path.join(art, "shard-*", f"{c}__*.{kind}.parquet"))
-        dest = os.path.join(rel, f"{kind}-{c}.parquet")
+        size = sum(os.path.getsize(f) for f in files)
+        parts = max(1, -(-int(size) // int(PART_BYTES))) if kind == "rates" else 1
         dedupe = "SELECT DISTINCT ON (group_key) *" if kind == "groups" else "SELECT *"
-        con.execute(f"COPY ({dedupe} FROM read_parquet({files!r})) TO '{dest}' (FORMAT parquet, COMPRESSION zstd, ROW_GROUP_SIZE 500000)")
-        rows = con.execute(f"SELECT count(*) FROM '{dest}'").fetchone()[0]
-        assets.append({"file": os.path.basename(dest), "carrier": c, "kind": kind, "rows": rows, "bytes": os.path.getsize(dest)})
+        for k in range(parts):
+            dest = os.path.join(rel, f"{kind}-{c}.parquet" if parts == 1 else f"{kind}-{c}-part{k + 1}of{parts}.parquet")
+            where = f" WHERE hash(code) % {parts} = {k}" if parts > 1 else ""
+            con.execute(f"COPY ({dedupe} FROM read_parquet({files!r}){where}) TO '{dest}' (FORMAT parquet, COMPRESSION zstd, ROW_GROUP_SIZE 500000)")
+            rows = con.execute(f"SELECT count(*) FROM '{dest}'").fetchone()[0]
+            assets.append({"file": os.path.basename(dest), "carrier": c, "kind": kind, "rows": rows, "bytes": os.path.getsize(dest)})
+            print(f"{os.path.basename(dest)}: {rows:,} rows, {os.path.getsize(dest) / 1e6:,.0f} MB", flush=True)
 # Market summary the app loads: for each carrier × service × state × setting, the spread of what it pays New England
 # providers. One average per provider group first (groups repeat a price across modifiers and places of service), dollar
 # prices only (percent-of-charges and per-diem terms aren't comparable), no modifier (26/TC split fees are different services).
@@ -35,22 +41,34 @@ tinst = os.path.join(art, "inputs", "tin-states.csv")
 rate_files = glob.glob(os.path.join(rel, "rates-*.parquet"))
 group_files = glob.glob(os.path.join(rel, "groups-*.parquet"))
 if rate_files:
-    con.execute(f"""
-      CREATE TEMP TABLE gstate AS
-      WITH g AS (SELECT carrier, group_key, tin, string_split(ne_npis, ' ') AS npis FROM read_parquet({group_files!r})),
-           byNpi AS (SELECT g.carrier, g.group_key, n.state, count(*) AS k FROM g, unnest(g.npis) AS u(npi) JOIN '{npp}' n ON n.npi = u.npi GROUP BY ALL),
-           pick AS (SELECT carrier, group_key, arg_max(state, k) AS state FROM byNpi GROUP BY ALL)
-      SELECT g.carrier, g.group_key, coalesce(p.state, t.state) AS state
-      FROM g LEFT JOIN pick p USING (carrier, group_key) LEFT JOIN read_csv('{tinst}', all_varchar=true) t ON t.tin = g.tin""")
+    # Each provider group's state = the most common state among its New England NPIs. Big carriers list thousands of
+    # NPIs per group, and exploding them all spilled 70 GB of temp space, so vote on the first 25 NPIs (plenty to
+    # place a group) and build the table one carrier at a time.
+    con.execute(f"CREATE TEMP TABLE npi AS SELECT npi, state FROM '{npp}'")
+    con.execute(f"CREATE TEMP TABLE tins AS SELECT * FROM read_csv('{tinst}', all_varchar=true)")
+    con.execute("CREATE TEMP TABLE gstate (carrier VARCHAR, group_key VARCHAR, state VARCHAR)")
+    for gf in group_files:
+        con.execute(f"""
+          INSERT INTO gstate
+          WITH g AS (SELECT carrier, group_key, tin, string_split(ne_npis, ' ')[1:25] AS npis FROM read_parquet('{gf}')),
+               byNpi AS (SELECT g.carrier, g.group_key, n.state, count(*) AS k FROM g, unnest(g.npis) AS u(npi) JOIN npi n ON n.npi = u.npi GROUP BY ALL),
+               pick AS (SELECT carrier, group_key, arg_max(state, k) AS state FROM byNpi GROUP BY ALL)
+          SELECT g.carrier, g.group_key, coalesce(p.state, t.state) AS state
+          FROM g LEFT JOIN pick p USING (carrier, group_key) LEFT JOIN tins t ON t.tin = g.tin""")
+        print(f"gstate {os.path.basename(gf)}: {con.execute('SELECT count(*) FROM gstate').fetchone()[0]:,} groups so far", flush=True)
     # One carrier at a time keeps memory bounded on a 16 GB runner.
     con.execute("CREATE TEMP TABLE summary (carrier VARCHAR, state VARCHAR, code_type VARCHAR, code VARCHAR, billing_class VARCHAR, providers BIGINT, p25 DOUBLE, median DOUBLE, p75 DOUBLE)")
     for rf in rate_files:
+      # Big files are aggregated a slice of service codes at a time so the per-group step never spills tens of GB.
+      slices = max(1, -(-os.path.getsize(rf) // int(float(os.environ.get("MRF_SLICE_BYTES", 300e6)))))
+      for k in range(slices):
+        where = f" AND hash(r.code || '#') % {slices} = {k}" if slices > 1 else ""
         con.execute(f"""
           INSERT INTO summary
           WITH per_group AS (
             SELECT r.carrier, s.state, r.code_type, r.code, r.billing_class, r.group_key, avg(r.rate) AS rate
             FROM '{rf}' r JOIN gstate s USING (carrier, group_key)
-            WHERE r.negotiated_type IN ('negotiated', 'fee schedule', 'derived') AND coalesce(r.modifier, '') = '' AND r.rate > 0 AND s.state IS NOT NULL
+            WHERE r.negotiated_type IN ('negotiated', 'fee schedule', 'derived') AND coalesce(r.modifier, '') = '' AND r.rate > 0 AND s.state IS NOT NULL{where}
             GROUP BY ALL)
           SELECT carrier, state, code_type, code, billing_class, count(*) AS providers,
                  round(quantile_cont(rate, 0.25), 2), round(median(rate), 2), round(quantile_cont(rate, 0.75), 2)
