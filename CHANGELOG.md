@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.21.1 — 2026-11-09
+- Market share shows the selected state and segment only: one full-width bar summing to 100%, with every carrier's exact share and change listed under it, and the cross-check warning when that total disagrees with an independent count.
+- **Share over time**: a 100% bar per year (2020–2024) and a share trend line for every carrier that held 3%+.
+
 ## 0.21.0 — 2026-11-09
 - **Home is about competitors' pricing, networks, products and sales**, in charts: premium per member per month 2020–2024 by competitor and market (large group, small group, individual); filed ACA rate increases by plan year; cheapest silver premium and exchange plan counts 2024–2027; hospital prices as a multiple of Medicare; negotiated-rate and network moves; accounts won and lost; renewals in play; and only product, pricing and network news.
 - **Updates replaces Briefing, Feed and Changes**: one feed of competitor news and data-detected changes (your competitors, with triage) or every carrier's changes (whole market), filtered by pricing, network, product, sales or news, time window, competitor, state and status, with the week's top five on top. Old links redirect. Carriers you don't track moved to Competitors.

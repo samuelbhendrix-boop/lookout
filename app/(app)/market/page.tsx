@@ -8,11 +8,10 @@ import { ShareBar, fmtInt, fmtMoneyM, fmtPct, fmtSignedPct, fmtUsd, lrClass, del
 import { Empty } from "@/components/ui";
 import { marketLargeGroup } from "@/lib/marketdata/largegroup";
 import { MarketLargeGroup } from "@/components/LargeGroup";
-import { colorMap, hasColor, Legend, OTHER, StackedShares } from "@/components/viz";
+import { colorMap, hasColor, Legend, LineChart, OTHER, StackedShares } from "@/components/viz";
 import { rankCompetitors } from "@/lib/homecharts";
 import { crossCheck } from "@/lib/marketdata/crosscheck";
 
-const NE = ["MA", "CT", "RI", "NH", "VT", "ME"];
 /** Known explanations for cross-check gaps over 15%, found by comparing the two sources carrier by carrier. */
 const WHY: Record<string, string> = {
   "MA|LARGE_GROUP": "Almost all of it is BCBSMA: 669K fully insured lives in its loss-ratio filings vs 330K in CHIA (other carriers match within a few %). CHIA counts some BCBSMA accounts as self-insured (likely minimum-premium funding) and only MA residents; MLR counts MA-sitused policies wherever members live.",
@@ -48,12 +47,25 @@ export default async function MarketPage({ searchParams }: { searchParams: Promi
     rateActions(session.workspaceId, state),
     segment === "LARGE_GROUP" ? marketLargeGroup(session.workspaceId, state) : null,
   ]);
-  // At-a-glance: every state × segment, competitors colored, everyone else in "Other".
-  const glance = await Promise.all(SEGMENTS.flatMap((seg) => NE.map(async (st) => ({ seg, st, share: await marketShare(session.workspaceId, st, seg, year) }))));
+  // Share for the selected state × segment: this year in full, and how it moved over the years on file.
   const checks = await crossCheck(year);
   const ranked = await rankCompetitors(session.workspaceId);
   const color = colorMap(ranked);
-  const inGlance = [...new Map(glance.flatMap((g) => g.share.rows.filter((r) => hasColor(ranked, r.competitorId ?? undefined)).map((r) => [r.competitorId!, r.label] as const))).entries()].sort((a, b) => ranked.indexOf(a[0]) - ranked.indexOf(b[0]));
+  const years = [...financialYears].sort((a, b) => a - b).slice(-5);
+  const history = await Promise.all(years.map(async (y) => ({ y, share: y === year ? share : await marketShare(session.workspaceId, state, segment, y) })));
+  const keyOf = (r: { key: string; competitorId: string | null }) => r.competitorId ?? r.key;
+  const colorOf = (r: { competitorId: string | null }) => (hasColor(ranked, r.competitorId ?? undefined) ? color(r.competitorId!) : OTHER);
+  const partsOf = (rows: typeof share.rows) => rows.map((r) => ({ name: r.label, key: keyOf(r), value: r.coveredLives }));
+  const colorByKey = new Map(history.flatMap((h) => h.share.rows.map((r) => [keyOf(r), colorOf(r)] as const)));
+  const flag = checks.find((c) => c.state === state && c.segment === segment && Math.abs(c.diff) > 0.15);
+  // Lines: every carrier that ever held 3%+ here; colored competitors in color, others gray.
+  const lineKeys = [...new Set(history.flatMap((h) => h.share.rows.filter((r) => r.share >= 0.03).map(keyOf)))];
+  const shareSeries = lineKeys.map((k) => {
+    const label = history.flatMap((h) => h.share.rows).find((r) => keyOf(r) === k)!.label;
+    const comp = history.flatMap((h) => h.share.rows).find((r) => keyOf(r) === k)?.competitorId ?? null;
+    return { name: label, competitorId: hasColor(ranked, comp ?? undefined) ? comp! : `__gray:${k}`, points: history.map((h) => ({ x: String(h.y), y: h.share.rows.find((r) => keyOf(r) === k)?.share ?? null })) };
+  }).sort((a, b) => (b.points.at(-1)?.y ?? 0) - (a.points.at(-1)?.y ?? 0));
+  const lineColor = (id?: string) => (id?.startsWith("__gray:") ? "#a8a29e" : color(id));
   const qs = (o: Record<string, string | number>) => "?" + new URLSearchParams({ state, segment, year: String(year), ...Object.fromEntries(Object.entries(o).map(([k, v]) => [k, String(v)])) });
 
   return (
@@ -74,27 +86,40 @@ export default async function MarketPage({ searchParams }: { searchParams: Promi
 
       <section className="space-y-3">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="text-lg font-semibold tracking-tight">Market share at a glance · {year}</h2>
-          <p className="text-xs text-stone-500">Share of fully insured covered lives; each bar sums to 100%. Hover a segment for its share and lives.</p>
+          <h2 className="text-lg font-semibold tracking-tight">Market share · {state} {SEGMENT_LABEL[segment].toLowerCase()} · {year}</h2>
+          <p className="text-xs text-stone-500">Share of fully insured covered lives; the bar sums to 100%. {fmtInt(share.total)} lives.</p>
         </div>
-        <Legend items={[...inGlance.map(([id, name]) => ({ name, color: color(id) })), { name: "All other carriers", color: OTHER }]} />
-        <div className="grid gap-4 lg:grid-cols-3">
-          {SEGMENTS.map((seg) => (
-            <div key={seg} className="card p-4">
-              <p className="mb-2 text-sm font-semibold">{SEGMENT_LABEL[seg]}</p>
-              <StackedShares
-                rows={glance.filter((g) => g.seg === seg && g.share.total > 0).map((g) => {
-                  const mine = g.share.rows.filter((r) => hasColor(ranked, r.competitorId ?? undefined));
-                  const other = g.share.total - mine.reduce((s, r) => s + r.coveredLives, 0);
-                  const flag = checks.find((c) => c.state === g.st && c.segment === seg && Math.abs(c.diff) > 0.15);
-                  return { label: `${g.st}${flag ? " ⚠" : ""}`, total: g.share.total, sub: "lives", parts: [...mine.map((r) => ({ name: r.label, key: r.competitorId!, value: r.coveredLives })), ...(other > 0 ? [{ name: "Other", key: "__other", value: other }] : [])] };
-                })}
-                color={(k) => (k === "__other" ? OTHER : color(k))}
-                fmtTotal={(v) => Math.round(v).toLocaleString("en-US")}
-              />
+        {share.rows.length > 0 && (
+          <div className="card space-y-3 p-4">
+            <StackedShares rows={[{ label: "", total: share.total, parts: partsOf(share.rows) }]} color={(k) => colorByKey.get(k ?? "") ?? OTHER} fmtTotal={(v) => Math.round(v).toLocaleString("en-US")} tall />
+            <ul className="grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2 lg:grid-cols-3">
+              {share.rows.map((r) => (
+                <li key={r.key} className="flex items-center gap-2">
+                  <span className="h-3 w-3 shrink-0 rounded-sm" style={{ background: colorOf(r) }} />
+                  <span className={`min-w-0 flex-1 truncate ${r.competitorId ? "font-medium" : "text-stone-600"}`} title={r.label}>{r.label}</span>
+                  <span className="tabular-nums">{fmtPct(r.share)}</span>
+                  <span className={`w-14 text-right text-xs tabular-nums ${deltaClass(r.livesChange)}`} title="Change in covered lives vs prior year">{fmtSignedPct(r.livesChange, 0)}</span>
+                </li>
+              ))}
+            </ul>
+            {flag && <p className="text-xs text-amber-700">⚠ This total is {fmtSignedPct(flag.diff, 0)} vs {flag.source} ({fmtInt(flag.value)}). {WHY[`${state}|${segment}`] ?? ""}</p>}
+          </div>
+        )}
+
+        {history.filter((h) => h.share.total > 0).length >= 2 && (
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div className="card p-4">
+              <p className="mb-2 text-sm font-semibold">Share by year · each bar 100%</p>
+              <StackedShares rows={history.filter((h) => h.share.total > 0).map((h) => ({ label: String(h.y), total: h.share.total, sub: "lives", parts: partsOf(h.share.rows) }))} color={(k) => colorByKey.get(k ?? "") ?? OTHER} fmtTotal={(v) => Math.round(v).toLocaleString("en-US")} />
             </div>
-          ))}
-        </div>
+            <div className="card p-4">
+              <p className="mb-2 text-sm font-semibold">Share trend · carriers that held 3%+</p>
+              <LineChart series={shareSeries} x={history.map((h) => String(h.y))} color={lineColor} fmt={(v) => `${(v * 100).toFixed(0)}%`} yZero height={230} solid />
+              <Legend items={shareSeries.map((s) => ({ name: s.name, color: lineColor(s.competitorId) }))} />
+              <p className="mt-1 text-[11px] text-stone-500">Gray lines: carriers outside your top eight competitors or not tracked.</p>
+            </div>
+          </div>
+        )}
 
         <details className="card" open={checks.some((c) => Math.abs(c.diff) > 0.15)}>
           <summary className="cursor-pointer px-4 py-2 text-sm font-medium">Cross-check: market totals vs an independent count ({checks.filter((c) => Math.abs(c.diff) <= 0.15).length} of {checks.length} within 15%)</summary>

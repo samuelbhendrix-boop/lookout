@@ -43,9 +43,9 @@ export function Legend({ items }: { items: Array<{ name: string; color: string; 
 }
 
 /** Lines over categorical x (years, months). Gaps where y is null. */
-export function LineChart({ series, x, color, fmt, height = 200, yZero = false }: {
+export function LineChart({ series, x, color, fmt, height = 200, yZero = false, solid = false }: {
   series: Array<{ name: string; competitorId?: string; points: Array<{ x: string; y: number | null }> }>;
-  x: string[]; color: (id?: string) => string; fmt: (v: number) => string; height?: number; yZero?: boolean;
+  x: string[]; color: (id?: string) => string; fmt: (v: number) => string; height?: number; yZero?: boolean; solid?: boolean;
 }) {
   const W = 560, H = height, L = 48, R = 112, T = 10, B = 24;
   const vals = series.flatMap((s) => s.points.map((p) => p.y)).filter((v): v is number => v != null);
@@ -69,7 +69,7 @@ export function LineChart({ series, x, color, fmt, height = 200, yZero = false }
         if (cur) segs.push(cur);
         return (
           <g key={s.name}>
-            {segs.map((d, i) => <path key={i} d={d} fill="none" stroke={c} strokeWidth="2" strokeDasharray={s.competitorId ? undefined : "4 3"} strokeLinejoin="round" strokeLinecap="round" />)}
+            {segs.map((d, i) => <path key={i} d={d} fill="none" stroke={c} strokeWidth="2" strokeDasharray={s.competitorId || solid ? undefined : "4 3"} strokeLinejoin="round" strokeLinecap="round" />)}
             {s.points.map((p, i) => p.y == null ? null : (
               <circle key={i} cx={px(i)} cy={py(p.y)} r="3.5" fill={c} stroke="#fff" strokeWidth="2"><title>{`${s.name} · ${p.x}: ${fmt(p.y)}`}</title></circle>
             ))}
@@ -120,9 +120,9 @@ export function HBars({ rows, keys, fmt, reference, colors }: {
 }
 
 /** One horizontal bar per row, split into parts that sum to 100% (e.g. market share). Parts under 4% go unlabelled. */
-export function StackedShares({ rows, color, fmtTotal }: {
+export function StackedShares({ rows, color, fmtTotal, tall = false }: {
   rows: Array<{ label: string; total: number; sub?: string; parts: Array<{ name: string; key?: string; value: number }> }>;
-  color: (key?: string) => string; fmtTotal: (v: number) => string;
+  color: (key?: string) => string; fmtTotal: (v: number) => string; tall?: boolean;
 }) {
   return (
     <div className="space-y-2.5">
@@ -130,13 +130,13 @@ export function StackedShares({ rows, color, fmtTotal }: {
         const sum = r.parts.reduce((s, p) => s + p.value, 0) || 1;
         return (
           <div key={r.label}>
-            <div className="mb-1 flex items-baseline justify-between text-xs"><span className="font-medium text-stone-800">{r.label}</span><span className="tabular-nums text-stone-500">{fmtTotal(r.total)}{r.sub ? ` · ${r.sub}` : ""}</span></div>
-            <div className="flex h-6 w-full gap-[2px] overflow-hidden rounded">
+            {(r.label || r.sub) && <div className="mb-1 flex items-baseline justify-between text-xs"><span className="font-medium text-stone-800">{r.label}</span><span className="tabular-nums text-stone-500">{fmtTotal(r.total)}{r.sub ? ` · ${r.sub}` : ""}</span></div>}
+            <div className={`flex ${tall ? "h-10" : "h-6"} w-full gap-[2px] overflow-hidden rounded`}>
               {r.parts.map((p) => {
                 const pct = p.value / sum;
                 return (
-                  <div key={p.name} title={`${p.name}: ${(pct * 100).toFixed(1)}% · ${fmtTotal(p.value)}`} className={`flex min-w-0 items-center justify-start overflow-hidden px-1 text-[10px] font-medium ${p.key === "__other" ? "text-stone-700" : "text-white"}`} style={{ width: `${pct * 100}%`, background: color(p.key) }}>
-                    {pct >= 0.06 ? <span className="truncate" style={p.key === "__other" ? undefined : { textShadow: "0 0 2px rgba(0,0,0,.45)" }}>{p.name.slice(0, 16)} {(pct * 100).toFixed(0)}%</span> : null}
+                  <div key={p.name} title={`${p.name}: ${(pct * 100).toFixed(1)}% · ${fmtTotal(p.value)}`} className={`flex min-w-0 items-center justify-start overflow-hidden px-1 ${tall ? "text-xs" : "text-[10px]"} font-medium ${color(p.key) === OTHER ? "text-stone-700" : "text-white"}`} style={{ width: `${pct * 100}%`, background: color(p.key) }}>
+                    {pct >= (tall ? 0.05 : 0.07) ? <span className="truncate" style={color(p.key) === OTHER ? undefined : { textShadow: "0 0 2px rgba(0,0,0,.45)" }}>{p.name.slice(0, 16)} {(pct * 100).toFixed(0)}%</span> : null}
                   </div>
                 );
               })}
