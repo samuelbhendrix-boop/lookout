@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { claudeText } from "../ai";
 import { db } from "../db";
 import { issuerPatternFor } from "./queries";
 import { NE_STATES } from "./products";
@@ -292,6 +293,10 @@ export async function strategyNarrative(competitorId: string, name: string, d: A
   const facts = [
     ...d.book.map((b) => b.segment === "SELF_FUNDED" ? `BOOK ${b.state} self-funded (ASO) ${b.year}: ${Math.round(b.lives).toLocaleString()} members administered; ${b.read.join("; ")}` : `BOOK ${b.state} ${SEG[b.segment]} ${b.year}: ${Math.round(b.lives).toLocaleString()} lives${b.livesBefore ? ` (was ${Math.round(b.livesBefore).toLocaleString()} in ${b.yearBefore})` : ""}; premium PMPM ${b.pmpm?.toFixed(0)} vs market ${b.marketPmpm?.toFixed(0)}; loss ratio ${b.lossRatio != null ? Math.round(b.lossRatio * 100) : "?"}% vs market ${b.marketLossRatio != null ? Math.round(b.marketLossRatio * 100) : "?"}%`),
     ...d.products.slice(0, 25).map((p) => `PRODUCT ${p.state} "${p.name}" ${p.planType ?? ""} [${p.markets.join("+")}]: ${p.plans} plans (+${p.newPlans} new, -${p.terminated} terminated), metals ${p.metals.join("/")}, ${p.enrolled.toLocaleString()} filed members${p.growth != null ? ` (${pc(p.growth)} y/y)` : ""}; tags: ${p.tags.map((t) => `${t.label} (${t.why})`).join("; ") || "none"}`),
+    ...(() => { const gone = d.products.filter((p) => p.plans === 0); const live = d.products.filter((p) => p.plans > 0); return [
+      `TOTAL filed members across live products: ${live.reduce((t, p) => t + p.enrolled, 0).toLocaleString()}`,
+      ...(gone.length ? [`TOTAL members in discontinued products (prior filing): ${gone.reduce((t, p) => t + (p.enrolledPrev ?? 0), 0).toLocaleString()} across ${gone.length} products`] : []),
+    ]; })(),
     ...news.slice(0, 6).map((n) => `NEWS ${n.when.toISOString().slice(0, 10)}: ${n.title}`),
   ].join("\n");
   const hash = createHash("sha1").update(facts).digest("hex").slice(0, 16);
@@ -299,28 +304,13 @@ export async function strategyNarrative(competitorId: string, name: string, d: A
   const cached = await db.rateFile.findUnique({ where: { id } });
   const c = cached?.stats as { hash?: string; n?: Narrative } | null;
   if (c?.hash === hash && c.n) return c.n;
-  const model = process.env.CLASSIFIER_MODEL ?? "claude-haiku-5-5";
-  try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST", signal: AbortSignal.timeout(40_000),
-      headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-      body: JSON.stringify({
-        model, max_tokens: 1500,
-        system: `You are a competitive-intelligence analyst at a New England health insurer. From the facts given about ${name}'s commercial (individual, small group, large group) business, write its product strategy in 3-5 plain sentences: where it is pushing for growth, where it is protecting margin or retreating, how it positions price and network, and the one thing a competitor should watch. Use only the facts given; name products and states; no hedging filler, no headers, no bullet points. If the facts conflict, say so.`,
-        messages: [{ role: "user", content: facts }],
-      }),
-    });
-    if (!res.ok) { console.error(`[ai] strategy read: HTTP ${res.status} ${(await res.text().catch(() => "")).slice(0, 300)}`); return c?.n ?? null; }
-    const body = (await res.json()) as { content?: Array<{ type?: string; text?: string }>; stop_reason?: string };
-    // Newer models can put a thinking block first: read every text block, wherever it is.
-    const text = (body.content ?? []).filter((b) => b.type === "text" && b.text).map((b) => b.text!.trim()).join("\n\n").trim();
-    if (!text) { console.error(`[ai] strategy read: empty reply (stop: ${body.stop_reason}; blocks: ${(body.content ?? []).map((b) => b.type).join(",")})`); return c?.n ?? null; }
-    const n: Narrative = { text, generatedAt: new Date().toISOString(), model };
-    const data = { carrier: "_cache", carrierName: "_cache", network: "strategy", url: "", status: "cache", stats: JSON.parse(JSON.stringify({ hash, n })), processedAt: new Date() };
-    await db.rateFile.upsert({ where: { id }, create: { id, ...data }, update: data });
-    return n;
-  } catch (e) {
-    console.error(`[ai] strategy read failed: ${(e as Error).message}`);
-    return c?.n ?? null;
-  }
+  const r = await claudeText({
+    label: "strategy read", maxTokens: 700, user: facts,
+    system: `You are a competitive-intelligence analyst at a New England health insurer. From the facts given about ${name}'s commercial (individual, small group, large group) business, write its product strategy in 3-5 plain sentences: where it is pushing for growth, where it is protecting margin or retreating, how it positions price and network, and the one thing a competitor should watch. Use only the facts given; name products and states; no hedging filler, no headers, no bullet points. Quote numbers exactly as given and never add, subtract or total them yourself (use the TOTAL lines). If the facts conflict, say so.`,
+  });
+  if (!r) return c?.n ?? null;
+  const n: Narrative = { text: r.text, generatedAt: new Date().toISOString(), model: r.model };
+  const data = { carrier: "_cache", carrierName: "_cache", network: "strategy", url: "", status: "cache", stats: JSON.parse(JSON.stringify({ hash, n })), processedAt: new Date() };
+  await db.rateFile.upsert({ where: { id }, create: { id, ...data }, update: data }).catch(() => {});
+  return n;
 }

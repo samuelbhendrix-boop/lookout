@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.27.4 — 2026-11-10
+
+- AI write-ups: extended thinking turned off (the model was spending its whole budget thinking and returning no text, so most strategy reads came back empty), with a retry that allows thinking and more room if the API rejects the setting. One shared helper (lib/ai.ts) for every write-up.
+- Strategy reads get precomputed totals (live and discontinued members) and are told to quote numbers as given instead of adding them up; the first read had summed three products wrong.
+
 ## 0.27.3 — 2026-11-10
 
 - AI write-ups read the reply's text block wherever it sits (newer models can lead with a thinking block, which left the write-up silently empty), with more token headroom, and log when a reply has no text.

@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { db } from "./db";
+import { claudeText } from "./ai";
 import { AUTO_FILTER_TAG, OUTSIDE_REGION_TAG, mentions, regionRelevant } from "./relevance";
 import { MARKET_NOISE } from "./briefing";
 
@@ -95,31 +96,21 @@ export async function productBrief(workspaceId: string, items: ProductItem[]): P
   const cached = await db.rateFile.findUnique({ where: { id } });
   const c = cached?.stats as { hash?: string; brief?: Brief } | null;
   if (c?.hash === hash && c.brief && Date.now() - new Date(c.brief.generatedAt).getTime() < 12 * 3600e3) return c.brief;
-  const model = process.env.CLASSIFIER_MODEL ?? "claude-haiku-5-5";
+  const r = await claudeText({
+    label: "product brief", maxTokens: 900,
+    system: "You brief a health insurer's competitive-intelligence lead on competitors' COMMERCIAL product changes (employer, small group, individual/exchange) in New England. From the news items given, write 2-4 points on the changes that matter most for competing: new or withdrawn products, plan design or benefit changes, product networks, exchange moves. Ignore anything about Medicare, Medicaid, earnings, stock, lawsuits or executives. Each point: one sentence, plain, specific (carrier, product, where, when), no hype, only facts stated in the items; quote numbers exactly as given. Reply with only JSON: {\"points\":[{\"text\":\"...\",\"ids\":[\"item ids it rests on\"]}]}. Fewer points is fine; none if nothing qualifies.",
+    user: top.map((i) => `id: ${i.id}\ncompetitor: ${i.competitor}\ndate: ${i.when.toISOString().slice(0, 10)}\ntitle: ${i.title}\nsummary: ${(i.summary ?? "").slice(0, 500)}`).join("\n\n"),
+  });
+  if (!r || !r.text.includes("{")) { if (r) console.error("[ai] product brief: no JSON in reply"); return c?.brief ?? null; }
   try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-      signal: AbortSignal.timeout(30_000),
-      body: JSON.stringify({
-        model, max_tokens: 1500,
-        system: "You brief a health insurer's competitive-intelligence lead on competitors' COMMERCIAL product changes (employer, small group, individual/exchange) in New England. From the news items given, write 2-4 points on the changes that matter most for competing: new or withdrawn products, plan design or benefit changes, product networks, exchange moves. Ignore anything about Medicare, Medicaid, earnings, stock, lawsuits or executives. Each point: one sentence, plain, specific (carrier, product, where, when), no hype, only facts stated in the items. Reply with only JSON: {\"points\":[{\"text\":\"...\",\"ids\":[\"item ids it rests on\"]}]}. Fewer points is fine; none if nothing qualifies.",
-        messages: [{ role: "user", content: top.map((i) => `id: ${i.id}\ncompetitor: ${i.competitor}\ndate: ${i.when.toISOString().slice(0, 10)}\ntitle: ${i.title}\nsummary: ${(i.summary ?? "").slice(0, 500)}`).join("\n\n") }],
-      }),
-    });
-    if (!res.ok) { console.error(`[ai] product brief: HTTP ${res.status} ${(await res.text().catch(() => "")).slice(0, 300)}`); return c?.brief ?? null; }
-    const body = (await res.json()) as { content?: Array<{ type?: string; text?: string }>; stop_reason?: string };
-    // Newer models can put a thinking block first: read every text block, wherever it is.
-    const raw = (body.content ?? []).filter((b) => b.type === "text" && b.text).map((b) => b.text).join("\n");
-    if (!raw.includes("{")) { console.error(`[ai] product brief: no JSON in reply (stop: ${body.stop_reason}; blocks: ${(body.content ?? []).map((b) => b.type).join(",")})`); return c?.brief ?? null; }
-    const parsed = JSON.parse(raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1)) as { points?: Array<{ text: string; ids: string[] }> };
+    const parsed = JSON.parse(r.text.slice(r.text.indexOf("{"), r.text.lastIndexOf("}") + 1)) as { points?: Array<{ text: string; ids: string[] }> };
     const valid = new Set(top.map((i) => i.id));
-    const brief: Brief = { points: (parsed.points ?? []).filter((p) => p.text && p.ids?.some((x) => valid.has(x))).map((p) => ({ text: p.text, ids: p.ids.filter((x) => valid.has(x)) })).slice(0, 4), generatedAt: new Date().toISOString(), model };
+    const brief: Brief = { points: (parsed.points ?? []).filter((p) => p.text && p.ids?.some((x) => valid.has(x))).map((p) => ({ text: p.text, ids: p.ids.filter((x) => valid.has(x)) })).slice(0, 4), generatedAt: new Date().toISOString(), model: r.model };
     const data = { carrier: "_cache", carrierName: "_cache", network: "product-brief", url: "", status: "cache", stats: JSON.parse(JSON.stringify({ hash, brief })), processedAt: new Date() };
     await db.rateFile.upsert({ where: { id }, create: { id, ...data }, update: data });
     return brief;
   } catch (e) {
-    console.error(`[ai] product brief failed: ${(e as Error).message}`);
+    console.error(`[ai] product brief: unreadable reply: ${(e as Error).message}`);
     return c?.brief ?? null;
   }
 }
