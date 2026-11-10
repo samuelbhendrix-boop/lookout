@@ -11,6 +11,7 @@ import { LargeGroupMarket } from "@/components/LargeGroupProducts";
 import { GicPlans } from "@/components/GicPlans";
 import { ProductNews } from "@/components/ProductNews";
 import { ProductMatrix } from "@/components/ProductDossier";
+import { MarketingMatrix } from "@/components/ProductMarketing";
 import { RatingAreaMap } from "@/components/RatingAreaMap";
 import { largeGroupMarket } from "@/lib/marketdata/lgbook";
 import { Empty } from "@/components/ui";
@@ -25,12 +26,12 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
   const session = (await getSession())!;
   const sp = await searchParams;
   const state = NE_STATES.includes(sp.state ?? "") ? sp.state! : "MA";
-  const market = sp.market === "SHOP" ? "SHOP" : sp.market === "LG" ? "LG" : "Individual";
+  const market = sp.market === "SHOP" ? "SHOP" : sp.market === "LG" ? "LG" : sp.market === "MKT" ? "MKT" : "Individual";
   const { rows } = await qhpYears();
   const years = rows.filter((r) => r.state === state).map((r) => r.year).sort();
   const year = years.includes(Number(sp.year)) ? Number(sp.year) : years.at(-1);
   const [mk, competitors, lg] = await Promise.all([
-    year && market !== "LG" ? marketProducts(state, market, year) : null,
+    year && (market === "Individual" || market === "SHOP") ? marketProducts(state, market, year) : null,
     db.competitor.findMany({ where: { workspaceId: session.workspaceId }, select: { id: true, name: true, aliases: true, issuerPattern: true } }),
     market === "LG" ? largeGroupMarket(session.workspaceId, state) : null,
   ]);
@@ -45,16 +46,17 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
       <div>
         <h1 className="h1">Commercial products</h1>
         <DataAsOf datasets={market === "LG" ? ["mlr", "ma_chia", "dol_5500", "tic"] : ["qhp", "urrt"]} />
-        {market === "LG" ? <p className="max-w-3xl text-sm text-stone-500">Each carrier&apos;s large-group book: fully and self-insured members, premium and claims per member, what employers actually pay per covered person by group size, renewal increases, broker pay, product mix, and regulator rate reviews where published. Open a carrier for its large-group product line-up.</p> : <p className="max-w-3xl text-sm text-stone-500">Every carrier&apos;s exchange plans side by side: price at each metal tier, deductibles, networks, HSA options and the benefits that set them apart. From CMS&apos;s Exchange plan files, joined to rate filings for enrollment. Open a carrier for its full line-up and what changed this year.</p>}
+        {market === "MKT" ? <p className="max-w-3xl text-sm text-stone-500">How each carrier structures and sells its commercial products (virtual-first, limited or tiered networks, health-system plans, funding options) from its own marketing pages and brochures.</p> : market === "LG" ? <p className="max-w-3xl text-sm text-stone-500">Each carrier&apos;s large-group book: fully and self-insured members, premium and claims per member, what employers actually pay per covered person by group size, renewal increases, broker pay, product mix, and regulator rate reviews where published. Open a carrier for its large-group product line-up.</p> : <p className="max-w-3xl text-sm text-stone-500">Every carrier&apos;s exchange plans side by side: price at each metal tier, deductibles, networks, HSA options and the benefits that set them apart. From CMS&apos;s Exchange plan files, joined to rate filings for enrollment. Open a carrier for its full line-up and what changed this year.</p>}
       </div>
       <div className="flex flex-wrap items-center gap-1.5 text-xs">
         {NE_STATES.map((s) => <Link key={s} href={qs({ state: s, year: undefined })} className={chip(state === s)}>{s}</Link>)}
         <span className="mx-2 text-stone-300">|</span>
-        {["Individual", "SHOP", "LG"].map((m) => <Link key={m} href={qs({ market: m })} className={chip(market === m)}>{m === "SHOP" ? "Small group" : m === "LG" ? "Large group" : m}</Link>)}
-        {market !== "LG" && <><span className="mx-2 text-stone-300">|</span>
+        {["Individual", "SHOP", "LG", "MKT"].map((m) => <Link key={m} href={qs({ market: m })} className={chip(market === m)}>{m === "SHOP" ? "Small group" : m === "LG" ? "Large group" : m === "MKT" ? "How they're sold" : m}</Link>)}
+        {market !== "LG" && market !== "MKT" && <><span className="mx-2 text-stone-300">|</span>
         {years.map((y) => <Link key={y} href={qs({ year: String(y) })} className={chip(year === y)}>{y}</Link>)}</>}
       </div>
 
+      {market === "MKT" ? <MarketingMatrix workspaceId={session.workspaceId} /> : <>
       <ProductNews workspaceId={session.workspaceId} limit={8} />
 
       {market !== "LG" && <ProductMatrix workspaceId={session.workspaceId} state={state} />}
@@ -170,6 +172,7 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
           ]} />
         </>
       )}
+      </>}
     </div>
   );
 }

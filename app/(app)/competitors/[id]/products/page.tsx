@@ -18,6 +18,7 @@ import { groupProductLines, largeGroupMarket } from "@/lib/marketdata/lgbook";
 import { NE_STATES } from "@/lib/marketdata/products";
 import { directoryErrors } from "@/lib/marketdata/directory";
 import { ProductStrategy } from "@/components/ProductDossier";
+import { CompetitorMarketing } from "@/components/ProductMarketing";
 import { ProductNews } from "@/components/ProductNews";
 import { RatingAreaMap } from "@/components/RatingAreaMap";
 
@@ -87,6 +88,7 @@ export default async function CompetitorProductsPage({ params, searchParams }: {
       </div>
 
       <ProductStrategy comp={comp} state={state} workspaceId={session.workspaceId} />
+      <CompetitorMarketing name={comp.name} />
       <ProductNews workspaceId={session.workspaceId} competitorId={comp.id} days={365} limit={6} />
 
       {!r.markets.length && !r.lineup.length && (

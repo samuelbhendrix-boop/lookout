@@ -3,13 +3,13 @@
  * one-paragraph summaries, and a model that thinks first can spend the whole token budget before writing anything.
  * If the API rejects the thinking setting, the call is retried once without it and with more room.
  */
-export async function claudeText(opts: { system: string; user: string; maxTokens?: number; label: string }): Promise<{ text: string; model: string } | null> {
+export async function claudeText(opts: { system: string; user: string; maxTokens?: number; label: string; model?: string; timeoutMs?: number }): Promise<{ text: string; model: string } | null> {
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) return null;
-  const model = process.env.CLASSIFIER_MODEL ?? "claude-haiku-5-5";
+  let model = opts.model ?? process.env.CLASSIFIER_MODEL ?? "claude-haiku-5-5";
   const call = async (thinkingOff: boolean) => {
     const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST", signal: AbortSignal.timeout(60_000),
+      method: "POST", signal: AbortSignal.timeout(opts.timeoutMs ?? 60_000),
       headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
       body: JSON.stringify({
         model, max_tokens: thinkingOff ? (opts.maxTokens ?? 1200) : 8000, system: opts.system,
@@ -23,6 +23,8 @@ export async function claudeText(opts: { system: string; user: string; maxTokens
   try {
     let { res, raw } = await call(true);
     if (res.status === 400 && /thinking/i.test(raw)) ({ res, raw } = await call(false));
+    // A model this account can't use: fall back to the default one.
+    if (opts.model && (res.status === 404 || (res.status === 400 && /model/i.test(raw)))) { model = process.env.CLASSIFIER_MODEL ?? "claude-haiku-5-5"; ({ res, raw } = await call(true)); }
     if (!res.ok) { console.error(`[ai] ${opts.label}: HTTP ${res.status} ${raw.slice(0, 300)}`); return null; }
     const body = JSON.parse(raw) as { content?: Array<{ type?: string; text?: string }>; stop_reason?: string };
     const text = (body.content ?? []).filter((b) => b.type === "text" && b.text).map((b) => b.text!.trim()).join("\n\n").trim();

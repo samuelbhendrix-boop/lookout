@@ -859,3 +859,19 @@ model MarketCodeRate {
   @@index([codeType, code])
   @@index([state, billingClass])
 }
+
+/// A carrier's product-marketing page or brochure (lib/marketing): what the crawler last saw at that URL.
+model ProductPage {
+  id        String   @id @default(cuid())
+  site      String   // lib/marketing/sites.ts key
+  url       String   @unique
+  title     String
+  kind      String   // html | pdf
+  text      String
+  score     Int      @default(0)
+  hash      String
+  fetchedAt DateTime @default(now())
+  changedAt DateTime @default(now())
+
+  @@index([site])
+}
