@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.27.2 — 2026-11-10
+
+- Product news (Products, Home, competitor pages) now also draws on stories the feed filter archived automatically, mostly ones already over 30 days old when first fetched, so the 90-day view and the AI brief have material on a new install. They still have to pass the product test, name the carrier and, for national carriers, touch New England. Stories a person archived stay out.
+- AI write-up failures are logged ([ai] …) instead of silently falling back to rules.
+
 ## 0.27.1 — 2026-11-10
 
 - Hospital price-file import paused. After the database upgrade let it run, it filled the web server's 2 GB temporary disk and memory, and Render restarted the app every 1–2 minutes. It moves to the GitHub Actions extract instead (HPT_IMPORT=1 forces it back on).

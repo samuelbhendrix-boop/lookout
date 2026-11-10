@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { db } from "./db";
-import { AUTO_FILTER_TAG } from "./relevance";
+import { AUTO_FILTER_TAG, OUTSIDE_REGION_TAG, mentions, regionRelevant } from "./relevance";
 import { MARKET_NOISE } from "./briefing";
 
 /**
@@ -46,18 +46,29 @@ export function productScore(title: string, summary = ""): { score: number; them
 export async function productNews(workspaceId: string, days = 90, limit = 12, competitorId?: string): Promise<ProductItem[]> {
   const since = new Date(Date.now() - days * 864e5);
   const rows = await db.signal.findMany({
+    // Includes stories the feed filter archived automatically (mostly ones already over 30 days old when first
+    // fetched): the product test below is stricter than the feed's. Stories a person archived stay out.
     where: {
-      workspaceId, duplicateOfId: null, status: { not: "ARCHIVED" }, competitorId: competitorId ?? { not: null },
-      tags: { none: { tag: { name: { in: ["market-data", AUTO_FILTER_TAG] } } } },
+      workspaceId, duplicateOfId: null, competitorId: competitorId ?? { not: null },
+      AND: [
+        { tags: { none: { tag: { name: "market-data" } } } },
+        { OR: [{ status: { not: "ARCHIVED" } }, { tags: { some: { tag: { name: AUTO_FILTER_TAG } } } }] },
+      ],
       OR: [{ publishedAt: { gte: since } }, { publishedAt: null, createdAt: { gte: since } }],
     },
-    include: { competitor: { select: { id: true, name: true, tier: true } }, _count: { select: { coverage: true } } },
+    include: { competitor: { select: { id: true, name: true, tier: true, aliases: true, newsScope: true } }, _count: { select: { coverage: true } }, tags: { select: { tag: { select: { name: true } } } } },
     orderBy: { createdAt: "desc" }, take: 3000,
   });
   const out: ProductItem[] = [];
   for (const s of rows) {
     const r = productScore(s.title, s.summary ?? "");
     if (!r) continue;
+    if (s.status === "ARCHIVED") {
+      // Auto-archived: only if it really names the carrier and, for New England-scoped carriers, touches the region.
+      const text = `${s.title}\n${s.summary ?? ""}`;
+      if (!mentions(text, s.competitor!)) continue;
+      if (s.tags.some((t) => t.tag.name === OUTSIDE_REGION_TAG) || (s.competitor!.newsScope === "region" && !regionRelevant(text))) continue;
+    }
     const ageDays = (Date.now() - (s.publishedAt ?? s.createdAt).getTime()) / 864e5;
     const score = r.score + Math.min(s._count.coverage, 4) * 0.5 + (s.importance - 2) * 0.5 + (s.competitor!.tier === 1 ? 1 : 0) - ageDays / 45;
     out.push({ id: s.id, title: s.title, summary: s.summary, url: s.url, competitor: s.competitor!.name, competitorId: s.competitor!.id, when: s.publishedAt ?? s.createdAt, outlets: s._count.coverage + 1, score, theme: r.theme, regional: r.regional });
@@ -96,7 +107,7 @@ export async function productBrief(workspaceId: string, items: ProductItem[]): P
         messages: [{ role: "user", content: top.map((i) => `id: ${i.id}\ncompetitor: ${i.competitor}\ndate: ${i.when.toISOString().slice(0, 10)}\ntitle: ${i.title}\nsummary: ${(i.summary ?? "").slice(0, 500)}`).join("\n\n") }],
       }),
     });
-    if (!res.ok) return c?.brief ?? null;
+    if (!res.ok) { console.error(`[ai] product brief: HTTP ${res.status} ${(await res.text().catch(() => "")).slice(0, 300)}`); return c?.brief ?? null; }
     const body = (await res.json()) as { content?: Array<{ text?: string }> };
     const raw = body.content?.[0]?.text ?? "";
     const parsed = JSON.parse(raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1)) as { points?: Array<{ text: string; ids: string[] }> };
@@ -105,7 +116,8 @@ export async function productBrief(workspaceId: string, items: ProductItem[]): P
     const data = { carrier: "_cache", carrierName: "_cache", network: "product-brief", url: "", status: "cache", stats: JSON.parse(JSON.stringify({ hash, brief })), processedAt: new Date() };
     await db.rateFile.upsert({ where: { id }, create: { id, ...data }, update: data });
     return brief;
-  } catch {
+  } catch (e) {
+    console.error(`[ai] product brief failed: ${(e as Error).message}`);
     return c?.brief ?? null;
   }
 }

@@ -310,7 +310,7 @@ export async function strategyNarrative(competitorId: string, name: string, d: A
         messages: [{ role: "user", content: facts }],
       }),
     });
-    if (!res.ok) return c?.n ?? null;
+    if (!res.ok) { console.error(`[ai] strategy read: HTTP ${res.status} ${(await res.text().catch(() => "")).slice(0, 300)}`); return c?.n ?? null; }
     const body = (await res.json()) as { content?: Array<{ text?: string }> };
     const text = body.content?.[0]?.text?.trim();
     if (!text) return c?.n ?? null;
@@ -318,7 +318,8 @@ export async function strategyNarrative(competitorId: string, name: string, d: A
     const data = { carrier: "_cache", carrierName: "_cache", network: "strategy", url: "", status: "cache", stats: JSON.parse(JSON.stringify({ hash, n })), processedAt: new Date() };
     await db.rateFile.upsert({ where: { id }, create: { id, ...data }, update: data });
     return n;
-  } catch {
+  } catch (e) {
+    console.error(`[ai] strategy read failed: ${(e as Error).message}`);
     return c?.n ?? null;
   }
 }
