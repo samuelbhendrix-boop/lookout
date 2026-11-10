@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Prisma } from "@prisma/client";
 import { db } from "../db";
+import { findRelease, type Release } from "./ghrelease";
 
 /**
  * Loads the monthly MRF extract's market summary (built for free in GitHub Actions by .github/workflows/mrf-extract.yml)
@@ -13,22 +14,17 @@ import { db } from "../db";
 const UA = { "User-Agent": "Mozilla/5.0 (compatible; PayersightBot; +https://github.com/samuelbhendrix-boop/lookout)" };
 export const MRF_REPO = "samuelbhendrix-boop/lookout";
 
-type Release = { tag_name: string; published_at: string; html_url: string; assets: Array<{ name: string; browser_download_url: string; size: number }> };
-
 export async function latestExtract(): Promise<Release | null> {
-  const res = await fetch(`https://api.github.com/repos/${MRF_REPO}/releases?per_page=30`, { headers: { ...UA, accept: "application/vnd.github+json" }, signal: AbortSignal.timeout(30_000) });
-  if (!res.ok) throw new Error(`GitHub releases API: HTTP ${res.status}`);
-  const rels = (await res.json()) as Release[];
-  return rels.filter((r) => /^mrf-\d{4}-\d{2}$/.test(r.tag_name) && r.assets.some((a) => a.name === "summary-code-rates.csv.gz")).sort((a, b) => b.tag_name.localeCompare(a.tag_name))[0] ?? null;
+  return findRelease("mrf", "summary-code-rates.csv.gz", ["manifest.json"]);
 }
 
 export async function importMrfExtract(): Promise<number> {
   const rel = await latestExtract();
   if (!rel) throw new Error("No monthly MRF extract published yet (GitHub release mrf-YYYY-MM). It runs on the 4th of each month, or start it from the repo's Actions tab.");
   const month = rel.tag_name.slice(4);
-  // Same release as last time: nothing to reload.
+  // Same release as last time (and not republished since): nothing to reload.
   const prev = await extractInfo();
-  if (prev?.release === rel.tag_name) { const n = await db.marketCodeRate.count({ where: { month } }); if (n) return n; }
+  if (prev?.version === rel.version) { const n = await db.marketCodeRate.count({ where: { month } }); if (n) return n; }
   const asset = (n: string) => rel.assets.find((a) => a.name === n)!.browser_download_url;
   const manifest = (await (await fetch(asset("manifest.json"), { headers: UA })).json()) as { sources: Array<{ carrier: string; carrierName: string }>; failed: Array<{ carrierName?: string; network?: string; error?: string }> };
   const names = new Map(manifest.sources.map((s) => [s.carrier, s.carrierName]));
@@ -57,14 +53,14 @@ export async function importMrfExtract(): Promise<number> {
   }
   if (batch.length) { await db.marketCodeRate.createMany({ data: batch }); n += batch.length; }
   await db.marketCodeRate.deleteMany({ where: { month: { not: month } } });
-  const data = { carrier: "_cache", carrierName: "_cache", network: "mrfx", url: rel.html_url, status: "cache", stats: JSON.parse(JSON.stringify({ month, release: rel.tag_name, url: rel.html_url, failed: manifest.failed.slice(0, 50), files: manifest.sources.length })), processedAt: new Date() };
+  const data = { carrier: "_cache", carrierName: "_cache", network: "mrfx", url: rel.html_url, status: "cache", stats: JSON.parse(JSON.stringify({ month, release: rel.tag_name, version: rel.version, url: rel.html_url, failed: manifest.failed.slice(0, 50), files: manifest.sources.length })), processedAt: new Date() };
   await db.rateFile.upsert({ where: { id: "cache:mrfx" }, create: { id: "cache:mrfx", ...data }, update: data });
   return n;
 }
 
 export async function extractInfo() {
   const row = await db.rateFile.findUnique({ where: { id: "cache:mrfx" } });
-  return (row?.stats as { month: string; release: string; url: string; failed: Array<{ carrierName?: string; network?: string; error?: string }>; files: number } | null) ?? null;
+  return (row?.stats as { month: string; release: string; version?: string; url: string; failed: Array<{ carrierName?: string; network?: string; error?: string }>; files: number } | null) ?? null;
 }
 
 // ── Service catalog (data/mrf/codes.csv, built by scripts/build-mrf-codes.py) ──────────────────────────────────────
