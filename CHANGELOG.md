@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.26.0 — 2026-11-09
+
+- **Reports** section, first report: **New commercial products, 2025–2027**. Every new individual and small-group product in every state's rate filings: which took off (members in the following filings, share, price vs market), what kind of product each is (condition-specific, $0 primary care, virtual-first, bundled dental/vision, narrow network, HSA, public option, provider-owned, Medicaid plans going commercial …), the 2027 pipeline, carrier entries and exits, and launches that only re-filed existing members. Filter to any state. Rebuilds itself when a new filing year arrives.
+- A dated analyst read on top, with sources: launches falling and exits outpacing entries as subsidies lapsed; the winners were price-led narrow HMOs (Oscar Texas, Elevance's Wellpoint); feature bundles rarely scale; 2027 bets on condition-specific plans, $0 primary care and CHOICE/ICHRA; the New England openings.
+- 2027 CMS rate filings (found by the release check) power the report.
+
 ## 0.25.0 — 2026-11-09
 
 - **New yearly releases are found automatically.** A weekly check reads CMS's rate-review page and CHIA's enrollment page, and probes next year's CMS loss-ratio, Exchange plan and DOL Form 5500 files. New years are added to the import list on their own; a republished file (new link for a year already on file) re-imports. Each find posts a "New data" item to Updates (Market view), and Settings → System status shows the last check, what it found and anything it couldn't reach.

@@ -1,0 +1,209 @@
+import Link from "next/link";
+import { launchReport, THEMES, type Launch } from "@/lib/reports/launches";
+import { LaunchesRead } from "@/components/reports/LaunchesRead";
+import { NotIncluded } from "@/components/NotIncluded";
+import { Empty } from "@/components/ui";
+import { fmtInt } from "@/components/charts";
+
+export const dynamic = "force-dynamic";
+export const metadata = { title: "Product launches · Reports" };
+
+const LABEL = Object.fromEntries(THEMES.map((t) => [t.id, t.label])) as Record<string, string>;
+const mk = (m: string) => (m === "Individual" ? "Ind" : "SG");
+const pct = (v: number | null | undefined, d = 0) => (v == null ? "—" : `${(v * 100).toFixed(d)}%`);
+const idx = (l: Launch) => (l.premium && l.marketPremium ? l.premium / l.marketPremium : null);
+const measured = (l: Launch) => l.laterEnrolled ?? l.nextEnrolled;
+
+function Themes({ l }: { l: Launch }) {
+  return <div className="flex flex-wrap gap-1">{l.themes.map((t) => <span key={t} className="rounded bg-stone-100 px-1 text-[10px] text-stone-600">{LABEL[t]}</span>)}</div>;
+}
+
+export default async function LaunchesReport({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
+  const sp = await searchParams;
+  const r = await launchReport();
+  if (!r) return <div className="space-y-4"><h1 className="h1">Product launches</h1><Empty title="No rate filings yet">CMS rate filings import in the background; check System status.</Empty></div>;
+  const states = [...new Set(r.launches.map((l) => l.state))].sort();
+  const st = states.includes(sp.state ?? "") ? sp.state! : null;
+  const L = r.launches.filter((l) => !st || l.state === st);
+  const M = r.moves.filter((m) => !st || m.state === st);
+  const last = r.years.at(-1)!;
+  const winners = L.filter((l) => !l.migrated && (measured(l) ?? 0) > 0).sort((a, b) => measured(b)! - measured(a)!).slice(0, st ? 20 : 25);
+  const net = L.filter((l) => !l.migrated && measured(l) != null);
+  const hit = net.length ? net.filter((l) => measured(l)! >= 5000).length / net.length : null;
+  const pipeline = L.filter((l) => l.year === last).sort((a, b) => b.themes.length - a.themes.length || b.plans - a.plans);
+  const migrated = L.filter((l) => l.migrated).sort((a, b) => (measured(b) ?? 0) - (measured(a) ?? 0)).slice(0, 10);
+  const chip = (on: boolean) => `rounded px-2 py-1 ${on ? "bg-stone-900 text-white" : "bg-stone-100 hover:bg-stone-200"}`;
+  const ne = ["MA", "CT", "RI", "NH", "VT", "ME"];
+  const median = (xs: number[]) => { const s = [...xs].sort((a, b) => a - b); if (!s.length) return null; const m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+
+  return (
+    <div className="space-y-8">
+      <div>
+        <p className="font-mono text-[10px] uppercase tracking-wide text-stone-500">Reports</p>
+        <h1 className="h1">New commercial products, {r.years[0]}–{last}</h1>
+        <p className="max-w-3xl text-sm text-stone-500">Every new individual and small-group product filed in every state, which ones took off, what kind of product they are, and who entered or left which markets. From CMS&apos;s rate-review files for plan years {r.years.join(", ")}; rebuilt automatically when a new year&apos;s filings arrive.</p>
+        <div className="mt-3 flex flex-wrap items-center gap-1 text-xs">
+          <Link href="/reports/launches" className={chip(!st)}>All states</Link>
+          <span className="mx-1 text-stone-300">|</span>
+          {ne.filter((s) => states.includes(s)).map((s) => <Link key={s} href={`/reports/launches?state=${s}`} className={chip(st === s)}>{s}</Link>)}
+          <span className="mx-1 text-stone-300">|</span>
+          {states.filter((s) => !ne.includes(s)).map((s) => <Link key={s} href={`/reports/launches?state=${s}`} className={chip(st === s)}>{s}</Link>)}
+        </div>
+      </div>
+
+      {!st && <LaunchesRead />}
+
+      <section className="grid gap-3 sm:grid-cols-3">
+        {r.byYear.map((y) => {
+          const ls = L.filter((l) => l.year === y.year), ms = M.filter((m) => m.year === y.year);
+          return (
+            <div key={y.year} className="card p-4">
+              <p className="font-mono text-[11px] uppercase tracking-wide text-stone-500">Plan year {y.year}{st ? ` · ${st}` : ""}</p>
+              <p className="mt-1 text-2xl font-semibold tabular-nums">{ls.length} <span className="text-sm font-normal text-stone-500">new products</span></p>
+              <p className="text-xs text-stone-500">{ls.filter((l) => !l.migrated).length} genuinely new · {ls.filter((l) => l.migrated).length} re-filed existing members · {ls.filter((l) => l.market === "Individual").length} individual, {ls.filter((l) => l.market !== "Individual").length} small group</p>
+              {y.year > r.years[0] && <p className="mt-2 text-sm"><span className="text-emerald-700">{ms.filter((m) => m.kind === "entry").length} market entries</span> · <span className="text-red-600">{ms.filter((m) => m.kind === "exit").length} exits</span></p>}
+            </div>
+          );
+        })}
+      </section>
+
+      <section className="space-y-2">
+        <h2 className="text-lg font-semibold tracking-tight">Which launches took off</h2>
+        <p className="text-xs text-stone-500">Genuinely new products ranked by members in the latest filing that reports them (a product launched for {r.years[0]} shows its members in the {r.years[0] + 1} and {r.years[0] + 2} filings). {hit != null && <>Only {pct(hit)} of {net.length} measurable launches{st ? ` in ${st}` : ""} reached 5,000 members; the median reached {fmtInt(median(net.map((l) => measured(l)!)) ?? 0)}.</>} Price index = projected premium per member vs the state-market median (100 = median).</p>
+        {winners.length ? (
+          <div className="card overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="border-b border-stone-200 text-left font-mono text-[10px] uppercase tracking-wide text-stone-500"><tr><th className="px-3 py-2">Product</th><th className="px-3 py-2">Carrier</th><th className="px-3 py-2">Launched</th><th className="px-3 py-2 text-right">Members, next filing</th><th className="px-3 py-2 text-right">Year after</th><th className="px-3 py-2 text-right">Share</th><th className="px-3 py-2 text-right">Price idx</th><th className="px-3 py-2">Kind</th></tr></thead>
+              <tbody className="divide-y divide-stone-100">
+                {winners.map((l) => (
+                  <tr key={`${l.year}${l.productId}`} className="align-top">
+                    <td className="max-w-[260px] px-3 py-1.5"><span className="font-medium">{l.name}</span><div className="text-[10px] text-stone-500">{l.planType} · {l.plans} plans · {l.metals.join("/")}</div></td>
+                    <td className="max-w-[180px] px-3 py-1.5 text-xs">{l.brand}<div className="text-[10px] text-stone-400">{l.company}</div></td>
+                    <td className="whitespace-nowrap px-3 py-1.5 text-xs">{l.year} · {l.state} {mk(l.market)}</td>
+                    <td className="px-3 py-1.5 text-right tabular-nums">{fmtInt(l.nextEnrolled)}</td>
+                    <td className="px-3 py-1.5 text-right tabular-nums">{l.laterEnrolled != null ? fmtInt(l.laterEnrolled) : "—"}</td>
+                    <td className="px-3 py-1.5 text-right tabular-nums">{pct(l.share, 1)}</td>
+                    <td className={`px-3 py-1.5 text-right tabular-nums ${(idx(l) ?? 1) <= 0.95 ? "text-emerald-700" : (idx(l) ?? 1) >= 1.1 ? "text-red-600" : ""}`}>{idx(l) != null ? Math.round(idx(l)! * 100) : "—"}</td>
+                    <td className="px-3 py-1.5"><Themes l={l} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : <p className="text-sm text-stone-500">No measurable new launches{st ? ` in ${st}` : ""} yet.</p>}
+      </section>
+
+      {!st && (
+        <section className="space-y-2">
+          <h2 className="text-lg font-semibold tracking-tight">What kinds of products launch, and which work</h2>
+          <p className="text-xs text-stone-500">Kind is read from product and plan names, so it only catches designs carriers name (a product can be several kinds). Genuinely new launches only; &quot;reached 5K&quot; = share of measurable launches with 5,000+ members.</p>
+          <div className="card overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="border-b border-stone-200 text-left font-mono text-[10px] uppercase tracking-wide text-stone-500"><tr><th className="px-3 py-2">Kind</th>{r.years.map((y) => <th key={y} className="px-3 py-2 text-right">{y}</th>)}<th className="px-3 py-2 text-right">Measured</th><th className="px-3 py-2 text-right">Median members</th><th className="px-3 py-2 text-right">Reached 5K</th><th className="px-3 py-2">Biggest</th></tr></thead>
+              <tbody className="divide-y divide-stone-100">
+                {r.themes.map((t) => (
+                  <tr key={t.id} className="align-top">
+                    <td className="max-w-[260px] px-3 py-1.5"><span className="font-medium">{t.label}</span><div className="text-[10px] text-stone-500">{t.about}</div></td>
+                    {r.years.map((y) => <td key={y} className="px-3 py-1.5 text-right tabular-nums">{t.byYear[y] || "—"}</td>)}
+                    <td className="px-3 py-1.5 text-right tabular-nums">{t.measured}</td>
+                    <td className="px-3 py-1.5 text-right tabular-nums">{t.medianEnrolled != null ? fmtInt(Math.round(t.medianEnrolled)) : "—"}</td>
+                    <td className="px-3 py-1.5 text-right tabular-nums">{pct(t.hitRate)}</td>
+                    <td className="px-3 py-1.5 text-xs text-stone-600">{t.topExample ? `${t.topExample.name} (${t.topExample.brand}, ${t.topExample.state} ${t.topExample.year}) · ${fmtInt(measured(t.topExample))}` : "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
+      <section className="space-y-2">
+        <h2 className="text-lg font-semibold tracking-tight">Filed for {last}: the pipeline{st ? ` · ${st}` : ""}</h2>
+        <p className="text-xs text-stone-500">New products in the {last} filings, no enrollment yet. Most distinctive first (more kinds, then more plans). Example plan names show what the carrier is selling.</p>
+        {pipeline.length ? (
+          <div className="card overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="border-b border-stone-200 text-left font-mono text-[10px] uppercase tracking-wide text-stone-500"><tr><th className="px-3 py-2">Product</th><th className="px-3 py-2">Carrier</th><th className="px-3 py-2">Where</th><th className="px-3 py-2 text-right">Plans</th><th className="px-3 py-2 text-right">Price idx</th><th className="px-3 py-2">Kind</th><th className="px-3 py-2">Example plans</th></tr></thead>
+              <tbody className="divide-y divide-stone-100">
+                {pipeline.slice(0, st ? 60 : 50).map((l) => (
+                  <tr key={l.productId} className="align-top">
+                    <td className="max-w-[220px] px-3 py-1.5 font-medium">{l.name}<div className="text-[10px] font-normal text-stone-500">{l.planType} · {l.onExchange ? `${l.onExchange} on exchange` : "off-exchange"}</div></td>
+                    <td className="max-w-[160px] px-3 py-1.5 text-xs">{l.brand}</td>
+                    <td className="whitespace-nowrap px-3 py-1.5 text-xs">{l.state} {mk(l.market)}</td>
+                    <td className="px-3 py-1.5 text-right tabular-nums">{l.plans}</td>
+                    <td className="px-3 py-1.5 text-right tabular-nums">{idx(l) != null ? Math.round(idx(l)! * 100) : "—"}</td>
+                    <td className="px-3 py-1.5"><Themes l={l} /></td>
+                    <td className="max-w-[340px] px-3 py-1.5 text-[11px] text-stone-600">{l.examples.join(" · ")}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {pipeline.length > (st ? 60 : 50) && <p className="border-t border-stone-100 px-3 py-1.5 text-[11px] text-stone-500">{pipeline.length - (st ? 60 : 50)} more; pick a state to see them all.</p>}
+          </div>
+        ) : <p className="text-sm text-stone-500">No new products filed{st ? ` in ${st}` : ""} for {last}.</p>}
+      </section>
+
+      <section className="space-y-2">
+        <h2 className="text-lg font-semibold tracking-tight">Who entered and who left</h2>
+        <p className="text-xs text-stone-500">A carrier selling in a state and market it didn&apos;t the year before, or no longer selling where it did. Members = its enrollment in the filing before it left (or its first filing after entering). Renames and moves between a carrier&apos;s own legal entities are left out.</p>
+        <div className="grid gap-3 md:grid-cols-2">
+          {(["exit", "entry"] as const).map((kind) => {
+            const xs = M.filter((m) => m.kind === kind).sort((a, b) => b.year - a.year || b.enrolled - a.enrolled);
+            return (
+              <div key={kind} className="card overflow-hidden">
+                <p className={`border-b border-stone-100 px-3 py-2 text-sm font-medium ${kind === "exit" ? "text-red-700" : "text-emerald-700"}`}>{kind === "exit" ? "Exits" : "Entries"} ({xs.length})</p>
+                <div className="max-h-[420px] overflow-y-auto">
+                  <table className="w-full text-xs" data-static>
+                    <tbody className="divide-y divide-stone-100">
+                      {xs.slice(0, 200).map((m) => <tr key={`${m.year}${m.state}${m.market}${m.brand}`}><td className="px-3 py-1 tabular-nums text-stone-500">{m.year}</td><td className="px-3 py-1">{m.brand}</td><td className="whitespace-nowrap px-3 py-1">{m.state} {mk(m.market)}</td><td className="px-3 py-1 text-right tabular-nums">{m.enrolled ? fmtInt(m.enrolled) : "—"}</td></tr>)}
+                    </tbody>
+                  </table>
+                  {!xs.length && <p className="px-3 py-2 text-stone-500">None.</p>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      {!st && (
+        <section className="space-y-2">
+          <h2 className="text-lg font-semibold tracking-tight">Most active launchers</h2>
+          <div className="card overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="border-b border-stone-200 text-left font-mono text-[10px] uppercase tracking-wide text-stone-500"><tr><th className="px-3 py-2">Carrier</th><th className="px-3 py-2 text-right">New products</th><th className="px-3 py-2 text-right">States</th><th className="px-3 py-2 text-right">Members won by new launches</th><th className="px-3 py-2 text-right">Entries</th><th className="px-3 py-2 text-right">Exits</th><th className="px-3 py-2">Best launch</th></tr></thead>
+              <tbody className="divide-y divide-stone-100">
+                {r.brands.slice(0, 30).map((b) => (
+                  <tr key={b.brand}><td className="px-3 py-1.5 font-medium">{b.brand}</td><td className="px-3 py-1.5 text-right tabular-nums">{b.launches}</td><td className="px-3 py-1.5 text-right tabular-nums">{b.states}</td><td className="px-3 py-1.5 text-right tabular-nums">{fmtInt(b.netNewEnrolled || null)}</td><td className="px-3 py-1.5 text-right tabular-nums text-emerald-700">{b.entries || "—"}</td><td className="px-3 py-1.5 text-right tabular-nums text-red-600">{b.exits || "—"}</td><td className="px-3 py-1.5 text-xs text-stone-600">{b.best && measured(b.best) ? `${b.best.name} (${b.best.state} ${b.best.year}) · ${fmtInt(measured(b.best))}` : "—"}</td></tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
+      {migrated.length > 0 && (
+        <section className="space-y-2">
+          <h2 className="text-lg font-semibold tracking-tight">New on paper only</h2>
+          <p className="text-xs text-stone-500">Launches where the same carrier dropped at least half as many members from its other plans in that state and market the same year: existing members re-filed into a new product or legal entity. Kept out of the rankings above.</p>
+          <div className="card overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="border-b border-stone-200 text-left font-mono text-[10px] uppercase tracking-wide text-stone-500"><tr><th className="px-3 py-2">Product</th><th className="px-3 py-2">Carrier</th><th className="px-3 py-2">Launched</th><th className="px-3 py-2 text-right">Members after</th><th className="px-3 py-2 text-right">Members moved out of other plans</th></tr></thead>
+              <tbody className="divide-y divide-stone-100">
+                {migrated.map((l) => <tr key={`${l.year}${l.productId}`}><td className="px-3 py-1.5">{l.name}</td><td className="px-3 py-1.5 text-xs">{l.brand}</td><td className="px-3 py-1.5 text-xs">{l.year} · {l.state} {mk(l.market)}</td><td className="px-3 py-1.5 text-right tabular-nums">{fmtInt(measured(l))}</td><td className="px-3 py-1.5 text-right tabular-nums text-stone-500">{fmtInt(l.brandTerminated)}</td></tr>)}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
+      <NotIncluded items={[
+        <>ACA individual and small-group products only (the rate-review filings). Large-group, self-funded and Medicare products aren&apos;t filed this way. ICHRA/CHOICE enrollment buys individual plans, so it&apos;s inside the individual numbers but can&apos;t be separated.</>,
+        <>Members are the enrollment each carrier reports when it files (months before the plan year), so a launch&apos;s first real count is in the next year&apos;s filing, and the latest year has none yet.</>,
+        <>The newest year&apos;s file is CMS&apos;s first release; a carrier whose filing wasn&apos;t final may be missing and look like an exit until CMS republishes (the import picks up republished files automatically).</>,
+        <>&quot;Kind&quot; is inferred from product and plan names. A design the carrier doesn&apos;t name (say, $0 primary care described only in the plan document) isn&apos;t caught.</>,
+        <>Carriers are grouped by parent where the subsidiary names make it clear (Centene, Elevance, UnitedHealthcare, HCSC and others); unfamiliar subsidiaries stay under their own name.</>,
+      ]} />
+    </div>
+  );
+}
