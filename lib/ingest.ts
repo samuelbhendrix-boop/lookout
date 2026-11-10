@@ -66,7 +66,7 @@ export class TransientFeedError extends Error {}
 const isTransient = (status: number) => status === 429 || status === 502 || status === 503 || status === 504;
 
 /** Fetches feed XML: politely, and falling back from Google News to Bing News when throttled. */
-async function fetchFeed(url: string): Promise<string> {
+export async function fetchFeed(url: string): Promise<string> {
   const res = await politely(url, () => safeFetch(url, { headers: UA }));
   if (res.ok) return res.text;
   if (isTransient(res.status)) {
@@ -80,7 +80,7 @@ async function fetchFeed(url: string): Promise<string> {
   throw new Error(`Feed returned HTTP ${res.status}`);
 }
 
-const stripHtml = (s: string) => s.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+export const stripHtml = (s: string) => s.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 
 /**
  * Feeds disagree on shapes: some send titles/links as objects (e.g. CMS sends

@@ -962,3 +962,27 @@ model SerffCrosswalk {
 
   @@index([filingId])
 }
+
+/// AI-industry news that bears on health insurance (the "AI watch" page). Global, not per workspace: the same stories
+/// matter to every payer. Collected from news searches every few hours; each story is judged once by a cheap model.
+model AiNews {
+  id          String    @id @default(cuid())
+  url         String    @unique
+  titleKey    String    @unique // normalised title: the same wire story from several outlets is kept once
+  title       String
+  outlet      String?
+  summary     String?
+  publishedAt DateTime?
+  feed        String
+  judged      Boolean   @default(false)
+  relevant    Boolean   @default(false)
+  category    String?
+  impact      Int? // 3 = changes payer economics, operations or compliance; 2 = notable; 1 = background
+  why         String? // why a payer should care, one line
+  story       String? // short label for the underlying event, so several outlets' versions group together
+  companies   String[]
+  createdAt   DateTime  @default(now())
+
+  @@index([relevant, publishedAt(sort: Desc)])
+  @@index([judged])
+}

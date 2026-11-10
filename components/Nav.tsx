@@ -14,6 +14,7 @@ const GROUPS = [
       { href: "/competitors", label: "Competitors" },
       { href: "/products", label: "Products" },
       { href: "/market", label: "Market" },
+      { href: "/ai-watch", label: "AI watch" },
     ],
   },
   {
