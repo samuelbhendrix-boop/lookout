@@ -79,7 +79,7 @@ export default async function CompetitorProductsPage({ params, searchParams }: {
         <p className="max-w-3xl text-sm text-stone-500">
           Every individual and small-group plan this carrier files, from CMS&apos;s Exchange plan files (benefit design, cost sharing, network, premiums by
           age) and its rate filings (enrollment, rate changes, off-exchange plans). Compared against every other carrier in the same state, market and metal tier.{" "}
-          <Link className="underline" href={`/products${state ? `?state=${state}` : ""}`}>Compare all carriers →</Link>{" "}
+          <Link className="underline" href={`/competitors/products${state ? `?state=${state}` : ""}`}>Compare all carriers →</Link>{" "}
           {(lgPerState.length > 0 || lgLines.lines.length > 0) && <a className="font-medium underline" href="#large-group">Large group ↓</a>}
         </p>
         <nav className="mt-4 flex flex-wrap gap-1 text-sm">
@@ -126,7 +126,7 @@ export default async function CompetitorProductsPage({ params, searchParams }: {
         <section key={`${m.state}${m.market}`} id={`${m.state}-${m.market}`} className="space-y-6 border-t border-stone-200 pt-6">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <h2 className="text-lg font-semibold tracking-tight">{m.state} · {MARKET_LABEL[m.market]} · plan year {m.year}</h2>
-            <Link href={`/products?state=${m.state}&market=${m.market}`} className="text-xs text-stone-500 hover:text-stone-900">All carriers in {m.state} →</Link>
+            <Link href={`/competitors/products?state=${m.state}&market=${m.market}`} className="text-xs text-stone-500 hover:text-stone-900">All carriers in {m.state} →</Link>
           </div>
           <p className="text-sm text-stone-600">
             {m.plans.length} plans{m.networks.length ? ` on ${m.networks.length === 1 ? "the" : ""} ${m.networks.map((n) => `“${n}”`).join(", ")} network${m.networks.length === 1 ? "" : "s"}` : ""}

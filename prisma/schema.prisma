@@ -986,3 +986,16 @@ model AiNews {
   @@index([relevant, publishedAt(sort: Desc)])
   @@index([judged])
 }
+
+/// A saved view of the Competitors → Data table: its name and the page's query string (row level, filters, columns,
+/// sort, chart). Shared with everyone in the workspace.
+model SavedPull {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  query       String
+  createdBy   String?
+  createdAt   DateTime @default(now())
+
+  @@index([workspaceId])
+}

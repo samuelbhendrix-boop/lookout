@@ -134,7 +134,7 @@ export function LargeGroupCompetitor({ perState, lines, totalPlans }: { perState
             <tbody className="divide-y divide-stone-100">
               {perState.map(({ data, row: r }) => (
                 <tr key={data.state}>
-                  <td className="px-3 py-1.5"><Link className="font-medium hover:underline" href={`/products?state=${data.state}&market=LG`}>{data.state}</Link></td>
+                  <td className="px-3 py-1.5"><Link className="font-medium hover:underline" href={`/competitors/products?state=${data.state}&market=LG`}>{data.state}</Link></td>
                   <td className="px-3 py-1.5 text-right tabular-nums">{int(r.lives ?? r.fullyInsured)}</td>
                   <td className="px-3 py-1.5 text-right tabular-nums">{pct(r.share, 1)}</td>
                   <td className={`px-3 py-1.5 text-right tabular-nums ${tone(r.livesChange, false)}`}>{signed(r.livesChange)}</td>

@@ -125,11 +125,11 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
           <HBars rows={[...(mkt ? [{ name: "Market", values: mkt.values }] : []), ...filedComp]} keys={filed.years} colors={yearColors} fmt={pct} reference={{ value: 0, label: "0%" }} />
           <Legend items={filed.years.map((y, i) => ({ name: y, color: yearColors[i] }))} />
         </Card>
-        <Card title="Cheapest silver plan, age 40" sub={`Monthly premium on the ${state} exchange, by plan year.`} href={`/products?state=${state}`} cta="Products">
+        <Card title="Cheapest silver plan, age 40" sub={`Monthly premium on the ${state} exchange, by plan year.`} href={`/competitors/products?state=${state}`} cta="Products">
           <LineChart series={top6(exch.silver)} x={exch.years} color={color} fmt={usd} />
           <Legend items={legendFor(top6(exch.silver))} />
         </Card>
-        <Card title="Exchange plans offered" sub={`Individual plans filed on the ${state} exchange, by plan year: expansion or retreat.`} href={`/products?state=${state}`} cta="Products">
+        <Card title="Exchange plans offered" sub={`Individual plans filed on the ${state} exchange, by plan year: expansion or retreat.`} href={`/competitors/products?state=${state}`} cta="Products">
           <LineChart series={top6(exch.plans)} x={exch.years} color={color} fmt={(v) => String(Math.round(v))} yZero />
           <Legend items={legendFor(top6(exch.plans))} />
         </Card>

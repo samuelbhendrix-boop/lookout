@@ -12,7 +12,6 @@ const GROUPS = [
     id: "review", label: "Market Review", links: [
       { href: "/updates", label: "Updates" },
       { href: "/competitors", label: "Competitors" },
-      { href: "/products", label: "Products" },
       { href: "/market", label: "Market" },
       { href: "/ai-watch", label: "AI watch" },
     ],

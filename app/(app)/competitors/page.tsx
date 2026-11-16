@@ -9,6 +9,7 @@ import { StarterPacks } from "@/components/StarterPacks";
 import { packsWithStatus } from "@/lib/starter-packs";
 import { untrackedCarriers } from "@/lib/briefing";
 import { Footprint } from "@/components/Footprint";
+import { CompetitorTabs } from "@/components/CompetitorTabs";
 
 export const dynamic = "force-dynamic";
 
@@ -38,10 +39,7 @@ export default async function CompetitorsPage({ searchParams }: { searchParams: 
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="h1">Competitors</h1>
-        <p className="text-sm text-stone-500">Where each competitor sells and how big it is, then the list you manage below. Aliases drive auto-attribution for general market sources; be generous with them.</p>
-      </div>
+      <CompetitorTabs view="overview" sub="Where each competitor sells and how big it is, then the list you manage below. Aliases drive auto-attribution for general market sources; be generous with them." />
       {competitors.length > 0 && !competitors.some((c) => c.id === usId) && (
         <div className="card flex flex-wrap items-center justify-between gap-2 border-amber-200 bg-amber-50 p-3 text-sm">
           <span><span className="font-medium">Which one is your company?</span> Mark it with &quot;This is us&quot; in the list below and every page compares against it: share, members, pricing, products. Not listed? Add it as a competitor first.</span>
