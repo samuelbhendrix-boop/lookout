@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import type { Agg, Dim, Facts, Fmt, Measure, View } from "@/lib/explore";
-import { questionQuery, type Question, type Topic } from "@/lib/explore-questions";
+import { OVERVIEW, questionQuery, type Question } from "@/lib/explore-questions";
 
 /**
  * A pivot table over one dataset's facts: rows (any number of dimensions, nested with subtotals), columns (one
@@ -12,7 +12,7 @@ import { questionQuery, type Question, type Topic } from "@/lib/explore-question
 type Saved = { id: string; name: string; query: string };
 type Show = "value" | "pctCol" | "pctRow" | "pctParent" | "chg" | "diff";
 type Val = { m: string; agg: Agg; show: Show };
-type Props = { facts: Facts; datasets: Array<{ key: string; label: string; hint: string; seg: string }>; topics: Topic[]; saved: Saved[]; init: Record<string, string | undefined> };
+type Props = { facts: Facts; datasets: Array<{ key: string; label: string; hint: string; seg: string }>; topics: Question[]; saved: Saved[]; init: Record<string, string | undefined> };
 
 const AGG_LABEL: Record<Agg, string> = { sum: "Sum", avg: "Average", wavg: "Weighted avg", min: "Min", max: "Max", median: "Median", count: "Count", distinct: "Count distinct", ratio: "Ratio" };
 const SHOW_LABEL: Record<Show, string> = { value: "Value", pctCol: "% of column total", pctRow: "% of row total", pctParent: "% of parent row", chg: "Change vs previous column", diff: "Difference vs previous column" };
@@ -167,7 +167,7 @@ export function DataExplorer({ facts: F, datasets, topics, saved, init }: Props)
   const [busy, setBusy] = useState(false);
   const [recCols, setRecCols] = useState<string[]>(() => [...F.dims.slice(0, 7).map((d) => d.key), ...F.nums.slice(0, 4)]);
   const [recLimit, setRecLimit] = useState(300);
-  const [custom, setCustom] = useState(init.adv === "1" || !init.q);
+  const [custom, setCustom] = useState(init.adv === "1");
   const [shade, setShade] = useState(init.shade !== "0");
 
   const dimIdx = useMemo(() => new Map(F.dims.map((d, i) => [d.key, i])), [F]);
@@ -341,18 +341,18 @@ export function DataExplorer({ facts: F, datasets, topics, saved, init }: Props)
   })();
 
   // ── Question-first chrome ──
-  const active = useMemo(() => topics.flatMap((t) => t.questions.map((q) => ({ t, q }))).find((x) => x.q.id === init.q && x.q.ds === F.key) ?? null, [topics, init.q, F.key]);
+  const active = useMemo(() => [OVERVIEW, ...topics].find((q) => q.id === init.q && q.ds === F.key) ?? null, [topics, init.q, F.key]);
   const sig = `${rows.join(",")}|${col ?? ""}|${vals.map((v) => `${v.m}:${v.agg}:${v.show}`).join("|")}`;
   const sig0 = useRef(sig);
   const pristine = !!active && sig === sig0.current && mode === "pivot";
-  const [topic, setTopic] = useState(active?.t.id ?? topics.find((t) => t.questions.some((q) => q.ds === F.key))?.id ?? topics[0].id);
-  const ask = (q: Question) => { setBusy(true); router.push(`${path}?${questionQuery(q, filters.state?.length ? filters.state : null)}`, { scroll: false }); };
+  // Jumping between views keeps the State and Segment you've chosen.
+  const ask = (q: Question) => { setBusy(true); router.push(`${path}?${questionQuery(q, filters.state?.length ? filters.state : null, filters.segment?.length && ["overview", "plans", "financials", "enrollment"].includes(q.ds) ? { segment: filters.segment } : {})}`, { scroll: false }); };
   // Scope: the few filters almost every question needs, as one-click pills.
-  const scope = ["state", "segment", "funding"].filter((k) => dimIdx.has(k) && D(k).values.length >= 2 && D(k).values.length <= 8 && (k !== "state" || D(k).values.every((v) => /^[A-Z]{2}$/.test(v))));
-  const setScope = (k: string, v: string | null) => setFilters((f) => { const n = { ...f }; if (v == null) delete n[k]; else { const cur = n[k] ?? []; const next = cur.includes(v) ? cur.filter((x) => x !== v) : k === "state" ? [...cur, v] : [v]; if (next.length) n[k] = next; else delete n[k]; } return n; });
+  const scope = ["state", "segment", "funding", "period"].filter((k) => dimIdx.has(k) && D(k).values.length >= 2 && D(k).values.length <= 8 && (k !== "state" || D(k).values.every((v) => /^[A-Z]{2}$/.test(v))));
+  const setScope = (k: string, v: string | null) => setFilters((f) => { const n = { ...f }; if (v == null) delete n[k]; else { const cur = n[k] ?? []; const next = cur.includes(v) ? cur.filter((x) => x !== v) : k === "state" ? [...cur, v] : [v]; if (next.length) n[k] = next; else if (k !== "period") delete n[k]; } return n; });
   const SHOW_SHORT: Record<Show, string> = { value: "", pctCol: "share", pctRow: "% of row", pctParent: "% of group", chg: "change", diff: "difference" };
   const valName = (v: Val) => { const m = mById.get(v.m)!; return `${m.label}${v.agg !== m.agg ? ` (${AGG_LABEL[v.agg].toLowerCase()})` : ""}${v.show !== "value" ? `, ${SHOW_SHORT[v.show]}` : ""}`; };
-  const describe = mode === "records" ? "Every record" : `${vals.map((v, i) => (i > 0 && vals[i - 1].m === v.m && v.show !== "value" ? `its ${SHOW_SHORT[v.show]}` : valName(v))).join(" and ")}${rows.length ? ` by ${rows.map((k) => label(k).toLowerCase()).join(", then ")}` : ""}${col ? ` across ${label(col).toLowerCase()}` : ""}`;
+  const describe = mode === "records" ? "Every record" : `${vals.length > 3 ? `${valName(vals[0])}, ${valName(vals[1])} and ${vals.length - 2} more measures` : vals.map((v, i) => (i > 0 && vals[i - 1].m === v.m && v.show !== "value" ? `its ${SHOW_SHORT[v.show]}` : valName(v))).join(" and ")}${rows.length ? ` by ${rows.map((k) => label(k).toLowerCase()).join(", then ")}` : ""}${col ? ` across ${label(col).toLowerCase()}` : ""}`;
   const single = !!pivot && pivot.specs.length === 1;
   // Shading: within the body cells of each value, how large a cell is relative to the largest.
   const heat = useMemo(() => {
@@ -364,25 +364,25 @@ export function DataExplorer({ facts: F, datasets, topics, saved, init }: Props)
 
   return (
     <div className={`space-y-4 ${busy ? "pointer-events-none opacity-60" : ""}`}>
-      {/* Questions */}
-      <div className="card p-3">
-        <div className="flex flex-wrap items-center gap-1 border-b border-stone-100 pb-2">
-          <span className="mr-2 text-[11px] uppercase tracking-wide text-stone-500">Start from a question</span>
-          {topics.map((t) => <button key={t.id} onClick={() => setTopic(t.id)} className={`rounded-md px-2.5 py-1 text-sm ${topic === t.id ? "bg-stone-900 text-white" : "text-stone-600 hover:bg-stone-100"}`}>{t.label}</button>)}
-          {list.length > 0 && <button onClick={() => setTopic("_saved")} className={`rounded-md px-2.5 py-1 text-sm ${topic === "_saved" ? "bg-stone-900 text-white" : "text-stone-600 hover:bg-stone-100"}`}>Saved ({list.length})</button>}
-        </div>
-        <div className="flex flex-wrap gap-1.5 pt-2.5">
-          {topic === "_saved"
-            ? list.map((s) => <span key={s.id} className="inline-flex items-center gap-1 rounded-full border border-stone-300 bg-white py-1 pl-3 pr-2 text-xs"><a href={`${path}?${s.query}`} className="hover:underline">{s.name}</a><button className="text-stone-400 hover:text-red-700" title="Delete this saved pull" onClick={() => remove(s.id)}>✕</button></span>)
-            : topics.find((t) => t.id === topic)?.questions.map((q) => <button key={q.id} onClick={() => ask(q)} className={`rounded-full border px-3 py-1 text-xs ${pristine && active?.q.id === q.id ? "border-stone-900 bg-stone-900 text-white" : "border-stone-300 bg-white text-stone-700 hover:border-stone-500"}`}>{q.label}</button>)}
-        </div>
+      {/* Views: the overview, or an optional lens on one topic */}
+      <div className="flex flex-wrap items-center gap-1 border-b border-stone-200">
+        {[OVERVIEW, ...topics].map((q) => { const on = pristine && active?.id === q.id; return <button key={q.id} onClick={() => ask(q)} className={`-mb-px border-b-2 px-3 py-2 text-sm ${on ? "border-stone-900 font-medium text-stone-900" : "border-transparent text-stone-500 hover:text-stone-900"}`}>{q.id === OVERVIEW.id ? "Overview" : q.label}</button>; })}
+        {!pristine && <span className="-mb-px border-b-2 border-stone-900 px-3 py-2 text-sm font-medium">Custom view</span>}
+        <span className="ml-auto flex items-center gap-2 pb-1">
+          {list.length > 0 && (
+            <Pop align="right" label={`Saved (${list.length}) ▾`}>
+              {list.map((s) => <div key={s.id} className="flex items-center justify-between gap-2 rounded px-1 py-1 hover:bg-stone-50"><a className="min-w-0 flex-1 truncate" href={`${path}?${s.query}`}>{s.name}</a><button className="text-stone-400 hover:text-red-700" title="Delete this saved pull" onClick={() => remove(s.id)}>✕</button></div>)}
+            </Pop>
+          )}
+          {<button className="h-7 rounded border border-stone-300 bg-white px-2.5 text-xs hover:border-stone-500" title="Back to the overview with default filters" onClick={() => { setBusy(true); router.push(`${path}?reset=${Date.now()}`, { scroll: false }); }}>↺ Reset to default</button>}
+        </span>
       </div>
 
       {/* What you're looking at, and the few controls most questions need */}
       <div className="space-y-2">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div className="min-w-0">
-            <h2 className="text-lg font-semibold tracking-tight">{pristine ? active!.q.label : "Custom view"}</h2>
+            <h2 className="text-lg font-semibold tracking-tight">{pristine ? active!.label : "Custom view"}</h2>
             <p className="text-xs text-stone-500">{describe}. <span className="text-stone-400">{filtered.length.toLocaleString()} records from {datasets.find((d) => d.key === F.key)?.label.toLowerCase()}.</span></p>
           </div>
           <div className="flex items-center gap-2">
@@ -396,7 +396,7 @@ export function DataExplorer({ facts: F, datasets, topics, saved, init }: Props)
           {scope.map((k) => (
             <span key={k} className="flex flex-wrap items-center gap-1">
               <span className="text-stone-500">{label(k)}</span>
-              <button onClick={() => setScope(k, null)} className={`rounded px-2 py-1 ${!filters[k]?.length ? "bg-stone-900 text-white" : "bg-stone-100 text-stone-700 hover:bg-stone-200"}`}>All</button>
+              {k !== "period" && <button onClick={() => setScope(k, null)} className={`rounded px-2 py-1 ${!filters[k]?.length ? "bg-stone-900 text-white" : "bg-stone-100 text-stone-700 hover:bg-stone-200"}`}>All</button>}
               {D(k).values.map((v) => <button key={v} onClick={() => setScope(k, v)} className={`rounded px-2 py-1 ${filters[k]?.includes(v) ? "bg-stone-900 text-white" : "bg-stone-100 text-stone-700 hover:bg-stone-200"}`}>{v}</button>)}
             </span>
           ))}

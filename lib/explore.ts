@@ -19,6 +19,7 @@ export type Measure = { key: string; label: string; group: string; fmt: Fmt; hin
 export type View = { rows: string[]; col: string | null; vals: string[]; filters: Record<string, string[]>; show?: string; sort?: string };
 export type Facts = { key: string; label: string; grain: string; notes: string[]; dims: Dim[]; nums: string[]; measures: Measure[]; rows: Array<Array<number | null>>; defaults: View; snapshot?: string };
 export const DATASETS = [
+  { key: "overview", seg: "All segments", label: "Carrier overview", hint: "Every carrier on one row: members, premium, loss ratio, self-funded, employers, plans" },
   { key: "financials", seg: "Large group & self-funded", label: "Carrier financials", hint: "Members, share, premium, claims and loss ratio by carrier, state and segment; large group from 2020" },
   { key: "employers", seg: "Large group & self-funded", label: "Employers (Form 5500)", hint: "About 14,000 New England employer contracts: carrier, insured or self-funded, size, industry, broker, renewal month, premium per person" },
   { key: "enrollment", seg: "Large group & self-funded", label: "Enrollment by funding & group size", hint: "MA (CHIA, quarterly) and NH: fully insured vs self-funded, jumbo/large/mid/small, HMO/PPO" },
@@ -324,7 +325,91 @@ async function serff(comps: Comp[]): Promise<Facts> {
   });
 }
 
-const BUILDERS: Record<DatasetKey, (c: Comp[]) => Promise<Facts>> = { plans, financials, employers, enrollment, selffunded, rates, gic, marketed, serff };
+
+/** Decode a Facts table back into plain objects (dimension values and numbers by key). */
+function decode(f: Facts): Array<Record<string, string | number | null>> {
+  return f.rows.map((r) => {
+    const o: Record<string, string | number | null> = {};
+    f.dims.forEach((d, i) => { o[d.key] = r[i] == null ? null : d.values[r[i]!]; });
+    f.nums.forEach((n, i) => { o[n] = r[f.dims.length + i]; });
+    return o;
+  });
+}
+
+/**
+ * The explorer's default: every carrier on one row, with the headline number from each source side by side.
+ * "Latest available" rows hold each source's most recent year (they differ: financial filings lag plan filings).
+ */
+async function overview(comps: Comp[]): Promise<Facts> {
+  const [fin, pl, emp, enr] = await Promise.all([financials(comps), plans(comps), employers(comps), enrollment(comps)]);
+  type R = { year: number; state: string; segment: string; carrier: string } & Record<string, number | string>;
+  const m = new Map<string, R>();
+  const get = (year: number, state: string, segment: string, carrier: string) => { const k = `${year}|${state}|${segment}|${carrier}`; return m.get(k) ?? m.set(k, { year, state, segment, carrier }).get(k)!; };
+  const add = (r: R, k: string, v: number | null | undefined) => { if (v != null) r[k] = ((r[k] as number) ?? 0) + v; };
+  const src: Record<string, Map<string, number>> = { fin: new Map(), plans: new Map(), emp: new Map(), enr: new Map() }; // source → state → year → weight
+  const seen = (s: string, state: string, year: number, w = 1) => src[s].set(`${state}|${year}`, (src[s].get(`${state}|${year}`) ?? 0) + w);
+  for (const o of decode(fin)) { if (!o.carrier || !o.segment) continue; const r = get(Number(o.year), String(o.state), String(o.segment), String(o.carrier)); add(r, "lives", o.lives as number); add(r, "mm", o.mm as number); add(r, "premium", o.premium as number); add(r, "claims", o.claims as number); seen("fin", String(o.state), Number(o.year)); }
+  for (const o of decode(pl)) {
+    if (!o.carrier || !o.segment || o.term === 1) continue;
+    const r = get(Number(o.year), String(o.state), String(o.segment), String(o.carrier));
+    add(r, "plans", 1); add(r, "planMembers", o.members as number);
+    if (o.rate != null) { const w = (o.members as number) || 1; add(r, "rateW", w); add(r, "rateX", (o.rate as number) * w); }
+    seen("plans", String(o.state), Number(o.year));
+  }
+  const empSeen = new Set<string>();
+  for (const o of decode(emp)) {
+    if (!o.carrier || String(o.carrier).startsWith("(")) continue;
+    const r = get(Number(o.year), String(o.state), "Large group", String(o.carrier));
+    const ek = `${o.year}|${o.state}|${o.carrier}|${o.employer}`;
+    if (!empSeen.has(ek)) { empSeen.add(ek); add(r, "emps", 1); }
+    if (o.premium != null && o.persons != null) { add(r, "empPrem", o.premium as number); add(r, "empPersons", o.persons as number); }
+    seen("emp", String(o.state), Number(o.year));
+  }
+  // Enrollment is a point-in-time count: use the last count date of each year.
+  const lastAsof = new Map<string, string>();
+  const en = decode(enr);
+  for (const o of en) { const k = `${o.state}|${o.year}`; if (!lastAsof.has(k) || String(o.asof) > lastAsof.get(k)!) lastAsof.set(k, String(o.asof)); }
+  for (const o of en) {
+    if (!o.carrier || !o.segment || lastAsof.get(`${o.state}|${o.year}`) !== o.asof) continue;
+    add(get(Number(o.year), String(o.state), String(o.segment), String(o.carrier)), o.funding === "Self-funded" ? "sf" : "fi", o.members as number);
+    seen("enr", String(o.state), Number(o.year));
+  }
+  // Each source's latest year per state (Form 5500: the fullest of the recent years, since the newest is still arriving).
+  const latest: Record<string, Map<string, number>> = {};
+  for (const [s, mm] of Object.entries(src)) {
+    const by = new Map<string, Array<[number, number]>>();
+    for (const [k, w] of mm) { const [st, y] = k.split("|"); (by.get(st) ?? by.set(st, []).get(st)!).push([Number(y), w]); }
+    latest[s] = new Map([...by].map(([st, ys]) => { ys.sort((a, b) => b[0] - a[0]); return [st, s === "emp" && ys[1] && ys[0][1] < ys[1][1] * 0.85 ? ys[1][0] : ys[0][0]] as const; }));
+  }
+  const FIELDS: Record<string, string[]> = { fin: ["lives", "mm", "premium", "claims"], plans: ["plans", "planMembers", "rateW", "rateX"], emp: ["emps", "empPrem", "empPersons"], enr: ["sf", "fi"] };
+  const NUMS = Object.values(FIELDS).flat();
+  const B = new Builder([{ key: "period", label: "Period", group: "When", hint: "Latest available: each column's most recent year. Each year: the full history." }, { key: "year", label: "Year", group: "When" }, { key: "state", label: "State", group: "Where" }, { key: "segment", label: "Segment", group: "Market" }, { key: "carrier", label: "Carrier", group: "Market" }], NUMS);
+  const snap = new Map<string, R>();
+  for (const r of m.values()) {
+    B.add({ ...r, period: "Each year" });
+    for (const [s, fs] of Object.entries(FIELDS)) {
+      if (latest[s].get(r.state) !== r.year || !fs.some((f) => r[f] != null)) continue;
+      const k = `${r.state}|${r.segment}|${r.carrier}`;
+      const t = snap.get(k) ?? snap.set(k, { year: 0, state: r.state, segment: r.segment, carrier: r.carrier }).get(k)!;
+      for (const f of fs) if (r[f] != null) t[f] = r[f];
+    }
+  }
+  for (const t of snap.values()) B.add({ ...t, year: null, period: "Latest available" });
+  const yr = (s: string) => { const ys = [...new Set(latest[s].values())].sort(); return ys.length ? (ys[0] === ys[ys.length - 1] ? String(ys[0]) : `${ys[0]}–${ys[ys.length - 1]}`) : "n/a"; };
+  return B.done({
+    key: "overview", label: "Carrier overview", grain: "One row per carrier, state, segment and year",
+    notes: [`The headline number from each source, side by side. “Latest available” uses each source's most recent year: financial filings ${yr("fin")}, plan filings ${yr("plans")}, employer filings ${yr("emp")}, enrollment counts ${yr("enr")}.`, "Members, premium and loss ratio are fully insured business. Self-funded members come from state enrollment reports (MA and NH only). Employer accounts and premium per person come from Form 5500 (mostly 100+ participants). Plans filed covers individual and small group. With Period set to “Each year”, keep Year on rows or columns."],
+    measures: [
+      M("lives", "Members", "Fully insured", "int", { field: "lives", hint: "Fully insured covered lives, from loss-ratio filings" }), M("pmpm", "Premium PMPM", "Fully insured", "usd", { num: "premium", den: "mm" }), M("lr", "Loss ratio", "Fully insured", "pct", { num: "claims", den: "premium" }), M("premium", "Premium", "Fully insured", "usd0", { field: "premium" }),
+      M("sf", "Self-funded members", "Self-funded", "int", { field: "sf", hint: "ASO members, from MA and NH enrollment reports" }), M("fi", "Fully insured members (state count)", "Self-funded", "int", { field: "fi" }),
+      M("emps", "Employer accounts", "Employers", "int", { field: "emps", hint: "Employers with a Form 5500 health contract" }), M("ppm", "Employer premium per person", "Employers", "usd", { num: "empPrem", den: "empPersons", mult: 1 / 12, hint: "Per covered person per month" }),
+      M("plans", "Plans filed", "Plans", "int", { field: "plans", hint: "Individual and small-group plans" }), M("planMembers", "Members in filed plans", "Plans", "int", { field: "planMembers" }), M("rate", "Filed rate change", "Plans", "pct", { num: "rateX", den: "rateW", hint: "Weighted by members" }),
+    ],
+    defaults: { rows: ["carrier"], col: null, vals: ["lives:sum", "pmpm:ratio", "lr:ratio", "sf:sum", "emps:sum", "ppm:ratio", "plans:sum", "rate:ratio"], filters: { period: ["Latest available"], state: ["MA"] } },
+  });
+}
+
+const BUILDERS: Record<DatasetKey, (c: Comp[]) => Promise<Facts>> = { overview, plans, financials, employers, enrollment, selffunded, rates, gic, marketed, serff };
 const cache = new Map<string, { at: number; f: Facts }>();
 export async function facts(key: DatasetKey, workspaceId: string, comps: Comp[]): Promise<Facts> {
   const k = `${workspaceId}:${key}`, hit = cache.get(k);
