@@ -6,7 +6,7 @@ import Link from "next/link";
  */
 export function PricingTabs({ view, state, children }: { view: "compare" | "explore"; state?: string; children?: React.ReactNode }) {
   const st = state && state !== "all" ? state : undefined;
-  const tab = (on: boolean) => `-mb-px border-b-2 px-3 py-2 text-sm ${on ? "border-stone-900 font-medium text-stone-900" : "border-transparent text-stone-500 hover:text-stone-900"}`;
+  const tab = (on: boolean) => `-mb-px border-b-2 px-3 py-2 text-sm ${on ? "border-accent font-medium text-stone-900" : "border-transparent text-stone-500 hover:text-stone-900"}`;
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-end justify-between gap-3">

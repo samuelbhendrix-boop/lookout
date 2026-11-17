@@ -15,7 +15,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     select: { workspace: { select: { id: true, name: true } } },
   });
   return (
-    <div className="min-h-screen md:flex">
+    <div className="flex min-h-screen flex-col">
       <Nav
         workspaceId={session.workspaceId}
         workspace={session.workspaceName}
@@ -25,8 +25,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         userName={session.name}
         userIcon={session.userIcon}
         role={session.role}
-      />
-      <main className="mx-auto w-full min-w-0 max-w-6xl flex-1 px-4 py-6 md:px-8">{children}</main>
+      >
+        <main className="mx-auto w-full min-w-0 max-w-6xl flex-1 px-4 py-6 md:px-8">{children}</main>
+      </Nav>
       <TableTools />
     </div>
   );

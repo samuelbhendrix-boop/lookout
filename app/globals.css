@@ -6,7 +6,7 @@
   color-scheme: light;
 }
 body {
-  @apply bg-stone-50 text-stone-900 antialiased;
+  @apply bg-white text-stone-900 antialiased;
 }
 
 @layer components {
@@ -29,7 +29,7 @@ body {
     @apply rounded-lg border border-stone-200 bg-white;
   }
   .h1 {
-    @apply text-xl font-semibold tracking-tight;
+    @apply text-2xl font-semibold tracking-tight;
   }
 }
 

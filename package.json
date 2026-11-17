@@ -1,6 +1,6 @@
 {
   "name": "lookout",
-  "version": "0.42.2",
+  "version": "0.43.0",
   "private": true,
   "description": "Competitive intelligence signal tracker: ingest competitor sources, classify signals, triage, alert.",
   "scripts": {
@@ -24,6 +24,7 @@
     "build:import": "esbuild scripts/import-market-data.ts --bundle --platform=node --format=cjs --packages=external --outfile=dist/import-market-data.cjs --log-level=warning"
   },
   "dependencies": {
+    "@fontsource-variable/inter": "^5.3.0",
     "@prisma/client": "6.16.2",
     "bcryptjs": "2.4.3",
     "csv-parse": "5.6.0",

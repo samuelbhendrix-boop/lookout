@@ -8,10 +8,10 @@ export function BrandMark({ size = 20, className = "" }: { size?: number; classN
   );
 }
 
-export function Brand({ size = "sm" }: { size?: "sm" | "lg" }) {
+export function Brand({ size = "sm", invert = false }: { size?: "sm" | "lg"; invert?: boolean }) {
   const lg = size === "lg";
   return (
-    <span className="inline-flex items-center gap-1.5 text-ink" aria-label="Payersight">
+    <span className={`inline-flex items-center gap-1.5 ${invert ? "text-white" : "text-ink"}`} aria-label="Payersight">
       <BrandMark size={lg ? 30 : 24} />
       <span className={`${lg ? "text-2xl" : "text-[19px]"} font-semibold leading-none tracking-tight`}>payersight</span>
     </span>
