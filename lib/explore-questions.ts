@@ -11,7 +11,6 @@ export const TOPICS: Question[] = [
   { id: "price", label: "Price & margin", ds: "overview", rows: ["carrier"], col: "year", vals: ["lives:sum:value", "pmpm:ratio:value", "lr:ratio:value"], f: EACH, top: 12 },
   { id: "products", label: "Products & design", ds: "plans", rows: ["carrier"], col: "year", vals: ["_count:count:value", "members:sum:value", "prem40:avg:value"] },
   { id: "employers", label: "Employers & brokers", ds: "employers", rows: ["carrier"], col: "year", vals: ["_employers:distinct:value", "persons:sum:value", "ppm:ratio:value"], top: 15 },
-  { id: "filings", label: "State filings", ds: "serff", rows: ["carrier"], col: "market", vals: ["_count:count:value"] },
 ];
 export const DEFAULT_STATE = "MA";
 export function questionQuery(q: Question, state: string[] | null = [DEFAULT_STATE], extra: Record<string, string[]> = {}): string {
