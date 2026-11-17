@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import type { Agg, Dim, Facts, Fmt, Measure, View } from "@/lib/explore";
-import { OVERVIEW, questionQuery, type Question } from "@/lib/explore-questions";
+import { OVERVIEW, questionQuery, PRODUCTS_LG, type Question } from "@/lib/explore-questions";
 
 /**
  * A pivot table over one dataset's facts: rows (any number of dimensions, nested with subtotals), columns (one
@@ -341,14 +341,14 @@ export function DataExplorer({ facts: F, datasets, topics, saved, init }: Props)
   })();
 
   // ── Question-first chrome ──
-  const active = useMemo(() => [OVERVIEW, ...topics].find((q) => q.id === init.q && q.ds === F.key) ?? null, [topics, init.q, F.key]);
+  const active = useMemo(() => [OVERVIEW, ...topics, PRODUCTS_LG].find((q) => q.id === init.q && q.ds === F.key) ?? null, [topics, init.q, F.key]);
   const sig = `${rows.join(",")}|${col ?? ""}|${vals.map((v) => `${v.m}:${v.agg}:${v.show}`).join("|")}`;
   const sig0 = useRef(sig);
   const pristine = !!active && sig === sig0.current && mode === "pivot";
   // Jumping between views keeps the State and Segment you've chosen.
-  const ask = (q: Question) => { setBusy(true); router.push(`${path}?${questionQuery(q, filters.state?.length ? filters.state : null, filters.segment?.length && ["overview", "plans", "financials", "enrollment"].includes(q.ds) ? { segment: filters.segment } : {})}`, { scroll: false }); };
+  const ask = (q: Question) => { setBusy(true); router.push(`${path}?${questionQuery(q, filters.state?.length ? filters.state : F.key === "marketed" ? undefined : null, filters.segment?.length && F.key !== "marketed" && ["overview", "plans", "financials", "enrollment"].includes(q.ds) ? { segment: filters.segment } : {})}`, { scroll: false }); };
   // Scope: the few filters almost every question needs, as one-click pills.
-  const scope = ["state", "segment", "funding", "period"].filter((k) => dimIdx.has(k) && D(k).values.length >= 2 && D(k).values.length <= 8 && (k !== "state" || D(k).values.every((v) => /^[A-Z]{2}$/.test(v))));
+  const scope = ["state", "segment", "funding", "period"].filter((k) => dimIdx.has(k) && !(k === "segment" && active?.id === PRODUCTS_LG.id) && D(k).values.length >= 2 && D(k).values.length <= 8 && (k !== "state" || D(k).values.every((v) => /^[A-Z]{2}$/.test(v))));
   const setScope = (k: string, v: string | null) => setFilters((f) => { const n = { ...f }; if (v == null) delete n[k]; else { const cur = n[k] ?? []; const next = cur.includes(v) ? cur.filter((x) => x !== v) : k === "state" ? [...cur, v] : [v]; if (next.length) n[k] = next; else if (k !== "period") delete n[k]; } return n; });
   const SHOW_SHORT: Record<Show, string> = { value: "", pctCol: "share", pctRow: "% of row", pctParent: "% of group", chg: "change", diff: "difference" };
   const valName = (v: Val) => { const m = mById.get(v.m)!; return `${m.label}${v.agg !== m.agg ? ` (${AGG_LABEL[v.agg].toLowerCase()})` : ""}${v.show !== "value" ? `, ${SHOW_SHORT[v.show]}` : ""}`; };
@@ -366,7 +366,7 @@ export function DataExplorer({ facts: F, datasets, topics, saved, init }: Props)
     <div className={`space-y-4 ${busy ? "pointer-events-none opacity-60" : ""}`}>
       {/* Views: the overview, or an optional lens on one topic */}
       <div className="flex flex-wrap items-center gap-1 border-b border-stone-200">
-        {[OVERVIEW, ...topics].map((q) => { const on = pristine && active?.id === q.id; return <button key={q.id} onClick={() => ask(q)} className={`-mb-px border-b-2 px-3 py-2 text-sm ${on ? "border-accent font-medium text-stone-900" : "border-transparent text-stone-500 hover:text-stone-900"}`}>{q.id === OVERVIEW.id ? "Overview" : q.label}</button>; })}
+        {[OVERVIEW, ...topics].map((q) => { const on = pristine && (active?.id === q.id || (q.id === "products" && active?.id === PRODUCTS_LG.id)); return <button key={q.id} onClick={() => ask(q)} className={`-mb-px border-b-2 px-3 py-2 text-sm ${on ? "border-accent font-medium text-stone-900" : "border-transparent text-stone-500 hover:text-stone-900"}`}>{q.id === OVERVIEW.id ? "Overview" : q.label}</button>; })}
         {!pristine && <span className="-mb-px border-b-2 border-accent px-3 py-2 text-sm font-medium">Custom view</span>}
         <span className="ml-auto flex items-center gap-2 pb-1">
           {list.length > 0 && (
@@ -398,10 +398,18 @@ export function DataExplorer({ facts: F, datasets, topics, saved, init }: Props)
               <span className="text-stone-500">{label(k)}</span>
               {k !== "period" && <button onClick={() => setScope(k, null)} className={`rounded px-2 py-1 ${!filters[k]?.length ? "bg-stone-900 text-white" : "bg-stone-100 text-stone-700 hover:bg-stone-200"}`}>All</button>}
               {D(k).values.map((v) => <button key={v} onClick={() => setScope(k, v)} className={`rounded px-2 py-1 ${filters[k]?.includes(v) ? "bg-stone-900 text-white" : "bg-stone-100 text-stone-700 hover:bg-stone-200"}`}>{v}</button>)}
+              {k === "segment" && F.key === "plans" && <button onClick={() => ask(PRODUCTS_LG)} title="What carriers market to large groups, from their websites" className="rounded bg-stone-100 px-2 py-1 text-stone-700 hover:bg-stone-200">Large group (marketed)</button>}
             </span>
           ))}
+          {active?.id === PRODUCTS_LG.id && (
+            <span className="flex flex-wrap items-center gap-1">
+              <span className="text-stone-500">Segment</span>
+              <button onClick={() => { const q = topics.find((t) => t.id === "products"); if (q) ask(q); }} className="rounded bg-stone-100 px-2 py-1 text-stone-700 hover:bg-stone-200">Individual and small group (filed)</button>
+              <span className="rounded bg-stone-900 px-2 py-1 text-white">Large group (marketed)</span>
+            </span>
+          )}
           <span className="flex flex-wrap items-center gap-1">
-            {Object.entries(filters).filter(([k]) => !scope.includes(k)).map(([k, vs]) => (
+            {Object.entries(filters).filter(([k]) => !scope.includes(k) && !(k === "segment" && active?.id === PRODUCTS_LG.id)).map(([k, vs]) => (
               <Pop key={k} active={vs.length > 0} label={<>{label(k)}{vs.length ? `: ${vs.length === 1 ? vs[0].slice(0, 28) : `${vs.length} selected`}` : ": pick values"} ▾</>}>
                 <ValuePicker dim={D(k)} counts={countsFor(k)} value={vs} onChange={(nv) => setFilters((f) => ({ ...f, [k]: nv }))} />
                 <button className="mt-1 text-stone-500 underline" onClick={() => setFilters((f) => { const n = { ...f }; delete n[k]; return n; })}>Remove filter</button>
@@ -410,6 +418,8 @@ export function DataExplorer({ facts: F, datasets, topics, saved, init }: Props)
             <Pop label="+ Filter"><DimMenu dims={F.dims} exclude={Object.keys(filters)} onPick={(k) => setFilters((f) => ({ ...f, [k]: [] }))} /></Pop>
           </span>
         </div>
+        {F.key === "plans" && <p className="text-[11px] text-stone-500">Individual and small group only: carriers don&apos;t file large group plans, premiums or designs publicly. “Large group (marketed)” shows what they sell to large groups, from their websites.</p>}
+        {active?.id === PRODUCTS_LG.id && <p className="text-[11px] text-stone-500">Products each carrier markets to large groups, counted by network model, from their websites. No premiums or enrollment: those aren&apos;t published for large group. Add Product to rows in Customize to see the names.</p>}
       </div>
 
       {/* Customize: reshape the table */}

@@ -12,6 +12,8 @@ export const TOPICS: Question[] = [
   { id: "products", label: "Products & design", ds: "plans", rows: ["carrier"], col: "year", vals: ["_count:count:value", "members:sum:value", "prem40:avg:value"] },
   { id: "employers", label: "Employers & brokers", ds: "employers", rows: ["carrier"], col: "year", vals: ["_employers:distinct:value", "persons:sum:value", "ppm:ratio:value"], top: 15 },
 ];
+/** Large group has no filed plan data, so the Products view offers what carriers market on their websites instead. */
+export const PRODUCTS_LG: Question = { id: "products-lg", label: "Products & design: large group, as marketed", ds: "marketed", rows: ["carrier"], col: "network", vals: ["_products:distinct:value"], f: { segment: ["Large group"] } };
 export const DEFAULT_STATE = "MA";
 export function questionQuery(q: Question, state: string[] | null = [DEFAULT_STATE], extra: Record<string, string[]> = {}): string {
   const p = new URLSearchParams();
