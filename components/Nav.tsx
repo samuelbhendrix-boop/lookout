@@ -7,19 +7,21 @@ import { api } from "@/lib/client";
 import { Avatar } from "./Avatar";
 import { Brand } from "./Brand";
 
-const GROUPS = [
+type NavLink = { href: string; label: string; children?: Array<{ href: string; label: string }> };
+const GROUPS: Array<{ id: string; label: string; links: NavLink[] }> = [
   {
     id: "review", label: "Market Review", links: [
       { href: "/updates", label: "Updates" },
-      { href: "/competitors", label: "Competitors" },
+      { href: "/competitors", label: "Competitors", children: [{ href: "/competitors", label: "Overview" }, { href: "/competitors/products", label: "Products" }] },
       { href: "/market", label: "Market" },
+      { href: "/explore", label: "Data explorer" },
       { href: "/ai-watch", label: "AI watch" },
     ],
   },
   {
     id: "pricing", label: "Networks & Pricing", links: [
       { href: "/leverage", label: "Leverage" },
-      { href: "/rates", label: "Prices" },
+      { href: "/rates", label: "Prices", children: [{ href: "/rates", label: "Compare hospitals" }, { href: "/rates/explore", label: "Explore a code" }] },
       { href: "/networks", label: "Networks" },
     ],
   },
@@ -111,9 +113,23 @@ export function Nav({ workspaceId, workspace, workspaceIcon, workspaces, email, 
               </button>
               {open && (
                 <div className="flex flex-col gap-0.5">
-                  {g.links.map((l) => (
-                    <Link key={l.href} href={l.href} className={`rounded-md px-3 py-1.5 text-sm ${current === l.href ? "bg-stone-900 text-white" : "text-stone-600 hover:bg-stone-100"}`}>{l.label}</Link>
-                  ))}
+                  {g.links.map((l) => {
+                    const on = current === l.href;
+                    // A page with sub-pages opens them underneath when you're on it; the sub-page you're on is the dark one.
+                    const child = on && l.children ? l.children.filter((c) => path === c.href || path.startsWith(c.href + "/")).sort((x, y) => y.href.length - x.href.length)[0] ?? l.children[0] : null;
+                    return (
+                      <div key={l.href} className="flex flex-col gap-0.5">
+                        <Link href={l.href} aria-expanded={l.children ? on : undefined} className={`flex items-center justify-between rounded-md px-3 py-1.5 text-sm ${on ? (l.children ? "bg-stone-100 font-medium text-stone-900" : "bg-stone-900 text-white") : "text-stone-600 hover:bg-stone-100"}`}>
+                          {l.label}{l.children && <span className={`text-stone-400 transition-transform ${on ? "rotate-90" : ""}`}>›</span>}
+                        </Link>
+                        {on && l.children && (
+                          <div className="ml-3 flex flex-col gap-0.5 border-l border-stone-200 pl-2">
+                            {l.children.map((c) => <Link key={c.href} href={c.href} className={`rounded-md px-2.5 py-1 text-[13px] ${child?.href === c.href ? "bg-stone-900 text-white" : "text-stone-600 hover:bg-stone-100"}`}>{c.label}</Link>)}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>

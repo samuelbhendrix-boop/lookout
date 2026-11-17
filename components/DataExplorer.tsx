@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import type { Agg, Dim, Facts, Fmt, Measure, View } from "@/lib/explore";
+import { questionQuery, type Question, type Topic } from "@/lib/explore-questions";
 
 /**
  * A pivot table over one dataset's facts: rows (any number of dimensions, nested with subtotals), columns (one
@@ -11,7 +12,7 @@ import type { Agg, Dim, Facts, Fmt, Measure, View } from "@/lib/explore";
 type Saved = { id: string; name: string; query: string };
 type Show = "value" | "pctCol" | "pctRow" | "pctParent" | "chg" | "diff";
 type Val = { m: string; agg: Agg; show: Show };
-type Props = { facts: Facts; datasets: Array<{ key: string; label: string; hint: string; seg: string }>; saved: Saved[]; init: Record<string, string | undefined> };
+type Props = { facts: Facts; datasets: Array<{ key: string; label: string; hint: string; seg: string }>; topics: Topic[]; saved: Saved[]; init: Record<string, string | undefined> };
 
 const AGG_LABEL: Record<Agg, string> = { sum: "Sum", avg: "Average", wavg: "Weighted avg", min: "Min", max: "Max", median: "Median", count: "Count", distinct: "Count distinct", ratio: "Ratio" };
 const SHOW_LABEL: Record<Show, string> = { value: "Value", pctCol: "% of column total", pctRow: "% of row total", pctParent: "% of parent row", chg: "Change vs previous column", diff: "Difference vs previous column" };
@@ -147,7 +148,7 @@ function BarChart({ items, fmt, show }: { items: Array<{ k: string; v: number | 
 }
 
 // ── Main ─────────────────────────────────────────────────────────────────────────────────────────────────────────
-export function DataExplorer({ facts: F, datasets, saved, init }: Props) {
+export function DataExplorer({ facts: F, datasets, topics, saved, init }: Props) {
   const router = useRouter(), path = usePathname();
   const v0 = useMemo(() => parseView(F, init), [F, init]);
   const [rows, setRows] = useState<string[]>(v0.rows);
@@ -166,6 +167,8 @@ export function DataExplorer({ facts: F, datasets, saved, init }: Props) {
   const [busy, setBusy] = useState(false);
   const [recCols, setRecCols] = useState<string[]>(() => [...F.dims.slice(0, 7).map((d) => d.key), ...F.nums.slice(0, 4)]);
   const [recLimit, setRecLimit] = useState(300);
+  const [custom, setCustom] = useState(init.adv === "1" || !init.q);
+  const [shade, setShade] = useState(init.shade !== "0");
 
   const dimIdx = useMemo(() => new Map(F.dims.map((d, i) => [d.key, i])), [F]);
   const numIdx = useMemo(() => new Map(F.nums.map((n, i) => [n, F.dims.length + i])), [F]);
@@ -177,6 +180,8 @@ export function DataExplorer({ facts: F, datasets, saved, init }: Props) {
   const query = useMemo(() => {
     const p = new URLSearchParams();
     p.set("ds", F.key);
+    if (init.q) p.set("q", init.q);
+    if (!shade) p.set("shade", "0");
     if (mode === "records") p.set("mode", "records");
     p.set("rows", rows.join(","));
     if (col) p.set("col", col);
@@ -187,7 +192,7 @@ export function DataExplorer({ facts: F, datasets, saved, init }: Props) {
     if (topN) p.set("top", String(topN));
     if (chart) p.set("chart", "1");
     return p.toString();
-  }, [F.key, mode, rows, col, vals, filters, subtotals, sort, topN, chart]);
+  }, [F.key, mode, rows, col, vals, filters, subtotals, sort, topN, chart, shade, init.q]);
   useEffect(() => { window.history.replaceState(null, "", `${path}?${query}`); }, [path, query]);
   useEffect(() => setBusy(false), [F]);
 
@@ -245,7 +250,8 @@ export function DataExplorer({ facts: F, datasets, saved, init }: Props) {
       if (sh === "diff" || specs[j].m.fmt === "pct") return x - p;
       return p ? x / p - 1 : null;
     };
-    const subOf = (s: (typeof specs)[number]) => `${s.m.label}${s.v.agg !== s.m.agg || s.m.aggs.length > 1 ? ` · ${AGG_LABEL[s.v.agg].toLowerCase()}` : ""}${s.v.show !== "value" ? ` (${SHOW_LABEL[s.v.show].toLowerCase()})` : ""}`;
+    const SH: Record<Show, string> = { value: "", pctCol: "share", pctRow: "% of row", pctParent: "% of group", chg: "change", diff: "difference" };
+    const subOf = (s: (typeof specs)[number]) => `${s.m.label}${s.v.agg !== s.m.agg ? ` (${AGG_LABEL[s.v.agg].toLowerCase()})` : ""}${s.v.show !== "value" ? `, ${SH[s.v.show]}` : ""}`;
     const cols: Array<{ c: number; j: number; head: string; sub: string }> = [];
     for (const c of colsShown) specs.forEach((s, j) => cols.push({ c, j, head: c === -1 ? BLANK : F.dims[ci].values[c], sub: subOf(s) }));
     specs.forEach((s, j) => { if (ci < 0 || (s.v.show !== "chg" && s.v.show !== "diff")) cols.push({ c: ALL, j, head: ci >= 0 ? "Total" : "", sub: subOf(s) }); });
@@ -334,140 +340,191 @@ export function DataExplorer({ facts: F, datasets, saved, init }: Props) {
     return <BarChart items={leaves.slice(0, 20).map((r) => ({ k: r.path.join(" · "), v: pivot.shown(r.lvl, r.rk, ALL, 0) }))} fmt={s0.m.fmt} show={s0.v.show === "chg" || s0.v.show === "diff" ? "value" : s0.v.show} />;
   })();
 
+  // ── Question-first chrome ──
+  const active = useMemo(() => topics.flatMap((t) => t.questions.map((q) => ({ t, q }))).find((x) => x.q.id === init.q && x.q.ds === F.key) ?? null, [topics, init.q, F.key]);
+  const sig = `${rows.join(",")}|${col ?? ""}|${vals.map((v) => `${v.m}:${v.agg}:${v.show}`).join("|")}`;
+  const sig0 = useRef(sig);
+  const pristine = !!active && sig === sig0.current && mode === "pivot";
+  const [topic, setTopic] = useState(active?.t.id ?? topics.find((t) => t.questions.some((q) => q.ds === F.key))?.id ?? topics[0].id);
+  const ask = (q: Question) => { setBusy(true); router.push(`${path}?${questionQuery(q, filters.state?.length ? filters.state : null)}`, { scroll: false }); };
+  // Scope: the few filters almost every question needs, as one-click pills.
+  const scope = ["state", "segment", "funding"].filter((k) => dimIdx.has(k) && D(k).values.length >= 2 && D(k).values.length <= 8 && (k !== "state" || D(k).values.every((v) => /^[A-Z]{2}$/.test(v))));
+  const setScope = (k: string, v: string | null) => setFilters((f) => { const n = { ...f }; if (v == null) delete n[k]; else { const cur = n[k] ?? []; const next = cur.includes(v) ? cur.filter((x) => x !== v) : k === "state" ? [...cur, v] : [v]; if (next.length) n[k] = next; else delete n[k]; } return n; });
+  const SHOW_SHORT: Record<Show, string> = { value: "", pctCol: "share", pctRow: "% of row", pctParent: "% of group", chg: "change", diff: "difference" };
+  const valName = (v: Val) => { const m = mById.get(v.m)!; return `${m.label}${v.agg !== m.agg ? ` (${AGG_LABEL[v.agg].toLowerCase()})` : ""}${v.show !== "value" ? `, ${SHOW_SHORT[v.show]}` : ""}`; };
+  const describe = mode === "records" ? "Every record" : `${vals.map((v, i) => (i > 0 && vals[i - 1].m === v.m && v.show !== "value" ? `its ${SHOW_SHORT[v.show]}` : valName(v))).join(" and ")}${rows.length ? ` by ${rows.map((k) => label(k).toLowerCase()).join(", then ")}` : ""}${col ? ` across ${label(col).toLowerCase()}` : ""}`;
+  const single = !!pivot && pivot.specs.length === 1;
+  // Shading: within the body cells of each value, how large a cell is relative to the largest.
+  const heat = useMemo(() => {
+    if (!pivot || !shade) return null;
+    const max = pivot.specs.map(() => 0);
+    for (const r of flat) if (r.leaf && !r.more) for (const c of pivot.cols) if (c.c !== ALL || pivot.ci < 0) { const v = pivot.shown(r.lvl, r.rk, c.c, c.j); if (v != null && Math.abs(v) > max[c.j]) max[c.j] = Math.abs(v); }
+    return max;
+  }, [pivot, flat, shade]);
+
   return (
-    <div className={`space-y-3 ${busy ? "pointer-events-none opacity-60" : ""}`}>
-      <div className="space-y-1.5">{[...new Set(datasets.map((d) => d.seg))].map((g) => (
-      <div key={g} className="flex flex-wrap items-center gap-1.5">
-        <span className="w-44 shrink-0 text-[11px] uppercase tracking-wide text-stone-500">{g}</span>
-        {datasets.filter((d) => d.seg === g).map((d) => <button key={d.key} title={d.hint} onClick={() => { if (d.key !== F.key) { setBusy(true); router.push(`${path}?ds=${d.key}`, { scroll: false }); } }} className={`rounded px-2 py-1 text-xs ${d.key === F.key ? "bg-stone-900 text-white" : "bg-stone-100 text-stone-700 hover:bg-stone-200"}`}>{d.label}</button>)}
-      </div>))}</div>
-      <p className="max-w-5xl text-xs text-stone-500"><span className="font-medium text-stone-700">{F.grain}.</span> {F.rows.length.toLocaleString()} rows. {F.notes[0]}</p>
-
-      <div className="card space-y-2 p-3 text-xs">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="w-16 shrink-0 text-[11px] uppercase tracking-wide text-stone-500">View</span>
-          {(["pivot", "records"] as const).map((m) => <button key={m} onClick={() => setMode(m)} className={`rounded px-2 py-1 ${mode === m ? "bg-stone-900 text-white" : "bg-stone-100 hover:bg-stone-200"}`}>{m === "pivot" ? "Pivot" : "Every record"}</button>)}
-          <button className="ml-auto text-stone-500 underline" onClick={reset}>Reset layout</button>
+    <div className={`space-y-4 ${busy ? "pointer-events-none opacity-60" : ""}`}>
+      {/* Questions */}
+      <div className="card p-3">
+        <div className="flex flex-wrap items-center gap-1 border-b border-stone-100 pb-2">
+          <span className="mr-2 text-[11px] uppercase tracking-wide text-stone-500">Start from a question</span>
+          {topics.map((t) => <button key={t.id} onClick={() => setTopic(t.id)} className={`rounded-md px-2.5 py-1 text-sm ${topic === t.id ? "bg-stone-900 text-white" : "text-stone-600 hover:bg-stone-100"}`}>{t.label}</button>)}
+          {list.length > 0 && <button onClick={() => setTopic("_saved")} className={`rounded-md px-2.5 py-1 text-sm ${topic === "_saved" ? "bg-stone-900 text-white" : "text-stone-600 hover:bg-stone-100"}`}>Saved ({list.length})</button>}
         </div>
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="w-16 shrink-0 text-[11px] uppercase tracking-wide text-stone-500">Filters</span>
-          {Object.entries(filters).map(([k, vs]) => (
-            <Pop key={k} active={vs.length > 0} label={<>{label(k)}{vs.length ? `: ${vs.length === 1 ? vs[0].slice(0, 28) : `${vs.length} selected`}` : ": pick values"} ▾</>}>
-              <ValuePicker dim={D(k)} counts={countsFor(k)} value={vs} onChange={(nv) => setFilters((f) => ({ ...f, [k]: nv }))} />
-              <button className="mt-1 text-stone-500 underline" onClick={() => setFilters((f) => { const n = { ...f }; delete n[k]; return n; })}>Remove filter</button>
-            </Pop>
+        <div className="flex flex-wrap gap-1.5 pt-2.5">
+          {topic === "_saved"
+            ? list.map((s) => <span key={s.id} className="inline-flex items-center gap-1 rounded-full border border-stone-300 bg-white py-1 pl-3 pr-2 text-xs"><a href={`${path}?${s.query}`} className="hover:underline">{s.name}</a><button className="text-stone-400 hover:text-red-700" title="Delete this saved pull" onClick={() => remove(s.id)}>✕</button></span>)
+            : topics.find((t) => t.id === topic)?.questions.map((q) => <button key={q.id} onClick={() => ask(q)} className={`rounded-full border px-3 py-1 text-xs ${pristine && active?.q.id === q.id ? "border-stone-900 bg-stone-900 text-white" : "border-stone-300 bg-white text-stone-700 hover:border-stone-500"}`}>{q.label}</button>)}
+        </div>
+      </div>
+
+      {/* What you're looking at, and the few controls most questions need */}
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="text-lg font-semibold tracking-tight">{pristine ? active!.q.label : "Custom view"}</h2>
+            <p className="text-xs text-stone-500">{describe}. <span className="text-stone-400">{filtered.length.toLocaleString()} records from {datasets.find((d) => d.key === F.key)?.label.toLowerCase()}.</span></p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button className={`h-7 rounded border px-2.5 text-xs ${custom ? "border-stone-900 bg-stone-900 text-white" : "border-stone-300 bg-white"}`} onClick={() => setCustom(!custom)}>Customize {custom ? "▴" : "▾"}</button>
+            <button className="h-7 rounded border border-stone-300 bg-white px-2.5 text-xs" onClick={save}>Save</button>
+            <button className="h-7 rounded border border-stone-300 bg-white px-2.5 text-xs" onClick={() => { void navigator.clipboard.writeText(window.location.href); setCopied(true); setTimeout(() => setCopied(false), 1500); }}>{copied ? "Copied" : "Copy link"}</button>
+            <button className="h-7 rounded bg-stone-900 px-2.5 text-xs font-medium text-white" onClick={exportCsv}>Export</button>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs">
+          {scope.map((k) => (
+            <span key={k} className="flex flex-wrap items-center gap-1">
+              <span className="text-stone-500">{label(k)}</span>
+              <button onClick={() => setScope(k, null)} className={`rounded px-2 py-1 ${!filters[k]?.length ? "bg-stone-900 text-white" : "bg-stone-100 text-stone-700 hover:bg-stone-200"}`}>All</button>
+              {D(k).values.map((v) => <button key={v} onClick={() => setScope(k, v)} className={`rounded px-2 py-1 ${filters[k]?.includes(v) ? "bg-stone-900 text-white" : "bg-stone-100 text-stone-700 hover:bg-stone-200"}`}>{v}</button>)}
+            </span>
           ))}
-          <Pop label="+ Filter"><DimMenu dims={F.dims} exclude={Object.keys(filters)} onPick={(k) => setFilters((f) => ({ ...f, [k]: [] }))} /></Pop>
-          {Object.keys(filters).length > 0 && <button className="text-stone-500 underline" onClick={() => setFilters({})}>Clear all</button>}
-          <span className="ml-2 text-stone-500">{filtered.length.toLocaleString()} of {F.rows.length.toLocaleString()} rows</span>
-        </div>
-        {mode === "pivot" && <>
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="w-16 shrink-0 text-[11px] uppercase tracking-wide text-stone-500">Rows</span>
-            {rows.map((k, i) => (
-              <span key={k} className={chip}>
-                {i > 0 && <button title="Move up a level" className="text-stone-400 hover:text-stone-900" onClick={() => { setRows((r) => { const n = [...r]; [n[i - 1], n[i]] = [n[i], n[i - 1]]; return n; }); setCollapsed(new Set()); }}>←</button>}
-                {label(k)}
-                <button title="Remove" className="text-stone-400 hover:text-red-700" onClick={() => { setRows((r) => r.filter((x) => x !== k)); setCollapsed(new Set()); }}>✕</button>
-              </span>
+          <span className="flex flex-wrap items-center gap-1">
+            {Object.entries(filters).filter(([k]) => !scope.includes(k)).map(([k, vs]) => (
+              <Pop key={k} active={vs.length > 0} label={<>{label(k)}{vs.length ? `: ${vs.length === 1 ? vs[0].slice(0, 28) : `${vs.length} selected`}` : ": pick values"} ▾</>}>
+                <ValuePicker dim={D(k)} counts={countsFor(k)} value={vs} onChange={(nv) => setFilters((f) => ({ ...f, [k]: nv }))} />
+                <button className="mt-1 text-stone-500 underline" onClick={() => setFilters((f) => { const n = { ...f }; delete n[k]; return n; })}>Remove filter</button>
+              </Pop>
             ))}
-            <Pop label="+ Row"><DimMenu dims={F.dims} exclude={[...rows, col ?? ""]} onPick={(k) => { setRows((r) => [...r, k]); setSort(null); }} /></Pop>
-            <button title="Swap the first row field and the column field" className="px-1 text-stone-500 underline" onClick={swap}>⇄ swap</button>
-            <span className="ml-3 w-16 shrink-0 text-[11px] uppercase tracking-wide text-stone-500">Columns</span>
-            {col ? <span className={chip}>{label(col)}<button className="text-stone-400 hover:text-red-700" onClick={() => { setCol(null); setSort(null); }}>✕</button></span> : <span className="text-stone-400">none</span>}
-            <Pop label={col ? "Change" : "+ Column"}><DimMenu dims={F.dims} exclude={[...rows, col ?? ""]} onPick={(k) => { setCol(k); setSort(null); }} /></Pop>
-          </div>
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="w-16 shrink-0 text-[11px] uppercase tracking-wide text-stone-500">Values</span>
-            {vals.map((v, i) => { const m = mById.get(v.m)!; return (
-              <span key={i} className={`${chip} gap-1.5`} title={m.hint}>
-                <span className="font-medium">{m.label}</span>
-                {m.aggs.length > 1 ? <select className="bg-transparent text-stone-600" value={v.agg} onChange={(e) => setVals((vs) => vs.map((x, j) => (j === i ? { ...x, agg: e.target.value as Agg } : x)))}>{m.aggs.map((a) => <option key={a} value={a}>{a === "wavg" && m.weight ? `Avg weighted by ${numLabel(m.weight).toLowerCase()}` : AGG_LABEL[a]}</option>)}</select> : <span className="text-stone-500">{AGG_LABEL[v.agg]}</span>}
-                <select className="bg-transparent text-stone-600" value={v.show} onChange={(e) => setVals((vs) => vs.map((x, j) => (j === i ? { ...x, show: e.target.value as Show } : x)))}>{(Object.keys(SHOW_LABEL) as Show[]).filter((s) => (col || (s !== "chg" && s !== "diff" && s !== "pctRow")) && (rows.length > 1 || s !== "pctParent")).map((s) => <option key={s} value={s}>{SHOW_LABEL[s]}</option>)}</select>
-                {vals.length > 1 && <button className="text-stone-400 hover:text-red-700" onClick={() => setVals((vs) => vs.filter((_, j) => j !== i))}>✕</button>}
-              </span>); })}
-            <Pop label="+ Value" width="w-80">
-              <div className="max-h-80 overflow-auto">
-                {[...new Set(F.measures.map((m) => m.group))].map((g) => <div key={g} className="mb-1.5"><div className="px-1 text-[10px] uppercase tracking-wide text-stone-400">{g}</div>
-                  {F.measures.filter((m) => m.group === g).map((m) => <button key={m.key} title={m.hint} className="block w-full truncate rounded px-1 py-0.5 text-left hover:bg-stone-100" onClick={(e) => { setVals((vs) => [...vs, { m: m.key, agg: m.agg, show: "value" }]); (e.currentTarget.closest("details") as HTMLDetailsElement).open = false; }}>{m.label}</button>)}
-                </div>)}
-              </div>
-            </Pop>
-          </div>
-          <div className="flex flex-wrap items-center gap-3 text-stone-600">
-            <span className="w-16 shrink-0 text-[11px] uppercase tracking-wide text-stone-500">Options</span>
-            {rows.length > 1 && <label className="flex items-center gap-1"><input type="checkbox" checked={subtotals} onChange={(e) => setSubtotals(e.target.checked)} />Subtotals</label>}
-            <label className="flex items-center gap-1">Show top<select className="input h-6 py-0 text-xs" value={topN} onChange={(e) => setTopN(Number(e.target.value))}>{[0, 5, 10, 20, 50].map((n) => <option key={n} value={n}>{n || "all"}</option>)}</select>{rows.length > 1 ? "per group" : "rows"}</label>
-            <label className="flex items-center gap-1"><input type="checkbox" checked={chart} onChange={(e) => setChart(e.target.checked)} />Chart the first value{lineChart ? " (trend)" : ""}</label>
-            {rows.length > 1 && <><button className="underline" onClick={() => setCollapsed(new Set(flat.filter((r) => !r.leaf).map((r) => r.rk)))}>Collapse all</button><button className="underline" onClick={() => setCollapsed(new Set())}>Expand all</button></>}
-            <span className="text-stone-400">Click a column header to sort.</span>
-          </div>
-        </>}
-        {mode === "records" && (
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="w-16 shrink-0 text-[11px] uppercase tracking-wide text-stone-500">Columns</span>
-            <Pop label={`${recCols.length} of ${F.dims.length + F.nums.length} ▾`} width="w-[30rem]">
-              <div className="mb-1 flex gap-3"><button className="underline" onClick={() => setRecCols([...F.dims.map((d) => d.key), ...F.nums])}>All</button></div>
-              <div className="grid max-h-80 grid-cols-2 gap-x-4 overflow-auto">
-                {[...F.dims.map((d) => ({ k: d.key, l: d.label })), ...F.nums.filter((n) => F.measures.some((m) => m.field === n)).map((n) => ({ k: n, l: numLabel(n) }))].map((c) => <label key={c.k} className="flex items-center gap-2 py-0.5"><input type="checkbox" checked={recCols.includes(c.k)} onChange={(e) => setRecCols((x) => (e.target.checked ? [...x, c.k] : x.filter((y) => y !== c.k)))} />{c.l}</label>)}
-              </div>
-            </Pop>
-          </div>
-        )}
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2">
-        {snapWarn && <p className="rounded bg-amber-50 px-2 py-1 text-xs text-amber-900">These are point-in-time counts, and several count dates are being added together. Put “{label(F.snapshot!)}” on rows or columns, or filter to one quarter.</p>}
-        {pivot?.capped && <p className="rounded bg-amber-50 px-2 py-1 text-xs text-amber-900">Showing the first 60 of {pivot.colVals.length.toLocaleString()} column values. Filter, or move this field to rows.</p>}
-        <div className="ml-auto flex items-center gap-2">
-          {list.length > 0 && (
-            <Pop align="right" label={`Saved pulls (${list.length}) ▾`}>
-              {list.map((s) => <div key={s.id} className="flex items-center justify-between gap-2 rounded px-1 py-1 hover:bg-stone-50"><a className="min-w-0 flex-1 truncate" href={`${path}?${s.query}`}>{s.name}</a><button className="text-stone-400 hover:text-red-700" title="Delete" onClick={() => remove(s.id)}>✕</button></div>)}
-            </Pop>
-          )}
-          <button className="h-7 rounded border border-stone-300 bg-white px-2.5 text-xs" onClick={save}>Save pull</button>
-          <button className="h-7 rounded border border-stone-300 bg-white px-2.5 text-xs" onClick={() => { void navigator.clipboard.writeText(window.location.href); setCopied(true); setTimeout(() => setCopied(false), 1500); }}>{copied ? "Copied" : "Copy link"}</button>
-          <button className="h-7 rounded bg-stone-900 px-2.5 text-xs font-medium text-white" onClick={exportCsv}>Export CSV</button>
+            <Pop label="+ Filter"><DimMenu dims={F.dims} exclude={Object.keys(filters)} onPick={(k) => setFilters((f) => ({ ...f, [k]: [] }))} /></Pop>
+          </span>
         </div>
       </div>
 
-      {chartEl && <div className="card p-3">{chartEl}<p className="mt-1 text-[11px] text-stone-500">{pivot!.specs[0].m.label} ({AGG_LABEL[pivot!.specs[0].v.agg].toLowerCase()}{pivot!.specs[0].v.show !== "value" ? `, ${SHOW_LABEL[pivot!.specs[0].v.show].toLowerCase()}` : ""}) for the first {lineChart ? 8 : 20} rows in the table&apos;s order.</p></div>}
+      {/* Customize: reshape the table */}
+      {custom && (
+        <div className="card space-y-2 p-3 text-xs">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="w-16 shrink-0 text-[11px] uppercase tracking-wide text-stone-500">Data</span>
+            <select className="input h-7 w-auto py-0 text-xs" value={F.key} onChange={(e) => { setBusy(true); router.push(`${path}?ds=${e.target.value}&adv=1`, { scroll: false }); }}>
+              {[...new Set(datasets.map((d) => d.seg))].map((g) => <optgroup key={g} label={g}>{datasets.filter((d) => d.seg === g).map((d) => <option key={d.key} value={d.key}>{d.label}</option>)}</optgroup>)}
+            </select>
+            <span className="text-stone-500">{F.grain}.</span>
+            <span className="ml-auto flex gap-1">{(["pivot", "records"] as const).map((m) => <button key={m} onClick={() => setMode(m)} className={`rounded px-2 py-1 ${mode === m ? "bg-stone-900 text-white" : "bg-stone-100 hover:bg-stone-200"}`}>{m === "pivot" ? "Summary" : "Every record"}</button>)}</span>
+          </div>
+          {mode === "pivot" && <>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="w-16 shrink-0 text-[11px] uppercase tracking-wide text-stone-500">Rows</span>
+              {rows.map((k, i) => (
+                <span key={k} className={chip}>
+                  {i > 0 && <button title="Move up a level" className="text-stone-400 hover:text-stone-900" onClick={() => { setRows((r) => { const n = [...r]; [n[i - 1], n[i]] = [n[i], n[i - 1]]; return n; }); setCollapsed(new Set()); }}>←</button>}
+                  {label(k)}
+                  <button title="Remove" className="text-stone-400 hover:text-red-700" onClick={() => { setRows((r) => r.filter((x) => x !== k)); setCollapsed(new Set()); }}>✕</button>
+                </span>
+              ))}
+              <Pop label="+ Row"><DimMenu dims={F.dims} exclude={[...rows, col ?? ""]} onPick={(k) => { setRows((r) => [...r, k]); setSort(null); }} /></Pop>
+              <button title="Swap the first row field and the column field" className="px-1 text-stone-500 underline" onClick={swap}>⇄ swap</button>
+              <span className="ml-3 w-16 shrink-0 text-[11px] uppercase tracking-wide text-stone-500">Columns</span>
+              {col ? <span className={chip}>{label(col)}<button className="text-stone-400 hover:text-red-700" onClick={() => { setCol(null); setSort(null); }}>✕</button></span> : <span className="text-stone-400">none</span>}
+              <Pop label={col ? "Change" : "+ Column"}><DimMenu dims={F.dims} exclude={[...rows, col ?? ""]} onPick={(k) => { setCol(k); setSort(null); }} /></Pop>
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="w-16 shrink-0 text-[11px] uppercase tracking-wide text-stone-500">Values</span>
+              {vals.map((v, i) => { const m = mById.get(v.m)!; return (
+                <span key={i} className={`${chip} gap-1.5`} title={m.hint}>
+                  <span className="font-medium">{m.label}</span>
+                  {m.aggs.length > 1 ? <select className="bg-transparent text-stone-600" value={v.agg} onChange={(e) => setVals((vs) => vs.map((x, j) => (j === i ? { ...x, agg: e.target.value as Agg } : x)))}>{m.aggs.map((a) => <option key={a} value={a}>{a === "wavg" && m.weight ? `Avg weighted by ${numLabel(m.weight).toLowerCase()}` : AGG_LABEL[a]}</option>)}</select> : null}
+                  <select className="bg-transparent text-stone-600" value={v.show} onChange={(e) => setVals((vs) => vs.map((x, j) => (j === i ? { ...x, show: e.target.value as Show } : x)))}>{(Object.keys(SHOW_LABEL) as Show[]).filter((s) => (col || (s !== "chg" && s !== "diff" && s !== "pctRow")) && (rows.length > 1 || s !== "pctParent")).map((s) => <option key={s} value={s}>{SHOW_LABEL[s]}</option>)}</select>
+                  {vals.length > 1 && <button className="text-stone-400 hover:text-red-700" onClick={() => setVals((vs) => vs.filter((_, j) => j !== i))}>✕</button>}
+                </span>); })}
+              <Pop label="+ Value" width="w-80">
+                <div className="max-h-80 overflow-auto">
+                  {[...new Set(F.measures.map((m) => m.group))].map((g) => <div key={g} className="mb-1.5"><div className="px-1 text-[10px] uppercase tracking-wide text-stone-400">{g}</div>
+                    {F.measures.filter((m) => m.group === g).map((m) => <button key={m.key} title={m.hint} className="block w-full truncate rounded px-1 py-0.5 text-left hover:bg-stone-100" onClick={(e) => { setVals((vs) => [...vs, { m: m.key, agg: m.agg, show: "value" }]); (e.currentTarget.closest("details") as HTMLDetailsElement).open = false; }}>{m.label}</button>)}
+                  </div>)}
+                </div>
+              </Pop>
+            </div>
+            <div className="flex flex-wrap items-center gap-3 text-stone-600">
+              <span className="w-16 shrink-0 text-[11px] uppercase tracking-wide text-stone-500">Display</span>
+              <label className="flex items-center gap-1 whitespace-nowrap">Show top<select className="input h-6 w-auto py-0 text-xs" value={topN} onChange={(e) => setTopN(Number(e.target.value))}>{[0, 5, 6, 10, 12, 20, 50].map((n) => <option key={n} value={n}>{n || "all"}</option>)}</select>{rows.length > 1 ? "per group" : "rows"}</label>
+              <label className="flex items-center gap-1"><input type="checkbox" checked={chart} onChange={(e) => setChart(e.target.checked)} />Chart</label>
+              <label className="flex items-center gap-1"><input type="checkbox" checked={shade} onChange={(e) => setShade(e.target.checked)} />Shade by size</label>
+              {rows.length > 1 && <label className="flex items-center gap-1"><input type="checkbox" checked={subtotals} onChange={(e) => setSubtotals(e.target.checked)} />Subtotals</label>}
+              {rows.length > 1 && <><button className="underline" onClick={() => setCollapsed(new Set(flat.filter((r) => !r.leaf).map((r) => r.rk)))}>Collapse all</button><button className="underline" onClick={() => setCollapsed(new Set())}>Expand all</button></>}
+              <button className="ml-auto text-stone-500 underline" onClick={reset}>Reset</button>
+            </div>
+          </>}
+          {mode === "records" && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="w-16 shrink-0 text-[11px] uppercase tracking-wide text-stone-500">Columns</span>
+              <Pop label={`${recCols.length} of ${F.dims.length + F.nums.length} ▾`} width="w-[30rem]">
+                <div className="mb-1 flex gap-3"><button className="underline" onClick={() => setRecCols([...F.dims.map((d) => d.key), ...F.nums])}>All</button></div>
+                <div className="grid max-h-80 grid-cols-2 gap-x-4 overflow-auto">
+                  {[...F.dims.map((d) => ({ k: d.key, l: d.label })), ...F.nums.filter((n) => F.measures.some((m) => m.field === n)).map((n) => ({ k: n, l: numLabel(n) }))].map((c) => <label key={c.k} className="flex items-center gap-2 py-0.5"><input type="checkbox" checked={recCols.includes(c.k)} onChange={(e) => setRecCols((x) => (e.target.checked ? [...x, c.k] : x.filter((y) => y !== c.k)))} />{c.l}</label>)}
+                </div>
+              </Pop>
+            </div>
+          )}
+        </div>
+      )}
+
+      {snapWarn && <p className="rounded bg-amber-50 px-2 py-1 text-xs text-amber-900">These are point-in-time counts, and several count dates are being added together. Put “{label(F.snapshot!)}” on rows or columns, or filter to one quarter.</p>}
+      {pivot?.capped && <p className="rounded bg-amber-50 px-2 py-1 text-xs text-amber-900">Showing the first 60 of {pivot.colVals.length.toLocaleString()} column values. Filter, or move this field to rows.</p>}
+
+      {chartEl && <div className="card p-4">{chartEl}</div>}
 
       {pivot && (
-        <div className="card overflow-auto" style={{ maxHeight: "72vh" }}>
-          <table data-static className="w-full text-xs">
-            <thead className="sticky top-0 z-10 bg-white text-left shadow-[0_1px_0_#e7e5e4]">
-              {pivot.ci >= 0 && (
-                <tr className="text-[11px] text-stone-700">
-                  <th className="sticky left-0 z-20 bg-white px-3 pt-2 font-normal text-stone-500">{label(col!)} →</th>
-                  {(() => { const g: Array<{ head: string; span: number; total: boolean }> = []; for (const c of pivot.cols) { const last = g[g.length - 1]; if (last && last.head === c.head && last.total === (c.c === ALL)) last.span++; else g.push({ head: c.head, span: 1, total: c.c === ALL }); } return g.map((x, i) => <th key={i} colSpan={x.span} className={`whitespace-nowrap border-l border-stone-100 px-3 pt-2 text-right font-semibold ${x.total ? "bg-stone-50" : ""}`}>{x.head}</th>); })()}
+        <div className="card w-fit max-w-full overflow-auto" style={{ maxHeight: "72vh" }}>
+          <table data-static className="text-[13px]">
+            <thead className="sticky top-0 z-10 bg-white text-left shadow-[0_1px_0_#d6d3d1]">
+              {pivot.ci >= 0 && !single && (
+                <tr className="text-xs text-stone-900">
+                  <th className="sticky left-0 z-20 bg-white px-4 pt-2.5" />
+                  {(() => { const g: Array<{ head: string; span: number; total: boolean }> = []; for (const c of pivot.cols) { const last = g[g.length - 1]; if (last && last.head === c.head && last.total === (c.c === ALL)) last.span++; else g.push({ head: c.head, span: 1, total: c.c === ALL }); } return g.map((x, i) => <th key={i} colSpan={x.span} className="whitespace-nowrap border-l border-stone-200 px-4 pt-2.5 text-center font-semibold">{x.head}</th>); })()}
                 </tr>
               )}
-              <tr className="text-[10px] text-stone-500">
-                <th className="sticky left-0 z-20 bg-white px-3 py-2 font-mono uppercase">{rows.length ? rows.map(label).join(" › ") : "All rows"}</th>
-                {pivot.cols.map((c, i) => <th key={i} title="Click to sort" onClick={() => setSort(sort?.c === i ? (sort.dir === -1 ? { c: i, dir: 1 } : null) : { c: i, dir: -1 })} className={`cursor-pointer select-none whitespace-nowrap px-3 py-2 text-right font-medium hover:text-stone-900 ${c.c === ALL && pivot.ci >= 0 ? "bg-stone-50" : ""} ${pivot.ci >= 0 && c.j === 0 ? "border-l border-stone-100" : ""}`}>{c.sub}{sort?.c === i ? (sort.dir === 1 ? " ↑" : " ↓") : ""}</th>)}
+              <tr className="text-xs text-stone-500">
+                <th className="sticky left-0 z-20 bg-white px-4 py-2.5 font-medium">{rows.length ? rows.map(label).join(" › ") : ""}</th>
+                {pivot.cols.map((c, i) => <th key={i} title="Click to sort" onClick={() => setSort(sort?.c === i ? (sort.dir === -1 ? { c: i, dir: 1 } : null) : { c: i, dir: -1 })} className={`cursor-pointer select-none whitespace-nowrap px-4 py-2.5 text-right hover:text-stone-900 ${single && pivot.ci >= 0 ? "font-semibold text-stone-900" : "font-medium"} ${!single && pivot.ci >= 0 && c.j === 0 ? "border-l border-stone-200" : ""}`}>{single && pivot.ci >= 0 ? c.head : c.sub}{sort?.c === i ? (sort.dir === 1 ? " ↑" : " ↓") : ""}</th>)}
               </tr>
             </thead>
-            <tbody className="divide-y divide-stone-100">
+            <tbody>
               {flat.map((r) => r.more ? (
-                <tr key={r.rk}><td colSpan={pivot.cols.length + 1} className="px-3 py-1 text-stone-400" style={{ paddingLeft: 12 + (r.lvl - 1) * 18 }}>{r.label}</td></tr>
+                <tr key={r.rk}><td colSpan={pivot.cols.length + 1} className="px-4 py-1 text-xs text-stone-400" style={{ paddingLeft: 16 + (r.lvl - 1) * 18 }}>{r.label}</td></tr>
               ) : (
-                <tr key={r.rk} className={r.leaf ? "bg-white hover:bg-stone-50" : "bg-stone-50 font-medium"}>
-                  <td className="sticky left-0 z-[1] max-w-[24rem] truncate bg-inherit px-3 py-1.5" style={{ paddingLeft: 12 + (r.lvl - 1) * 18 }} title={r.path.join(" › ")}>
+                <tr key={r.rk} className={`border-t border-stone-100 ${r.leaf ? "bg-white hover:bg-stone-50" : "bg-stone-50 font-medium"}`}>
+                  <td className="sticky left-0 z-[1] max-w-[22rem] truncate bg-inherit px-4 py-2" style={{ paddingLeft: 16 + (r.lvl - 1) * 18 }} title={r.path.join(" › ")}>
                     {!r.leaf && <button className="mr-1 w-3 text-stone-400" onClick={() => setCollapsed((s) => { const n = new Set(s); if (n.has(r.rk)) n.delete(r.rk); else n.add(r.rk); return n; })}>{r.open ? "▾" : "▸"}</button>}{r.label}
                   </td>
-                  {pivot.cols.map((c, i) => { const showIt = r.leaf || subtotals || !r.open; const v = showIt ? pivot.shown(r.lvl, r.rk, c.c, c.j) : null; const sh = pivot.specs[c.j].v.show; return <td key={i} className={`whitespace-nowrap px-3 py-1.5 text-right tabular-nums ${c.c === ALL && pivot.ci >= 0 ? "bg-stone-50 font-medium" : ""} ${pivot.ci >= 0 && c.j === 0 ? "border-l border-stone-100" : ""} ${v == null ? "text-stone-300" : (sh === "chg" || sh === "diff") && v < 0 ? "text-red-700" : ""}`}>{showIt ? fmtV(v, pivot.specs[c.j].m.fmt, sh) : ""}</td>; })}
+                  {pivot.cols.map((c, i) => {
+                    const showIt = r.leaf || subtotals || !r.open, v = showIt ? pivot.shown(r.lvl, r.rk, c.c, c.j) : null, sh = pivot.specs[c.j].v.show, total = c.c === ALL && pivot.ci >= 0;
+                    const tint = heat && r.leaf && !total && v != null && sh !== "chg" && sh !== "diff" && heat[c.j] > 0 ? `rgba(194,65,12,${(0.03 + 0.21 * Math.min(1, Math.abs(v) / heat[c.j])).toFixed(3)})` : undefined;
+                    return <td key={i} style={tint ? { background: tint } : undefined} className={`whitespace-nowrap px-4 py-2 text-right tabular-nums ${total ? "font-medium text-stone-500" : ""} ${!single && pivot.ci >= 0 && c.j === 0 ? "border-l border-stone-200" : ""} ${(sh === "chg" || sh === "diff") && v != null ? (v < 0 ? "text-red-700" : v > 0 ? "text-emerald-700" : "") : ""}`}>{v == null ? "" : fmtV(v, pivot.specs[c.j].m.fmt, sh)}</td>;
+                  })}
                 </tr>
               ))}
-              <tr className="sticky bottom-0 bg-stone-100 font-semibold">
-                <td className="sticky left-0 bg-stone-100 px-3 py-1.5">Total</td>
-                {pivot.cols.map((c, i) => <td key={i} className="whitespace-nowrap px-3 py-1.5 text-right tabular-nums">{fmtV(pivot.shown(0, "", c.c, c.j), pivot.specs[c.j].m.fmt, pivot.specs[c.j].v.show)}</td>)}
+              <tr className="sticky bottom-0 border-t border-stone-300 bg-white font-semibold">
+                <td className="sticky left-0 bg-white px-4 py-2">Total</td>
+                {pivot.cols.map((c, i) => { const v = pivot.shown(0, "", c.c, c.j); return <td key={i} className={`whitespace-nowrap px-4 py-2 text-right tabular-nums ${!single && pivot.ci >= 0 && c.j === 0 ? "border-l border-stone-200" : ""}`}>{v == null ? "" : fmtV(v, pivot.specs[c.j].m.fmt, pivot.specs[c.j].v.show)}</td>; })}
               </tr>
             </tbody>
           </table>
-          {!filtered.length && <p className="px-4 py-8 text-center text-sm text-stone-500">No rows match these filters.</p>}
+          {!filtered.length && <p className="px-4 py-8 text-center text-sm text-stone-500">No records match these filters.</p>}
         </div>
       )}
+      {pivot && <p className="text-[11px] text-stone-400">Click a column heading to sort.{heat ? " Darker cells are larger values." : ""}</p>}
 
       {mode === "records" && (
         <div className="card overflow-auto" style={{ maxHeight: "72vh" }}>
