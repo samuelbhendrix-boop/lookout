@@ -10,7 +10,7 @@ export const metadata = { title: "Data table · Competitors" };
 export default async function DataPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const sp = await searchParams;
   const session = (await getSession())!;
-  const ds = (DATASETS.find((d) => d.key === sp.ds)?.key ?? "plans") as DatasetKey;
+  const ds = (DATASETS.find((d) => d.key === sp.ds)?.key ?? "financials") as DatasetKey;
   const [comps, saved] = await Promise.all([
     db.competitor.findMany({ where: { workspaceId: session.workspaceId }, select: { id: true, name: true, aliases: true, issuerPattern: true } }),
     db.savedPull.findMany({ where: { workspaceId: session.workspaceId }, orderBy: { createdAt: "desc" }, select: { id: true, name: true, query: true } }),

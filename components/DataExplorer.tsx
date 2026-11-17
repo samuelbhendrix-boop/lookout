@@ -11,7 +11,7 @@ import type { Agg, Dim, Facts, Fmt, Measure, View } from "@/lib/explore";
 type Saved = { id: string; name: string; query: string };
 type Show = "value" | "pctCol" | "pctRow" | "pctParent" | "chg" | "diff";
 type Val = { m: string; agg: Agg; show: Show };
-type Props = { facts: Facts; datasets: Array<{ key: string; label: string; hint: string }>; saved: Saved[]; init: Record<string, string | undefined> };
+type Props = { facts: Facts; datasets: Array<{ key: string; label: string; hint: string; seg: string }>; saved: Saved[]; init: Record<string, string | undefined> };
 
 const AGG_LABEL: Record<Agg, string> = { sum: "Sum", avg: "Average", wavg: "Weighted avg", min: "Min", max: "Max", median: "Median", count: "Count", distinct: "Count distinct", ratio: "Ratio" };
 const SHOW_LABEL: Record<Show, string> = { value: "Value", pctCol: "% of column total", pctRow: "% of row total", pctParent: "% of parent row", chg: "Change vs previous column", diff: "Difference vs previous column" };
@@ -336,10 +336,11 @@ export function DataExplorer({ facts: F, datasets, saved, init }: Props) {
 
   return (
     <div className={`space-y-3 ${busy ? "pointer-events-none opacity-60" : ""}`}>
-      <div className="flex flex-wrap items-center gap-1.5">
-        <span className="mr-1 text-[11px] uppercase tracking-wide text-stone-500">Data</span>
-        {datasets.map((d) => <button key={d.key} title={d.hint} onClick={() => { if (d.key !== F.key) { setBusy(true); router.push(`${path}?ds=${d.key}`, { scroll: false }); } }} className={`rounded px-2 py-1 text-xs ${d.key === F.key ? "bg-stone-900 text-white" : "bg-stone-100 text-stone-700 hover:bg-stone-200"}`}>{d.label}</button>)}
-      </div>
+      <div className="space-y-1.5">{[...new Set(datasets.map((d) => d.seg))].map((g) => (
+      <div key={g} className="flex flex-wrap items-center gap-1.5">
+        <span className="w-44 shrink-0 text-[11px] uppercase tracking-wide text-stone-500">{g}</span>
+        {datasets.filter((d) => d.seg === g).map((d) => <button key={d.key} title={d.hint} onClick={() => { if (d.key !== F.key) { setBusy(true); router.push(`${path}?ds=${d.key}`, { scroll: false }); } }} className={`rounded px-2 py-1 text-xs ${d.key === F.key ? "bg-stone-900 text-white" : "bg-stone-100 text-stone-700 hover:bg-stone-200"}`}>{d.label}</button>)}
+      </div>))}</div>
       <p className="max-w-5xl text-xs text-stone-500"><span className="font-medium text-stone-700">{F.grain}.</span> {F.rows.length.toLocaleString()} rows. {F.notes[0]}</p>
 
       <div className="card space-y-2 p-3 text-xs">

@@ -19,15 +19,15 @@ export type Measure = { key: string; label: string; group: string; fmt: Fmt; hin
 export type View = { rows: string[]; col: string | null; vals: string[]; filters: Record<string, string[]>; show?: string; sort?: string };
 export type Facts = { key: string; label: string; grain: string; notes: string[]; dims: Dim[]; nums: string[]; measures: Measure[]; rows: Array<Array<number | null>>; defaults: View; snapshot?: string };
 export const DATASETS = [
-  { key: "plans", label: "Individual & small-group plans", hint: "Every filed plan, 2024–2027: design, premium, enrollment, rate change" },
-  { key: "financials", label: "Carrier financials (all segments)", hint: "Members, premium, claims, loss ratio by carrier, state and segment, incl. large group" },
-  { key: "employers", label: "Employer plans (Form 5500)", hint: "Large-group employers: carrier, funding, broker, premium per person, renewal month" },
-  { key: "enrollment", label: "Enrollment by funding & group size", hint: "MA (CHIA, quarterly) and NH: fully insured vs self-funded, jumbo/large/mid/small, HMO/PPO" },
-  { key: "selffunded", label: "Self-funded lives", hint: "ASO lives and fees carriers report, by state" },
-  { key: "rates", label: "Large-group rate requests", hint: "Requested vs approved large-group rates where the regulator publishes them" },
-  { key: "gic", label: "Mass. GIC plans", hint: "Public-employer large-group benchmark: premiums, increases, enrollment" },
-  { key: "marketed", label: "Marketed products", hint: "How each product is sold, from carriers' websites: network model, funding, vendors" },
-  { key: "serff", label: "SERFF filings", hint: "State filings added to the site: status, new products, rate change" },
+  { key: "financials", seg: "Large group & self-funded", label: "Carrier financials", hint: "Members, share, premium, claims and loss ratio by carrier, state and segment; large group from 2020" },
+  { key: "employers", seg: "Large group & self-funded", label: "Employers (Form 5500)", hint: "About 14,000 New England employer contracts: carrier, insured or self-funded, size, industry, broker, renewal month, premium per person" },
+  { key: "enrollment", seg: "Large group & self-funded", label: "Enrollment by funding & group size", hint: "MA (CHIA, quarterly) and NH: fully insured vs self-funded, jumbo/large/mid/small, HMO/PPO" },
+  { key: "selffunded", seg: "Large group & self-funded", label: "Self-funded lives", hint: "ASO lives and fees carriers report, by state" },
+  { key: "rates", seg: "Large group & self-funded", label: "Rate requests", hint: "Requested vs approved large-group rates where the regulator publishes them (RI)" },
+  { key: "gic", seg: "Large group & self-funded", label: "Mass. GIC plans", hint: "Public-employer benchmark: premiums, increases, enrollment" },
+  { key: "plans", seg: "Individual & small group", label: "Plans", hint: "Every filed plan, 2024–2027: design, premium, enrollment, rate change" },
+  { key: "serff", seg: "Individual & small group", label: "SERFF filings", hint: "State filings added to the site: status, new products, rate change" },
+  { key: "marketed", seg: "All segments", label: "Marketed products", hint: "How each product is sold, from carriers' websites: network model, funding, vendors (large group included)" },
 ] as const;
 export type DatasetKey = (typeof DATASETS)[number]["key"];
 
