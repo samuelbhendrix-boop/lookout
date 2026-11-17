@@ -14,7 +14,6 @@ const GROUPS: Array<{ id: string; label: string; links: NavLink[] }> = [
       { href: "/updates", label: "Updates" },
       { href: "/competitors", label: "Competitors", children: [{ href: "/competitors", label: "Overview" }, { href: "/competitors/products", label: "Products" }] },
       { href: "/market", label: "Market" },
-      { href: "/explore", label: "Data explorer" },
       { href: "/ai-watch", label: "AI watch" },
     ],
   },
@@ -25,7 +24,7 @@ const GROUPS: Array<{ id: string; label: string; links: NavLink[] }> = [
       { href: "/networks", label: "Networks" },
     ],
   },
-  { id: "reports", label: "Reports", links: [{ href: "/reports/launches", label: "Product launches" }, { href: "/reports/filings", label: "State filings (SERFF)" }] },
+  { id: "reports", label: "Reports", links: [{ href: "/explore", label: "Data explorer" }, { href: "/reports/launches", label: "Product launches" }, { href: "/reports/filings", label: "State filings (SERFF)" }] },
   { id: "sales", label: "Sales", links: [{ href: "/accounts", label: "In play" }, { href: "/employers", label: "Employers" }] },
   {
     id: "settings", label: "Settings", links: [
@@ -51,13 +50,11 @@ export function Nav({ workspaceId, workspace, workspaceIcon, workspaces, email, 
   const path = usePathname();
   const router = useRouter();
   const current = activeHref(path);
-  const [closed, setClosed] = useState<string[]>([]);
-  useEffect(() => { try { setClosed(JSON.parse(localStorage.getItem("nav:closed") ?? "[]")); } catch { /* storage unavailable */ } }, []);
-  function toggle(id: string) {
-    const next = closed.includes(id) ? closed.filter((x) => x !== id) : [...closed, id];
-    setClosed(next);
-    try { localStorage.setItem("nav:closed", JSON.stringify(next)); } catch { /* storage unavailable */ }
-  }
+  // One section open at a time: the one holding the current page, or the one you last clicked.
+  const home = GROUPS.find((g) => g.links.some((l) => l.href === current))?.id ?? null;
+  const [openId, setOpenId] = useState<string | null>(home);
+  useEffect(() => setOpenId(home), [home]);
+  const toggle = (id: string) => setOpenId((cur) => (cur === id ? null : id));
   async function switchTo(id: string) {
     await api("POST", "/auth/switch", { workspaceId: id });
     router.replace("/home");
@@ -103,8 +100,7 @@ export function Nav({ workspaceId, workspace, workspaceIcon, workspaces, email, 
       <nav className="hidden max-h-[calc(100vh-11rem)] flex-col gap-3 overflow-y-auto px-2 pb-14 md:flex">
         <Link href={HOME.href} className={`rounded-md px-3 py-1.5 text-sm font-medium ${current === HOME.href ? "bg-stone-900 text-white" : "text-stone-700 hover:bg-stone-100"}`}>Home</Link>
         {GROUPS.map((g) => {
-          const holdsCurrent = g.links.some((l) => l.href === current);
-          const open = holdsCurrent || !closed.includes(g.id);
+          const open = openId === g.id;
           return (
             <div key={g.id}>
               <button onClick={() => toggle(g.id)} aria-expanded={open} className="flex w-full items-center justify-between px-3 py-1 font-mono text-[10px] uppercase tracking-widest text-stone-400 hover:text-stone-700">
