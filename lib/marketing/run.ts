@@ -12,7 +12,7 @@ const norm = (l: string) => l.toLowerCase().replace(/\s+/g, " ").trim();
  */
 export function wordingDiff(before: string, after: string): { added: string[]; removed: string[] } {
   const key = (l: string) => norm(l).replace(/\d+/g, "#");
-  const lines = (t: string) => t.split("\n").map((l) => l.trim()).filter((l) => l.length >= 30);
+  const lines = (t: string) => t.split("\n").map((l) => l.trim()).filter((l) => l.length >= 30 && !/^[<{]|\{host\}/.test(l));
   const a = lines(before), b = lines(after);
   const inA = new Set(a.map(key)), inB = new Set(b.map(key));
   const pick = (xs: string[], other: Set<string>) => [...new Set(xs.filter((l) => !other.has(key(l))))].slice(0, 40).map((l) => l.slice(0, 500));
@@ -53,6 +53,32 @@ export async function crawlProductSites(keys?: string[], log: (m: string) => voi
   return out;
 }
 
+/**
+ * A banner or disclaimer that changes shows up as the same line on many pages of one site. That is one site-wide
+ * edit, not reworded marketing: drop lines that recur across three or more of a site's changed pages in one read,
+ * and any change left with nothing.
+ */
+export async function pruneBoilerplate(): Promise<number> {
+  const rows = await db.productPageVersion.findMany({ where: { replacedAt: { gte: new Date(Date.now() - 45 * 864e5) } }, select: { id: true, site: true, replacedAt: true, added: true, removed: true } });
+  const strs = (j: unknown) => (Array.isArray(j) ? j.filter((x): x is string => typeof x === "string") : []);
+  const groups = new Map<string, typeof rows>();
+  for (const r of rows) { const k = `${r.site}|${r.replacedAt.toISOString().slice(0, 10)}`; (groups.get(k) ?? groups.set(k, []).get(k)!).push(r); }
+  let touched = 0;
+  for (const g of groups.values()) {
+    const seen = new Map<string, number>();
+    for (const r of g) for (const l of new Set([...strs(r.added), ...strs(r.removed)].map(norm))) seen.set(l, (seen.get(l) ?? 0) + 1);
+    const junk = (l: string) => (seen.get(norm(l)) ?? 0) >= 3 || /^[<{]|\{host\}/.test(l.trim());
+    for (const r of g) {
+      const a = strs(r.added), d = strs(r.removed), a2 = a.filter((l) => !junk(l)), d2 = d.filter((l) => !junk(l));
+      if (a2.length === a.length && d2.length === d.length) continue;
+      touched++;
+      if (!a2.length && !d2.length) await db.productPageVersion.delete({ where: { id: r.id } });
+      else await db.productPageVersion.update({ where: { id: r.id }, data: { added: a2, removed: d2 } });
+    }
+  }
+  return touched;
+}
+
 export const sitesForCrawl = (): ProductSite[] => SITES.filter((s) => !s.skip);
 
 let busy = false;
@@ -74,6 +100,8 @@ export async function maybeRefreshMarketing(log: (m: string) => void): Promise<v
       const data = { carrier: "_cache", carrierName: "_cache", network: "marketing-crawl", url: "", status: "cache", stats: { v: CRAWL_VERSION }, processedAt: new Date() };
       await db.rateFile.upsert({ where: { id: "cache:marketing-crawl" }, create: { id: "cache:marketing-crawl", ...data }, update: data });
     }
+    const pruned = await pruneBoilerplate().catch(() => 0);
+    if (pruned) log(`[marketing] dropped site-wide banner text from ${pruned} recorded page changes`);
     const { marketingFor } = await import("./extract");
     for (const s of sitesForCrawl()) {
       const before = await db.rateFile.findUnique({ where: { id: `cache:marketing:${s.key}` }, select: { processedAt: true } });

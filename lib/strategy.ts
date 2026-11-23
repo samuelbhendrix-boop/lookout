@@ -193,8 +193,10 @@ export async function strategyFor(workspaceId: string, competitorId: string, opt
     if (prev && !freshMarketing && Date.now() - new Date(prev.generatedAt).getTime() < 7 * 864e5) return prev;
     if (c?.failedAt && Date.now() - new Date(c.failedAt).getTime() < 6 * 3600e3) return prev;
   }
-  const r = await claudeJson({ label: `strategy ${comp.name}`, tool: "record_strategy", schema: SCHEMA, model: MODEL(), maxTokens: 4000, timeoutMs: 180_000, system: SYSTEM, user: `COMPETITOR: ${comp.name}\n\nEVIDENCE${ev.text}` });
-  const read = r ? Read.safeParse(r.data) : null;
+  const ask = () => claudeJson({ label: `strategy ${comp.name}`, tool: "record_strategy", schema: SCHEMA, model: MODEL(), maxTokens: 6000, timeoutMs: 180_000, system: SYSTEM, user: `${usName === comp.name ? "CARRIER (this is our own carrier; leave versusUs empty)" : "COMPETITOR"}: ${comp.name}\n\nEVIDENCE${ev.text}` }).catch(() => null);
+  let r = await ask(), read = r ? Read.safeParse(r.data) : null;
+  // One retry: a busy API or a cut-off reply is usually fine the second time.
+  if (!r || !read?.success) { await new Promise((res) => setTimeout(res, 5000)); r = await ask(); read = r ? Read.safeParse(r.data) : null; }
   if (!r || !read?.success) { if (process.env.ANTHROPIC_API_KEY) await save({ ...c, failedAt: new Date().toISOString() }); return prev; }
   const s: Strategy = { ...read.data, versusUs: usName && usName !== comp.name ? read.data.versusUs : [], generatedAt: new Date().toISOString(), model: r.model, sources: ev.sources };
   await save({ hash, s });
@@ -208,7 +210,7 @@ export async function maybeRefreshStrategies(log: (m: string) => void): Promise<
   busy = true; lastRun = Date.now();
   try {
     for (const w of await db.workspace.findMany({ select: { id: true, ownCompetitorId: true } })) {
-      const comps = await db.competitor.findMany({ where: { workspaceId: w.id, id: { not: w.ownCompetitorId ?? "" } }, select: { id: true, name: true } });
+      const comps = await db.competitor.findMany({ where: { workspaceId: w.id }, select: { id: true, name: true } }); // our own carrier too, for head-to-head
       const before = await storedStrategies(comps.map((c) => c.id));
       for (const c of comps) {
         const s = await strategyFor(w.id, c.id).catch((e) => { log(`[strategy] ${c.name} failed: ${(e as Error).message}`); return null; });
@@ -217,4 +219,24 @@ export async function maybeRefreshStrategies(log: (m: string) => void): Promise<
       }
     }
   } finally { busy = false; }
+}
+
+const writing = new Map<string, number>();
+/** Start a rewrite in the background (the read takes about a minute, too long to hold a page request open). */
+export function startStrategy(workspaceId: string, competitorId: string): void {
+  if (Date.now() - (writing.get(competitorId) ?? 0) < 4 * 60_000) return;
+  writing.set(competitorId, Date.now());
+  void strategyFor(workspaceId, competitorId, { force: true }).catch((e) => console.error(`[strategy] rewrite failed: ${(e as Error).message}`)).finally(() => writing.delete(competitorId));
+}
+export const isWriting = (competitorId: string) => Date.now() - (writing.get(competitorId) ?? 0) < 4 * 60_000;
+
+export type H2HRow = { state: string; segment: string; a: { lives: number | null; pmpm: number | null; lr: number | null }; b: { lives: number | null; pmpm: number | null; lr: number | null } };
+/** Two carriers' latest fully insured members, premium and loss ratio, side by side, wherever either has 1,000+ members. */
+export async function headToHead(workspaceId: string, aName: string, bName: string): Promise<H2HRow[]> {
+  const comps = await db.competitor.findMany({ where: { workspaceId }, select: { id: true, name: true, aliases: true, issuerPattern: true } });
+  const ov = decode(await facts("overview", workspaceId, comps)).filter((o) => o.period === "Latest available" && num(o.lives) != null);
+  const cell = (o?: Record<string, string | number | null>) => ({ lives: num(o?.lives), pmpm: o && num(o.premium) != null && num(o.mm) ? num(o.premium)! / num(o.mm)! : null, lr: o && num(o.claims) != null && num(o.premium) ? num(o.claims)! / num(o.premium)! : null });
+  const keys = [...new Set(ov.filter((o) => o.carrier === aName || o.carrier === bName).map((o) => `${o.state}|${o.segment}`))].sort();
+  return keys.map((k) => { const [state, segment] = k.split("|"); const f = (n: string) => ov.find((o) => o.carrier === n && o.state === state && o.segment === segment); return { state, segment, a: cell(f(aName)), b: cell(f(bName)) }; })
+    .filter((r) => Math.max(r.a.lives ?? 0, r.b.lives ?? 0) >= 1000);
 }
