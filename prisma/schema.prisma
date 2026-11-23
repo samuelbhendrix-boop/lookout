@@ -999,3 +999,14 @@ model SavedPull {
 
   @@index([workspaceId])
 }
+
+/// The private link to a workspace's monthly pack: anyone holding the link can download the workbook, so only its
+/// hash is stored and the link is shown once. One per workspace; making a new one replaces the old.
+model PackLink {
+  id          String    @id @default(cuid())
+  workspaceId String    @unique
+  tokenHash   String    @unique
+  createdBy   String?
+  createdAt   DateTime  @default(now())
+  lastUsedAt  DateTime?
+}

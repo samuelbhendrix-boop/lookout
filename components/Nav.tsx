@@ -23,7 +23,7 @@ const GROUPS: Array<{ id: string; label: string; links: NavLink[] }> = [
       { href: "/networks", label: "Networks" },
     ],
   },
-  { id: "reports", label: "Reports", links: [{ href: "/explore", label: "Data explorer" }, { href: "/reports/launches", label: "Product launches" }, { href: "/reports/filings", label: "State filings (SERFF)" }] },
+  { id: "reports", label: "Reports", links: [{ href: "/explore", label: "Data explorer" }, { href: "/reports/launches", label: "Product launches" }, { href: "/reports/filings", label: "State filings (SERFF)" }, { href: "/reports/pack", label: "Monthly pack" }] },
   { id: "sales", label: "Sales", links: [{ href: "/accounts", label: "In play" }, { href: "/employers", label: "Employers" }] },
   {
     id: "settings", label: "Settings", links: [

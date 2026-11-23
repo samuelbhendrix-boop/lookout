@@ -327,7 +327,7 @@ async function serff(comps: Comp[]): Promise<Facts> {
 
 
 /** Decode a Facts table back into plain objects (dimension values and numbers by key). */
-function decode(f: Facts): Array<Record<string, string | number | null>> {
+export function decode(f: Facts): Array<Record<string, string | number | null>> {
   return f.rows.map((r) => {
     const o: Record<string, string | number | null> = {};
     f.dims.forEach((d, i) => { o[d.key] = r[i] == null ? null : d.values[r[i]!]; });
