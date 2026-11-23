@@ -1010,3 +1010,22 @@ model PackLink {
   createdAt   DateTime  @default(now())
   lastUsedAt  DateTime?
 }
+
+/// The earlier wording of a carrier marketing page, kept each time the monthly crawl finds its text changed, with the
+/// lines that were added and removed. This is how messaging shifts show up as changes.
+model ProductPageVersion {
+  id          String   @id @default(cuid())
+  site        String
+  url         String
+  title       String
+  kind        String
+  text        String   // the wording that was replaced
+  hash        String
+  firstSeenAt DateTime // when the replaced wording first appeared
+  replacedAt  DateTime @default(now())
+  added       Json     // lines in the new wording that weren't in the old
+  removed     Json     // lines in the old wording that are gone
+
+  @@index([site, replacedAt(sort: Desc)])
+  @@index([url])
+}

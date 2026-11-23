@@ -7,7 +7,7 @@ import type { ProductSite } from "./sites";
  * and the PDFs they link (plan summaries, brochures, benefit guides). Plain fetch, one request at a time.
  */
 const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36";
-const MAX_TEXT = 16_000;
+const MAX_TEXT = 40_000;
 const PDF_MAX_BYTES = 15_000_000;
 
 export type CrawledPage = { url: string; title: string; kind: "html" | "pdf"; text: string; score: number; hash: string };
@@ -16,7 +16,7 @@ const GOOD = /plan|product|partner|network|virtual|digital|tier|value|select|cho
 const BAD = /login|log-in|sign-?in|register|careers?|jobs|news|press|blog|article|event|webinar|privacy|terms|legal|accessib|language|contact|faq|search|sitemap|cookie|provider|doctor-finder|find-a-doctor|find-care|pharmacy-?finder|formulary|drug-?list|claims?|payments?|id-?card|forms?\b|login|careers|covid|newsroom|investor|about-us|our-story|community|foundation|espanol|\/es\/|\/es-us\/|\/pt\/|\/zh\//i;
 const MEDICAL_OFF = /medicare|medicaid|masshealth|senior|dual|snp\b|dental|vision|hearing|life-insurance|disability|supplemental|travel|pet/i;
 const PDF_SBC = /sbc|summary-?of-?benefit|sob\b|schedule-?of-?benefit/i;
-const PDF_GOOD = /sbc|summary-?of-?benefit|plan-?summar|benefit-?summar|summary|brochure|overview|guide|highlights|at-a-glance|product|network|plan-?design|sales|portfolio|options|comparison|grid|matrix/i;
+const PDF_GOOD = /sbc|summary-?of-?benefit|plan-?summar|benefit-?summar|summary|brochure|flyer|fact-?sheet|one-?pager|sell-?sheet|overview|guide|highlights|at-a-glance|product|network|plan-?design|sales|portfolio|options|comparison|grid|matrix|bundle|mapping|pairing|what-you-need|case-?study|infographic|playbook/i;
 
 export function urlScore(url: string, anchor = ""): number {
   const s = `${url} ${anchor}`;
@@ -71,20 +71,27 @@ export function htmlText(html: string): { title: string; text: string; root: HTM
 async function pdfText(buf: ArrayBuffer): Promise<string> {
   const { extractText, getDocumentProxy } = await import("unpdf");
   const doc = await getDocumentProxy(new Uint8Array(buf), { verbosity: 0 } as never);
-  if (doc.numPages > 60) return "";
+  if (doc.numPages > 150) return "";
   const { text } = await extractText(doc, { mergePages: true });
   return String(text).replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").slice(0, MAX_TEXT);
 }
 
 const hostOk = (site: ProductSite, u: string) => { try { const h = new URL(u).host; return site.hosts.includes(h) || site.hosts.includes(h.replace(/^www\./, "")) || site.hosts.includes(`www.${h}`); } catch { return false; } };
 const isPdf = (u: string) => /\.pdf($|\?)/i.test(u);
+/**
+ * Documents served without a .pdf ending: Fallon's "/media/Files/….ashx", Harvard Pilgrim's "/documents/broker/…".
+ * These are only candidates; the download is kept only if it really is a PDF.
+ */
+const maybeDoc = (u: string) => { try { const p = new URL(u).pathname; return /\/media\/files\/.+\.as[hp]x$/i.test(p) || /\/documents?\/[^.]+$/i.test(p); } catch { return false; } };
+/** Paperwork, not marketing: forms, notices, instructions, reports. */
+const PDF_SKIP = /formulary|drug|provider-?directory|claim|form\b|_form|notice|privacy|appeal|grievance|enrollment-?form|application|spanish|espanol|fitness|checklist|wire-|payment|calculator|statement|certification|deadline|template|amendment|waiver|authorization|designation|nondiscrimination|accessib|administrative-guide|health-equity|spread|tagline|hospital-?list/i;
 /** Last year's (and older) plan-year material: skipped once the current year's is up. */
 const stale = (u: string) => { const ys = [...u.matchAll(/(?<!\d)(20[12]\d)(?!\d)/g)].map((m) => Number(m[1])); return ys.length > 0 && Math.max(...ys) < new Date().getUTCFullYear(); };
 /** Same document family across plan years and versions: "HMO_Blue_Basic_80-0292CON1-1-27" → "hmo blue basic". */
 const family = (u: string) => decodeURIComponent(u.split("/").pop() ?? u).toLowerCase().replace(/\.pdf.*$/, "").replace(/[^a-z]+/g, " ").replace(/\b(con|v|final|eng?|digital|rev|ma|nh|me|ri|ct|vt)\b/g, " ").replace(/\s+/g, " ").trim().split(" ").slice(0, 4).join(" ");
 
 export async function crawlSite(site: ProductSite, log: (m: string) => void = () => {}): Promise<{ pages: CrawledPage[]; failed: string[] }> {
-  const maxPages = site.maxPages ?? 35, maxPdfs = site.maxPdfs ?? 12;
+  const maxPages = site.maxPages ?? 80, maxPdfs = site.maxPdfs ?? 30, maxDepth = 3;
   const seen = new Set<string>();
   const queue: { url: string; depth: number; score: number }[] = site.roots.map((u) => ({ url: clean(u), depth: 0, score: 100 }));
   const pdfs = new Map<string, { score: number; anchor: string }>();
@@ -102,7 +109,9 @@ export async function crawlSite(site: ProductSite, log: (m: string) => void = ()
     // Meta-refresh landing pages (Harvard Pilgrim's home page is one).
     const refresh = html.length < 2000 && html.match(/http-equiv=["']?refresh["']?[^>]*url=([^"'>\s]+)/i)?.[1];
     if (refresh) { const to = clean(new URL(refresh, r.url).href); if (!seen.has(to)) { seen.add(to); r = await get(to); if (!r) { failed.push(to); continue; } html = await r.text(); } }
-    if (!/html/i.test(r.headers.get("content-type") ?? "html")) continue;
+    const ctype = r.headers.get("content-type") ?? "html";
+    if (/pdf/i.test(ctype)) { if (!PDF_SKIP.test(url) && !MEDICAL_OFF.test(url)) pdfs.set(url, { score: urlScore(url), anchor: "" }); continue; }
+    if (!/html/i.test(ctype)) continue;
     const { title, text, root } = htmlText(html);
     const hash = createHash("sha1").update(text).digest("hex");
     if (text.length > 300 && !hashes.has(hash)) {
@@ -117,16 +126,18 @@ export async function crawlSite(site: ProductSite, log: (m: string) => void = ()
       if (!abs.startsWith("http") || seen.has(abs)) continue;
       const anchor = a.text.replace(/\s+/g, " ").trim().slice(0, 120);
       if (stale(abs)) continue;
-      if (isPdf(abs)) {
+      const loose = !isPdf(abs) && maybeDoc(abs);
+      if (isPdf(abs) || loose) {
         // PDFs may live on a CDN; keep them if the link sits on a crawled page that lists plan or sales material.
-        const docPage = PDF_SBC.test(url) || /marketing|materials|documents|offerings|plans/i.test(url);
-        if (!site.exclude?.test(abs) && !MEDICAL_OFF.test(abs) && !/formulary|drug|provider-?directory|claim|form\b|_form|notice|privacy|appeal|grievance|enrollment-?form|application|spanish|espanol|fitness/i.test(abs) && (PDF_GOOD.test(abs) || PDF_GOOD.test(anchor) || docPage)) {
+        // A document link without a .pdf ending has to look like sales material by its name or link text.
+        const docPage = !loose && (PDF_SBC.test(url) || /marketing|materials|documents|offerings|plans/i.test(url));
+        if (!site.exclude?.test(abs) && !MEDICAL_OFF.test(abs) && !PDF_SKIP.test(abs) && !PDF_SKIP.test(anchor) && (PDF_GOOD.test(abs) || PDF_GOOD.test(anchor) || docPage)) {
           const prev = pdfs.get(abs);
           pdfs.set(abs, { score: Math.max(prev?.score ?? 0, urlScore(abs, anchor)), anchor: prev?.anchor || anchor });
         }
         continue;
       }
-      if (!hostOk(site, abs) || depth >= 2) continue;
+      if (!hostOk(site, abs) || depth >= maxDepth) continue;
       if (site.exclude?.test(abs) || BAD.test(new URL(abs).pathname) || MEDICAL_OFF.test(new URL(abs).pathname)) continue;
       if (site.include && !site.include.test(new URL(abs).pathname)) continue;
       queue.push({ url: abs, depth: depth + 1, score: urlScore(abs, anchor) });
@@ -154,12 +165,13 @@ export async function crawlSite(site: ProductSite, log: (m: string) => void = ()
     try {
       const buf = await r.arrayBuffer();
       if (buf.byteLength > PDF_MAX_BYTES) continue;
+      if (new TextDecoder().decode(buf.slice(0, 5)) !== "%PDF-") continue; // a web page or a Word file behind a document link
       const text = await pdfText(buf);
       if (text.length < 300) continue;
       const hash = createHash("sha1").update(text).digest("hex");
       if (hashes.has(hash)) continue;
       hashes.add(hash);
-      pages.push({ url, title: decodeURIComponent(url.split("/").pop() ?? url).replace(/\.pdf.*$/i, "").replace(/[-_]+/g, " "), kind: "pdf", text, score: urlScore(url), hash });
+      pages.push({ url, title: decodeURIComponent(url.split("/").pop() ?? url).replace(/\.(pdf|as[hp]x).*$/i, "").replace(/[-_]+/g, " "), kind: "pdf", text, score: urlScore(url), hash });
       log(`  pdf: ${url} (${text.length} chars)`);
     } catch { failed.push(url); }
   }

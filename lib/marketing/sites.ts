@@ -35,7 +35,6 @@ export const SITES: ProductSite[] = [
     hosts: ["www.harvardpilgrim.org", "www.tuftshealthplan.com", "tuftshealthplan.com"],
     include: /employer|broker|enroll|plan|product|network|virtual|tier|value|select|individual|famil|small|large|works-better/i,
     exclude: /medicare|senior|together|one-care|direct-plans|ritogether|unify|hphconnect|about-employer-account/i,
-    maxPages: 30,
   },
   {
     key: "mgb", label: "Mass General Brigham Health Plan", match: /mass general brigham|allways/i,
@@ -46,14 +45,14 @@ export const SITES: ProductSite[] = [
   },
   {
     key: "bcbsri", label: "Blue Cross & Blue Shield of Rhode Island", match: /blue cross (&|and) blue shield of rhode island|bcbsri/i,
-    roots: ["https://www.bcbsri.com/employers", "https://www.bcbsri.com/employers/plans/types", "https://www.bcbsri.com/employers/plans/features", "https://www.bcbsri.com/individual/shop", "https://www.bcbsri.com/individual/shop/medical/2027", "https://www.bcbsri.com/individual/choose/network", "https://www.bcbsri.com/brokers"],
+    roots: ["https://www.bcbsri.com/employers", "https://www.bcbsri.com/employers/plans/types", "https://www.bcbsri.com/employers/plans/features", "https://www.bcbsri.com/employers/resources/planmaterials", "https://www.bcbsri.com/individual/shop", "https://www.bcbsri.com/individual/shop/medical/2027", "https://www.bcbsri.com/individual/choose/network", "https://www.bcbsri.com/brokers"],
     hosts: ["www.bcbsri.com"],
-    include: /employers\/(plans|programs)|individual\/(shop|choose)|brokers|plan|network/i,
+    include: /employers\/(plans|programs|resources\/planmaterials)|individual\/(shop|choose)|brokers|plan|network/i,
     exclude: /member\/|BCBSRIWeb|medicare/i,
   },
   {
     key: "anthem", label: "Anthem (Elevance Health)", match: /anthem|elevance/i,
-    roots: ["https://www.anthem.com/employer/small-business-health-insurance/medical-insurance", "https://www.anthem.com/employer/large-group-health-insurance/medical-insurance", "https://www.anthem.com/employer/national-health-insurance-plans", "https://www.anthem.com/individual-and-family/health-insurance", "https://www.anthem.com/producer/products", "https://www.anthem.com/employer/the-benefits-guide"],
+    roots: ["https://www.anthem.com/employer/small-business-health-insurance/medical-insurance", "https://www.anthem.com/employer/large-group-health-insurance/medical-insurance", "https://www.anthem.com/employer/national-health-insurance-plans", "https://www.anthem.com/employer/large-group-health-insurance/medical-insurance/alternative-health-plans", "https://www.anthem.com/employer/industry-solutions/labor-and-trust", "https://www.anthem.com/producer/tools-and-support", "https://www.anthem.com/individual-and-family/health-insurance", "https://www.anthem.com/producer/products", "https://www.anthem.com/employer/the-benefits-guide"],
     hosts: ["www.anthem.com"],
     include: /employer|individual-and-family\/health|producer\/products|ct|maine|new-hampshire|network|plan/i,
     exclude: /medicare|medicaid|dental|vision|supplemental|travel|\/es\/|the-benefits-guide\/|behavioral|wellness|pharmacy|students|federal-employee|request-a-quote|employee-benefits-programs/i,
@@ -67,9 +66,9 @@ export const SITES: ProductSite[] = [
   },
   {
     key: "aetna", label: "Aetna", match: /aetna/i,
-    roots: ["https://www.aetna.com/employers-organizations.html", "https://www.aetna.com/solutions/segment/small-business.html", "https://www.aetna.com/solutions/segment/large-group-business.html", "https://www.aetna.com/health-insurance-plans.html", "https://www.aetna.com/individuals-families/health-insurance-through-work/network.html"],
+    roots: ["https://www.aetna.com/employers-organizations.html", "https://www.aetna.com/solutions/segment/small-business.html", "https://www.aetna.com/solutions/segment/large-group-business.html", "https://www.aetna.com/solutions/segment/national-accounts.html", "https://www.aetna.com/solutions/industry/public-sector.html", "https://www.aetna.com/solutions/industry/multi-employer-labor-funds.html", "https://www.aetna.com/insurance-producer.html", "https://www.aetna.com/health-insurance-plans.html", "https://www.aetna.com/individuals-families/health-insurance-through-work/network.html"],
     hosts: ["www.aetna.com"],
-    include: /employers-organizations|solutions\/segment|health-insurance-plans|network|funding|level|whole-health|choice|open-access|virtual|plan/i,
+    include: /employers-organizations|solutions\/(segment|industry)|insurance-producer|health-insurance-plans|network|funding|level|whole-health|choice|open-access|virtual|plan/i,
     exclude: /medicare|medicaid|dental|vision|supplemental|international|retiree|find-a-medication|pharmacy|crisis|lgbtq|glp1|gcit/i,
   },
   {
@@ -113,7 +112,7 @@ export const SITES: ProductSite[] = [
     hosts: ["www.nhpri.org"],
     include: /individual-family|small-business|employer|commercial|plan-?summary|shop/i,
     exclude: /rite-?care|medicaid|integrity|unity|medicare/i,
-    maxPages: 15,
+    maxPages: 30,
   },
   {
     key: "ambetter", label: "Ambetter (Centene)", match: /centene|ambetter/i,
@@ -121,13 +120,13 @@ export const SITES: ProductSite[] = [
     hosts: ["www.ambetterhealth.com"],
     include: /health-plans|\/nh\/|virtual|ways-to-save|what-is/i,
     exclude: /knowledge-center|broker-portal|\/es\//i,
-    maxPages: 20,
+    maxPages: 40,
   },
   {
     key: "taro", label: "Taro Health (Mending)", match: /taro|mending/i,
     roots: ["https://www.mending.com/", "https://www.mending.com/benefit-leaders-health-plans"],
     hosts: ["www.mending.com", "mending.com", "www.tarohealth.com"],
-    maxPages: 20,
+    maxPages: 40,
   },
   {
     key: "oscar", label: "Oscar Health", match: /oscar/i,
@@ -135,7 +134,7 @@ export const SITES: ProductSite[] = [
     hosts: ["www.hioscar.com"],
     include: /get-coverage|for-employers|brokers\/plans|virtual|choice|ichra/i,
     exclude: /blog|faqs|events|training|regional-sales|medicare/i,
-    maxPages: 20,
+    maxPages: 40,
   },
   { key: "humana", label: "Humana", match: /humana/i, roots: [], hosts: [], skip: "Left the employer group commercial market in 2025; no New England commercial products." },
   { key: "kaiser", label: "Kaiser Permanente", match: /kaiser/i, roots: [], hosts: [], skip: "No New England commercial products." },

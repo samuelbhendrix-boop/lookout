@@ -11,7 +11,7 @@ import { SITES } from "./sites";
  * Cached until the pages change.
  */
 const MODEL = () => process.env.MARKETING_MODEL ?? "claude-sonnet-5-5";
-const BUDGET = 110_000; // characters of source text per carrier
+const BUDGET = 320_000; // characters of source text per carrier
 
 const NETWORKS = ["broad", "national", "tiered", "limited", "system-anchored", "regional", "unknown"] as const;
 const Partner = z.object({ name: z.string(), role: z.string().nullish(), source: z.string().nullish() });
@@ -86,10 +86,11 @@ Partners: name only companies the pages or NEWS lines actually name as working w
 
 function corpus(pages: Array<{ url: string; title: string; kind: string; text: string; score: number }>): string {
   const sorted = [...pages].sort((a, b) => Number(a.kind === "pdf") - Number(b.kind === "pdf") || b.score - a.score);
-  const per = Math.max(2500, Math.floor(BUDGET / Math.max(1, sorted.length)));
+  // Every document gets an equal share of the budget (so a long crawl doesn't crowd out the brochures at the end).
+  const per = Math.max(1500, Math.floor((BUDGET - 200 * sorted.length) / Math.max(1, sorted.length)));
   let out = "";
   for (const p of sorted) {
-    const chunk = `\n\n=== ${p.kind.toUpperCase()} ${p.url}\nTITLE: ${p.title}\n${p.text.slice(0, p.kind === "pdf" ? Math.min(per, 6000) : Math.max(per, 4000))}`;
+    const chunk = `\n\n=== ${p.kind.toUpperCase()} ${p.url}\nTITLE: ${p.title}\n${p.text.slice(0, Math.min(per, p.kind === "pdf" ? 6000 : 8000))}`;
     if (out.length + chunk.length > BUDGET) continue;
     out += chunk;
   }

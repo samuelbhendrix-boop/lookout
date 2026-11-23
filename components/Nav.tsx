@@ -11,7 +11,7 @@ const GROUPS: Array<{ id: string; label: string; links: NavLink[] }> = [
   {
     id: "review", label: "Market review", links: [
       { href: "/updates", label: "Updates" },
-      { href: "/competitors", label: "Competitors", children: [{ href: "/competitors", label: "Overview" }, { href: "/competitors/products", label: "Products" }] },
+      { href: "/competitors", label: "Competitors", children: [{ href: "/competitors", label: "Overview" }, { href: "/competitors/products", label: "Products" }, { href: "/competitors/website-changes", label: "Website changes" }] },
       { href: "/market", label: "Market" },
       { href: "/ai-watch", label: "AI watch" },
     ],

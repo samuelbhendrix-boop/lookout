@@ -2,6 +2,7 @@ import ExcelJS from "exceljs";
 import { createHash, randomBytes } from "crypto";
 import { db } from "@/lib/db";
 import { decode, facts } from "@/lib/explore";
+import { SITES } from "@/lib/marketing/sites";
 
 /**
  * The monthly pack: the site's headline tables as one Excel workbook, built for an assistant (Microsoft 365 Copilot
@@ -32,12 +33,13 @@ export const newToken = () => randomBytes(32).toString("base64url");
 
 export async function buildPack(workspaceId: string): Promise<{ buffer: Buffer; brief: string[] }> {
   const since = new Date(Date.now() - WINDOW_DAYS * 864e5);
-  const [ws, comps, filings, news, events] = await Promise.all([
+  const [ws, comps, filings, news, events, reworded] = await Promise.all([
     db.workspace.findUnique({ where: { id: workspaceId }, select: { name: true, ownCompetitorId: true } }),
     db.competitor.findMany({ where: { workspaceId }, select: { id: true, name: true, aliases: true, issuerPattern: true } }),
     db.serffFiling.findMany({ orderBy: [{ submitted: "desc" }, { createdAt: "desc" }], select: { tracking: true, state: true, company: true, market: true, planYear: true, filingType: true, disposition: true, submitted: true, newProduct: true, detail: true, createdAt: true } }),
     db.aiNews.findMany({ where: { relevant: true, publishedAt: { gte: since } }, orderBy: [{ impact: "desc" }, { publishedAt: "desc" }], take: 300, select: { title: true, outlet: true, category: true, impact: true, why: true, url: true, publishedAt: true } }),
     db.marketEvent.findMany({ where: { occurredAt: { gte: since } }, orderBy: [{ importance: "desc" }, { occurredAt: "desc" }], take: 1000, select: { kind: true, carrier: true, state: true, title: true, summary: true, importance: true, occurredAt: true } }),
+    db.productPageVersion.findMany({ where: { replacedAt: { gte: since } }, orderBy: { replacedAt: "desc" }, take: 300, select: { site: true, url: true, title: true, kind: true, replacedAt: true, added: true, removed: true } }),
   ]);
   const us = comps.find((c) => c.id === ws?.ownCompetitorId)?.name ?? null;
   const isUs = (c: unknown) => (us ? (c === us ? "Yes" : "No") : null);
@@ -84,6 +86,9 @@ export async function buildPack(workspaceId: string): Promise<{ buffer: Buffer; 
   const newsRows = news.map((x): Cell[] => [x.publishedAt, x.title, x.outlet, x.category, x.impact ? IMPACT[x.impact] ?? null : null, x.why, x.url]);
   const eventRows = events.map((e): Cell[] => [e.occurredAt, kind(e.kind), e.carrier, e.state, e.title, e.summary, e.importance]);
 
+  const strs = (j: unknown) => (Array.isArray(j) ? j.filter((x): x is string => typeof x === "string") : []);
+  const rewordedRows = reworded.map((v): Cell[] => [v.replacedAt, SITES.find((x) => x.key === v.site)?.label ?? v.site, v.title, v.kind === "pdf" ? "Document" : "Web page", strs(v.added).slice(0, 12).join(" | ").slice(0, 6000) || null, strs(v.removed).slice(0, 12).join(" | ").slice(0, 6000) || null, v.url]);
+
   const tabs: Tab[] = [
     { name: "Carrier overview", holds: "Every carrier on one row per state and segment, with the latest figure from each source side by side.", source: ovF.notes[0],
       cols: [{ h: "State", w: 8 }, { h: "Segment", w: 14 }, { h: "Carrier", w: 36 }, { h: "Is us", w: 8 }, { h: "Fully insured members", fmt: "int" }, { h: "Premium per member per month", fmt: "usd" }, { h: "Loss ratio", fmt: "pct" }, { h: "Self-funded members", fmt: "int" }, { h: "Employer accounts", fmt: "int" }, { h: "Employer premium per person per month", fmt: "usd" }, { h: "Plans filed", fmt: "int" }, { h: "Members in filed plans", fmt: "int" }, { h: "Filed rate change", fmt: "pct" }], rows: latest },
@@ -101,6 +106,8 @@ export async function buildPack(workspaceId: string): Promise<{ buffer: Buffer; 
       cols: [{ h: "Published", fmt: "date" }, { h: "Headline", w: 80 }, { h: "Outlet", w: 24 }, { h: "Category", w: 26 }, { h: "Impact", w: 12 }, { h: "Why it matters", w: 100 }, { h: "Link", w: 50 }], rows: newsRows },
     { name: "Changes this month", holds: `Market changes Payersight detected in the last ${WINDOW_DAYS} days: accounts won and lost, rate filings, negotiated-rate changes and network changes.`, source: "Detected by comparing each month's filings and price files with the month before. A higher importance number means a bigger change. Rate filings are dated by the day the new rates take effect, so some dates are in the future.",
       cols: [{ h: "Date", fmt: "date" }, { h: "Type", w: 18 }, { h: "Carrier", w: 36 }, { h: "State", w: 8 }, { h: "What happened", w: 80 }, { h: "Detail", w: 120 }, { h: "Importance", w: 12 }], rows: eventRows },
+    { name: "Website changes", holds: `Carrier marketing pages and brochures whose wording changed in the last ${WINDOW_DAYS} days, with the lines added and removed.`, source: "Monthly read of each carrier's public commercial product pages and documents. Pages behind a broker or employer login are not read.",
+      cols: [{ h: "Changed", fmt: "date" }, { h: "Carrier", w: 36 }, { h: "Page", w: 50 }, { h: "Type", w: 12 }, { h: "Wording added", w: 120 }, { h: "Wording removed", w: 120 }, { h: "Link", w: 50 }], rows: rewordedRows },
   ];
 
   // ── Brief: the month in sentences ──
@@ -119,6 +126,7 @@ export async function buildPack(workspaceId: string): Promise<{ buffer: Buffer; 
       brief.push(`${us}, ${o.state} large group, fully insured: ${num(n(o.lives))} members, rank ${peers.findIndex((x) => x.carrier === us) + 1} of ${peers.length} carriers; premium ${div(o.premium, o.mm) == null ? "n/a" : `$${num(div(o.premium, o.mm))}`} per member per month; loss ratio ${pct(div(o.claims, o.premium))}.`);
     }
   }
+  if (reworded.length) brief.push(`Carrier websites: ${reworded.length} marketing pages or documents were reworded in the last ${WINDOW_DAYS} days (${[...new Set(reworded.map((v) => SITES.find((x) => x.key === v.site)?.label ?? v.site))].slice(0, 6).join(", ")}). See the Website changes tab.`);
   const recent = filings.filter((f) => f.createdAt >= since);
   brief.push(`State filings loaded: ${filings.length}${recent.length ? `, ${recent.length} added in the last ${WINDOW_DAYS} days` : ""}.`);
   for (const f of recent.slice(0, 6)) if (det(f.detail).headline) brief.push(`Filing · ${f.company ?? f.tracking}${f.market ? `, ${f.market}` : ""}${f.planYear ? ` ${f.planYear}` : ""}: ${det(f.detail).headline}`);

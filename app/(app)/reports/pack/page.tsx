@@ -16,6 +16,7 @@ const TABS: Array<[string, string]> = [
   ["State filings", "Loaded SERFF filings with takeaways"],
   ["AI watch", "AI news that matters to insurers, last 35 days"],
   ["Changes this month", "Accounts won and lost, rate and network changes, last 35 days"],
+  ["Website changes", "Carrier marketing pages that were reworded, with the lines added and removed"],
 ];
 const day = (d: Date | null | undefined) => (d ? d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : null);
 
