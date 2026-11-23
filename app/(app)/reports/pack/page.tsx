@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { getSession, hasRole } from "@/lib/auth";
-import { PACK_FILENAME } from "@/lib/pack";
+import { PACK_NAME, packFilename } from "@/lib/pack";
 import { PackLink } from "@/components/PackLink";
 
 export const dynamic = "force-dynamic";
@@ -30,7 +30,7 @@ export default async function PackPage() {
       </div>
       <section className="card space-y-3 p-5">
         <h2 className="font-semibold">Download</h2>
-        <p className="text-sm text-stone-600">Save it to the same OneDrive or SharePoint folder each month and let it replace last month&apos;s copy. The file is always named “{PACK_FILENAME}”, so a saved prompt keeps pointing at the latest one.</p>
+        <p className="text-sm text-stone-600">Save it to the same OneDrive or SharePoint folder each month. Each download is named with the day you pulled it, so today&apos;s is “{packFilename()}” and the copies sort in date order.</p>
         <a href="/api/pack" className="btn inline-block">Download this month&apos;s pack</a>
       </section>
       <section className="card space-y-3 p-5">
@@ -49,7 +49,7 @@ export default async function PackPage() {
       </section>
       <section className="card space-y-2 p-5">
         <h2 className="font-semibold">A prompt to save in Copilot</h2>
-        <p className="rounded bg-stone-50 p-3 text-sm text-stone-700">Using the file “{PACK_FILENAME}”, summarise what changed for our competitors this month. Start with the Brief tab, then use Changes this month and Carrier overview for the numbers. Say which tab each figure comes from.</p>
+        <p className="rounded bg-stone-50 p-3 text-sm text-stone-700">Using the most recent file whose name starts with “{PACK_NAME}”, summarise what changed for our competitors this month. Start with the Brief tab, then use Changes this month and Carrier overview for the numbers. Say which tab each figure comes from.</p>
       </section>
     </div>
   );

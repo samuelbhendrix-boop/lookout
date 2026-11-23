@@ -7,9 +7,12 @@ import { decode, facts } from "@/lib/explore";
  * The monthly pack: the site's headline tables as one Excel workbook, built for an assistant (Microsoft 365 Copilot
  * and the like) that can't sign in here. Every tab is a plain Excel table with one header row; "Read me" says what each
  * tab holds and where it comes from, and "Brief" puts the month's main changes in sentences. Built on demand, so it is
- * always current. The file name never changes, so a saved prompt keeps pointing at the latest copy.
+ * always current. Each pull is named with the day it was made (Eastern time), so copies sit side by side in date order.
  */
-export const PACK_FILENAME = "Payersight monthly pack.xlsx";
+export const PACK_NAME = "Payersight monthly pack";
+/** Today in Eastern time, as YYYY-MM-DD: the date stamped on the file name and the Read me tab. */
+export const packDate = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(new Date());
+export const packFilename = () => `${PACK_NAME} ${packDate()}.xlsx`;
 const WINDOW_DAYS = 35; // "this month", with a few days' overlap so nothing falls between two pulls
 
 type Cell = string | number | Date | null;
@@ -128,7 +131,7 @@ export async function buildPack(workspaceId: string): Promise<{ buffer: Buffer; 
   wb.creator = "Payersight"; wb.created = new Date();
   const info = wb.addWorksheet("Read me");
   info.columns = [{ width: 28 }, { width: 90 }, { width: 110 }, { width: 10 }];
-  const head = [["Payersight monthly pack", ""], ["Generated", new Date().toISOString().slice(0, 10)], ["Workspace", ws?.name ?? ""], ["Our carrier (rows marked “Is us”)", us ?? "Not set"], ["How to use", "Each tab is one table with one header row. Money is in US dollars, percentages are stored as fractions and shown as percent, and blank means not reported. The Brief tab summarises the month in sentences."]];
+  const head = [[`${PACK_NAME} ${packDate()}`, ""], ["Generated", packDate()], ["Workspace", ws?.name ?? ""], ["Our carrier (rows marked “Is us”)", us ?? "Not set"], ["How to use", "Each tab is one table with one header row. Money is in US dollars, percentages are stored as fractions and shown as percent, and blank means not reported. The Brief tab summarises the month in sentences."]];
   head.forEach((r) => info.addRow(r));
   info.getRow(1).font = { bold: true, size: 14 };
   info.addRow([]);
@@ -150,4 +153,4 @@ export async function buildPack(workspaceId: string): Promise<{ buffer: Buffer; 
   return { buffer: Buffer.from(await wb.xlsx.writeBuffer()), brief };
 }
 
-export const packResponse = (buffer: Buffer) => new Response(new Uint8Array(buffer), { headers: { "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "Content-Disposition": `attachment; filename="${PACK_FILENAME}"`, "Cache-Control": "no-store" } });
+export const packResponse = (buffer: Buffer) => new Response(new Uint8Array(buffer), { headers: { "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "Content-Disposition": `attachment; filename="${packFilename()}"`, "Cache-Control": "no-store" } });
