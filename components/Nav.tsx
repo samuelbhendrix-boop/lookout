@@ -19,7 +19,7 @@ const GROUPS: Array<{ id: string; label: string; links: NavLink[] }> = [
   {
     id: "pricing", label: "Networks & pricing", links: [
       { href: "/leverage", label: "Leverage" },
-      { href: "/rates", label: "Prices", children: [{ href: "/rates", label: "Compare hospitals" }, { href: "/rates/explore", label: "Explore a code" }] },
+      { href: "/rates", label: "Prices", children: [{ href: "/rates", label: "Compare hospitals" }, { href: "/rates/explore", label: "Explore a code" }, { href: "/rates/download", label: "Download tables" }] },
       { href: "/networks", label: "Networks" },
     ],
   },
